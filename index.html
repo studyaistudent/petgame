@@ -209,7 +209,6 @@ const firebaseConfig={
   appId:"1:407791945317:web:d722d58e03b26a55cba88c",
   measurementId: "G-9VYYWKRVGG"
 };
-
 firebase.initializeApp(firebaseConfig);
 const db=firebase.firestore();
 const analytics=firebase.analytics();
@@ -253,6 +252,7 @@ const MI={
   ISFP:{n:"모험가",d:"유연하고 매력적인 예술가. 항상 새로운 것을 탐색하고 경험합니다."},
   ESFP:{n:"연예인",d:"즉흥적이고 활기차며 열정. 주변을 즐겁게 만들어줍니다."},
   ISTP:{n:"장인",d:"대담하고 실용적인 실험가. 온갖 도구를 자유자재로 다룹니다."},
+  
   ESTP:{n:"사업가",d:"영리하고 에너지 넘치는 인식자. 위험을 즐기며 즉각적으로 행동합니다."},
   ISFJ:{n:"수호자",d:"헌신적이고 따뜻한 보호자. 사랑하는 사람을 지키기 위해 항상 준비됩니다."},
   ESFJ:{n:"집정관",d:"배려심이 넘치는 사교적인 사람. 항상 다른 사람을 돕고 싶어합니다."},
@@ -294,7 +294,6 @@ const QS=[
 const OPP={E:"I",I:"E",S:"N",N:"S",T:"F",F:"T",J:"P",P:"J"};
 const OPTS=[{v:2,l:"매우 그렇다"},{v:1,l:"그렇다"},{v:0,l:"보통이다"},{v:-1,l:"그렇지 않다"},{v:-2,l:"전혀 그렇지 않다"}];
 const DIM_LABELS={EI:"에너지 방향",SN:"인식 방식",TF:"판단 기준",JP:"생활 양식"};
- 
 /* ─── BALANCE GAME QUESTIONS (20) ─── */
 const BQ=[
   {id:1, a:"🍜 짜장면", b:"🌶️ 짬뽕"}, {id:2, a:"🏖️ 바다", b:"⛰️ 산"}, {id:3, a:"☀️ 여름", b:"❄️ 겨울"}, {id:4, a:"🍗 치킨", b:"🍕 피자"},
@@ -305,31 +304,30 @@ const BQ=[
   {id:17, a:"🧘 연애 중 각자 시간 중요", b:"💑 항상 같이 있고 싶어"}, {id:18, a:"🍺 술자리 친목", b:"☕ 조용한 카페"}, {id:19, a:"💒 결혼 빨리", b:"🌹 연애 오래 즐기기"},
   {id:20, a:"🐱 고양이 파", b:"🐶 강아지 파"},
 ];
- 
 /* ─── DATING TENDENCY QUESTIONS (20) ─── */
 const DQ=[
   {id:1,  q:"연락 스타일은?",              a:"📱 아침저녁 안부 문자 필수",    b:"💬 생각날 때 자유롭게"},
   {id:2,  q:"기념일 챙기기는?",            a:"🎂 모든 기념일 다 챙겨",         b:"🎁 생일이랑 큰 날만"},
-  {id:3,  q:"질투심은?",                   a:"😤 질투심 있는 편",              b:"😎 자유로운 편"},
+  {id:3,  q:"질투심은?",                   a:"😤 질투심 있는 편",               b:"😎 자유로운 편"},
   {id:4,  q:"싸운 후엔?",                  a:"🤝 바로 화해하고 싶어",          b:"🕐 시간이 좀 필요해"},
   {id:5,  q:"데이트 비용은?",              a:"⚖️ 더치페이",                     b:"🔄 번갈아 내기"},
   {id:6,  q:"SNS 커플 인증은?",            a:"📸 자주 올려!",                   b:"🤫 우리만 알면 돼"},
   {id:7,  q:"스킨십 스타일은?",            a:"💕 적극적으로!",                  b:"🌸 소극적으로"},
-  {id:8,  q:"이상형 우선순위는?",          a:"👀 외모가 우선",                  b:"💖 성격이 우선"},
+  {id:8,  q:"이상형 우선순위는?",          a:"👀 외모가 우선",                   b:"💖 성격이 우선"},
   {id:9,  q:"사랑 표현 방식은?",           a:"💬 말로 자주 표현",               b:"🎯 행동으로 보여주기"},
   {id:10, q:"여행 스타일은?",              a:"🧳 커플여행 자주 가기",           b:"🏠 가끔 특별하게"},
   {id:11, q:"파트너 친구와는?",            a:"🥂 다같이 친하게 지내기",         b:"🤝 각자 친구는 따로"},
   {id:12, q:"취미 활동은?",               a:"🎮 같이 하는 취미 중요",          b:"🎨 각자 취미도 중요"},
   {id:13, q:"미래 이야기는?",              a:"🏡 일찍 미래 계획 이야기",        b:"🌊 흘러가는 대로"},
-  {id:14, q:"파트너 과거 연애는?",         a:"🔍 알고 싶어",                    b:"🙈 알고 싶지 않아"},
+  {id:14, q:"파트너 과거 연애는?",         a:"🔍 알고 싶어",                     b:"🙈 알고 싶지 않아"},
   {id:15, q:"화났을 때는?",               a:"💬 바로 말하기",                  b:"🤐 혼자 삭히기"},
   {id:16, q:"연애 우선순위는?",            a:"💑 연애가 1순위",                 b:"💼 일/공부도 중요해"},
+  
   {id:17, q:"데이트 스타일은?",            a:"🏠 집에서 같이 있기",             b:"🎡 밖에 나가서 즐기기"},
   {id:18, q:"선물 취향은?",               a:"💎 가치 있는 선물",               b:"✉️ 정성 가득 소품"},
   {id:19, q:"파트너 핸드폰은?",            a:"📱 투명하게 보여줄 수 있어",      b:"🔒 서로 프라이버시 중요"},
   {id:20, q:"이상적인 미래는?",            a:"💒 결혼 빨리 하고 싶어",          b:"🌹 연애 오래 즐기고 싶어"},
 ];
- 
 /* ═══════════════════════════════════════
    STATE (area 추가됨)
 ═══════════════════════════════════════ */
@@ -347,8 +345,8 @@ let S={
   tab:"board",
   isAdmin:false,pwErr:"",
   loading:true,
+  editId:null
 };
- 
 /* Persist identity in localStorage */
 (()=> {
   try{
@@ -366,7 +364,6 @@ let S={
     if(d) S.myDatEntry=d;
   }catch(e){}
 })();
- 
 /* ═══════════════════════════════════════
    HELPERS
 ═══════════════════════════════════════ */
@@ -501,6 +498,16 @@ async function delAllMBTI(){
   s.docs.forEach(d=>b.delete(d.ref));await b.commit();
   S.selM=S.selF=null;
 }
+
+async function updateParticipant(id, newData) {
+  try {
+    await mbtiCol.doc(id).update(newData);
+    S.editId = null; 
+  } catch (e) {
+    console.error(e);
+    alert("정보 수정 중 오류가 발생했습니다.");
+  }
+}
  
 /* ═══════════════════════════════════════
    RENDER ENGINE
@@ -562,7 +569,7 @@ function rHome(){
         <button class="btn ${S.gender==="남성"?"btn-sel":""}" style="flex:1;padding:11px" data-a="gender" data-v="남성">👨 남성</button>
         <button class="btn ${S.gender==="여성"?"btn-sel":""}" style="flex:1;padding:11px" data-a="gender" data-v="여성">👩 여성</button>
       </div>
-      ${S.err?`<p style="font-size:13px;color:#C62828;margin:8px 0 0; font-weight:500;">⚠️ ${S.err}</p>`:""}
+      ${S.err?`<p style="font-size:13px;color:#C62828;margin:8px 0 0;font-weight:500;">⚠️ ${S.err}</p>`:""}
     </div>
  
     <div class="card" style="margin-bottom:10px">
@@ -582,7 +589,8 @@ function rHome(){
  
 /* ─── MBTI TEST VIEW ─── */
 function rMBTITest(){
-  const q=QS[S.qIdx]; const pct=Math.round((S.qIdx/QS.length)*100);
+  const q=QS[S.qIdx];
+  const pct=Math.round((S.qIdx/QS.length)*100);
   return`<div style="max-width:480px;margin:0 auto;padding:.5rem 0" class="fadein">
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px">
       <button class="btn" style="padding:6px 10px" data-a="testBack">←</button>
@@ -674,6 +682,7 @@ function rBalResult(){
           <div style="font-size:11px;color:var(--text3)">왼쪽 선택</div>
         </div>
         <div style="text-align:center">
+   
           <div style="font-size:36px;font-weight:700;color:var(--plum)">${bC}</div>
           <div style="font-size:11px;color:var(--text3)">오른쪽 선택</div>
         </div>
@@ -771,6 +780,7 @@ function rBoardTab(){
         </div>
         <div style="font-size:11.5px;color:var(--text2);display:flex;flex-direction:column;gap:2px">
           ${e.freeTime?`<span>⏰ ${esc(e.freeTime)}</span>`:""}
+ 
           ${e.idealType?`<span>💝 ${esc(e.idealType)}</span>`:""}
           ${e.appeal?`<span>✨ ${esc(e.appeal)}</span>`:""}
         </div>
@@ -781,6 +791,7 @@ function rBoardTab(){
       </div>
       <div style="text-align:right;flex-shrink:0">
         <div style="font-weight:700;font-size:15px;color:var(--rose2);letter-spacing:1.5px">${esc(e.mbti)}</div>
+      
         <div style="font-size:11px;color:var(--text3);margin-top:1px">${esc(e.giDol||"")}</div>
         ${roseCount>0?`<div class="rose-badge" style="margin-top:4px">🌹 ×${roseCount}</div>`:""}
       </div>
@@ -794,9 +805,7 @@ function rCompatTab(){
   const females=S.entries.filter(e=>e.gender==="여성");
   const mList=males.length===0?`<p style="font-size:12px;color:var(--text3);padding:6px">남성 참여자 없음</p>`:males.map(e=>`<button class="btn ${S.selM?.id===e.id?"btn-sel":""}" style="padding:8px 10px;text-align:left;width:100%;font-size:12.5px" data-a="selM" data-id="${e.id}"><span style="font-weight:500">${esc(shortNick(e.nick))}</span><span style="font-size:11px;margin-left:4px;opacity:.7">${esc(e.mbti)}</span></button>`).join("");
   const fList=females.length===0?`<p style="font-size:12px;color:var(--text3);padding:6px">여성 참여자 없음</p>`:females.map(e=>`<button class="btn ${S.selF?.id===e.id?"btn-sel":""}" style="padding:8px 10px;text-align:left;width:100%;font-size:12.5px" data-a="selF" data-id="${e.id}"><span style="font-weight:500">${esc(shortNick(e.nick))}</span><span style="font-size:11px;margin-left:4px;opacity:.7">${esc(e.mbti)}</span></button>`).join("");
-  
   let resultHTML=`<div class="card" style="text-align:center;padding:2rem"><div style="font-size:36px;margin-bottom:8px">💘</div><p style="color:var(--text2);font-size:13.5px">남성과 여성을 선택하면<br>MBTI · 밸런스 · 연애성향 궁합을 모두 볼 수 있어요</p></div>`;
-  
   if(S.selM&&S.selF){
     const mbtiCl=getMBTICompat(S.selM.mbti,S.selF.mbti); const mbtiInfo=mbtiCl?CM[mbtiCl]:null;
     const mBal=S.balEntries.find(e=>e.nick===S.selM.nick); const fBal=S.balEntries.find(e=>e.nick===S.selF.nick);
@@ -809,7 +818,6 @@ function rCompatTab(){
     const mbtiRow=mbtiInfo?`<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border)"><span style="font-size:13px;color:var(--text2);flex:1">🧠 MBTI (${esc(S.selM.mbti)} × ${esc(S.selF.mbti)})</span><div class="sbar"><div class="sbar-fill" style="width:${mbtiInfo.score}%"></div></div><span style="font-size:13px;font-weight:700;color:var(--rose2);width:38px;text-align:right">${mbtiInfo.score}점</span></div><p style="font-size:12px;color:var(--text3);margin:3px 0 6px">${mbtiInfo.label}</p>`:`<p style="font-size:12px;color:var(--text3);padding:8px 0;border-bottom:1px solid var(--border)">🧠 MBTI — 두 분 모두 검사 필요</p>`;
     const balRow=balPct!==null?`<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border)"><span style="font-size:13px;color:var(--text2);flex:1">⚖️ 밸런스 게임</span><div class="sbar"><div class="sbar-fill" style="width:${balPct}%"></div></div><span style="font-size:13px;font-weight:700;color:var(--rose2);width:38px;text-align:right">${balPct}%</span></div><p style="font-size:12px;color:var(--text3);margin:3px 0 6px">${pctLabel(balPct)}</p>`:`<p style="font-size:12px;color:var(--text3);padding:8px 0;border-bottom:1px solid var(--border)">⚖️ 밸런스 — 두 분 모두 참여 필요</p>`;
     const datRow=datPct!==null?`<div style="display:flex;align-items:center;gap:10px;padding:10px 0"><span style="font-size:13px;color:var(--text2);flex:1">💕 연애 성향</span><div class="sbar"><div class="sbar-fill" style="width:${datPct}%"></div></div><span style="font-size:13px;font-weight:700;color:var(--rose2);width:38px;text-align:right">${datPct}%</span></div><p style="font-size:12px;color:var(--text3);margin:3px 0">${pctLabel(datPct)}</p>`:`<p style="font-size:12px;color:var(--text3);padding:8px 0">💕 연애 성향 — 두 분 모두 참여 필요</p>`;
-    
     resultHTML=`<div class="card card-rose" style="margin-bottom:8px">
       <p style="font-size:13px;color:var(--text2);margin:0 0 12px;text-align:center"><b>${esc(shortNick(S.selM.nick))}</b> × <b>${esc(shortNick(S.selF.nick))}</b></p>
       ${avg!==null?`<div style="text-align:center;margin-bottom:14px"><div style="font-size:52px;font-weight:700;background:linear-gradient(135deg,var(--rose),var(--plum));-webkit-background-clip:text;-webkit-text-fill-color:transparent;line-height:1">${avg}<span style="font-size:24px">점</span></div><p style="font-size:12px;color:var(--text3);margin:4px 0 10px">종합 궁합 점수</p><div class="prog" style="height:8px;margin-bottom:4px"><div class="prog-fill" style="width:${avg}%"></div></div></div>`:""}
@@ -843,20 +851,23 @@ function rRoseTab(){
     </div>`;
   } else {
     const targetList=remaining>0
-      ? (targets.length===0
+      ?
+        (targets.length===0
           ? `<p style="font-size:13px;color:var(--text3);text-align:center;padding:.8rem 0">이성 참여자가 없어요</p>`
           : targets.map(e=>{
               const alreadySent=sentToday.some(r=>r.receiver===e.nick); const rc=byReceiver[e.nick]||0;
               return`<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border:1.5px solid var(--border);border-radius:10px;margin-bottom:7px;background:white">
                 <div>
                   <span style="font-weight:600;font-size:14px">${esc(shortNick(e.nick))}</span>
+    
                   <span style="font-size:11px;color:var(--text3);margin-left:6px">${esc(e.area||"미정")} · ${esc(e.mbti)}</span>
                   ${rc>0?`<span class="rose-badge" style="margin-left:5px">🌹 ×${rc}</span>`:""}
                 </div>
                 ${alreadySent?`<span style="font-size:12px;color:var(--rose);background:var(--rose-lt);padding:5px 12px;border-radius:99px">💕 보냈어요</span>`
-                            :`<button class="btn btn-plum" style="padding:6px 14px;font-size:12px" data-a="giveRose" data-recv="${esc(e.nick)}" data-rg="${esc(e.gender)}">🌹 보내기</button>`}
+                           
+  :`<button class="btn btn-plum" style="padding:6px 14px;font-size:12px" data-a="giveRose" data-recv="${esc(e.nick)}" data-rg="${esc(e.gender)}">🌹 보내기</button>`}
               </div>`;
-            }).join("")
+        }).join("")
         )
       : `<div style="text-align:center;padding:1.2rem 0;color:var(--text3);font-size:13px">오늘의 장미꽃을 모두 보냈어요! 💕<br>자정 이후 다시 보낼 수 있어요.</div>`;
  
@@ -879,7 +890,37 @@ function rRoseTab(){
 /* ─── ADMIN MANAGEMENT TAB ─── */
 function rAdminTab(){
   if(!S.isAdmin)return`<div class="card" style="text-align:center;max-width:360px;margin:0 auto"><div style="font-size:36px;margin-bottom:8px">🔐</div><p style="font-weight:600;margin:0 0 14px">관리자 로그인</p><input id="pwI" type="password" class="inp" placeholder="비밀번호 입력" style="margin-bottom:8px">${S.pwErr?`<p style="font-size:13px;color:#C62828;margin:0 0 8px">${S.pwErr}</p>`:""}<button class="btn btn-primary" style="width:100%;padding:10px" data-a="login">로그인</button></div>`;
-  const rows=!S.entries.length?`<p style="color:var(--text2);text-align:center;padding:2rem">참여자가 없습니다.</p>`:S.entries.map(e=>`<div class="card" style="margin-bottom:7px;display:flex;align-items:center;gap:10px"><div style="flex:1;min-width:0"><span style="font-weight:500">${esc(e.nick)}</span><span style="font-size:11.5px;color:var(--text3);margin-left:6px">${esc(e.area||"미정")} · ${e.gender} · ${esc(e.mbti)} (PIN:${esc(e.pin)})</span></div><button class="btn btn-danger" style="padding:4px 10px;font-size:12px;flex-shrink:0" data-a="del" data-id="${e.id}">🗑️</button></div>`).join("");
+
+  const rows=!S.entries.length?`<p style="color:var(--text2);text-align:center;padding:2rem">참여자가 없습니다.</p>`:S.entries.map(e=>{
+    if(S.editId === e.id) {
+      return `<div class="card" style="margin-bottom:7px;display:flex;flex-direction:column;gap:6px;border:1.5px solid var(--rose);">
+        <div style="font-size:12px;font-weight:bold;color:var(--rose2);margin-bottom:4px;">✏️ 정보 수정</div>
+        <input id="edit_nick_${e.id}" class="inp" value="${esc(e.nick)}" placeholder="닉네임">
+        <input id="edit_area_${e.id}" class="inp" value="${esc(e.area||'')}" placeholder="지역">
+        <input id="edit_gender_${e.id}" class="inp" value="${esc(e.gender||'')}" placeholder="성별(남성/여성)">
+        <input id="edit_height_${e.id}" class="inp" value="${esc(e.height||'')}" placeholder="키">
+        <input id="edit_freeTime_${e.id}" class="inp" value="${esc(e.freeTime||'')}" placeholder="프리타임">
+        <input id="edit_idealType_${e.id}" class="inp" value="${esc(e.idealType||'')}" placeholder="이상형">
+        <input id="edit_appeal_${e.id}" class="inp" value="${esc(e.appeal||'')}" placeholder="어필">
+        <input id="edit_giDol_${e.id}" class="inp" value="${esc(e.giDol||'')}" placeholder="기/돌">
+        <input id="edit_mbti_${e.id}" class="inp" value="${esc(e.mbti||'')}" placeholder="MBTI">
+        <input id="edit_pin_${e.id}" class="inp" value="${esc(e.pin||'')}" placeholder="PIN(비밀번호)">
+        <div style="display:flex;gap:6px;margin-top:4px;">
+          <button class="btn btn-primary" style="flex:1;padding:8px;font-size:12px" data-a="saveEdit" data-id="${e.id}">저장</button>
+          <button class="btn" style="flex:1;padding:8px;font-size:12px" data-a="cancelEdit">취소</button>
+        </div>
+      </div>`;
+    }
+    return `<div class="card" style="margin-bottom:7px;display:flex;align-items:center;gap:10px">
+      <div style="flex:1;min-width:0">
+        <span style="font-weight:500">${esc(e.nick)}</span>
+        <span style="font-size:11.5px;color:var(--text3);margin-left:6px">${esc(e.area||"미정")} · ${e.gender} · ${esc(e.mbti)} (PIN:${esc(e.pin)})</span>
+      </div>
+      <button class="btn btn-plum" style="padding:4px 10px;font-size:12px;flex-shrink:0" data-a="edit" data-id="${e.id}">✏️</button>
+      <button class="btn btn-danger" style="padding:4px 10px;font-size:12px;flex-shrink:0" data-a="del" data-id="${e.id}">🗑️</button>
+    </div>`;
+  }).join("");
+
   return`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px"><p style="margin:0;font-weight:600">참여자 관리 (${S.entries.length}명)</p><div style="display:flex;gap:6px"><button class="btn btn-danger" style="padding:6px 12px;font-size:12px" data-a="delAll">전체삭제</button><button class="btn" style="padding:6px 12px;font-size:12px" data-a="logout">로그아웃</button></div></div>${rows}`;
 }
  
@@ -895,7 +936,6 @@ function attachEvents(){
     if(el)el.addEventListener("input",e=>{S[key]=e.target.value;});
   });
   const pwI=app.querySelector("#pwI"); if(pwI)pwI.addEventListener("keydown",e=>{if(e.key==="Enter")login();});
- 
   app.querySelectorAll("[data-a]").forEach(el=>{
     el.addEventListener("click",()=>{
       const a=el.dataset.a;
@@ -911,6 +951,7 @@ function attachEvents(){
         S.nick="";S.area="";S.pin="";S.gender="";S.height="";S.freeTime="";S.idealType="";S.appeal="";S.giDol="";
         S.myEntry=null;S.myBalEntry=null;S.myDatEntry=null;
         localStorage.removeItem("lmg_user");localStorage.removeItem("lmg_bal");localStorage.removeItem("lmg_dat");
+   
         S.screen="home";render();
       }
       else if(a==="testBack"){if(S.qIdx>0){S.qIdx--;render();}else{S.screen="home";render();}}
@@ -929,6 +970,24 @@ function attachEvents(){
       else if(a==="logout"){S.isAdmin=false;S.pwErr="";render();}
       else if(a==="del")delMBTI(el.dataset.id);
       else if(a==="delAll"){if(confirm("정말 전체 삭제하시겠어요?"))delAllMBTI();}
+      else if(a==="edit"){ S.editId = el.dataset.id; render(); }
+      else if(a==="cancelEdit"){ S.editId = null; render(); }
+      else if(a==="saveEdit"){
+        const id = el.dataset.id;
+        const newData = {
+          nick: document.getElementById(`edit_nick_${id}`).value.trim(),
+          area: document.getElementById(`edit_area_${id}`).value.trim(),
+          gender: document.getElementById(`edit_gender_${id}`).value.trim(),
+          height: document.getElementById(`edit_height_${id}`).value.trim(),
+          freeTime: document.getElementById(`edit_freeTime_${id}`).value.trim(),
+          idealType: document.getElementById(`edit_idealType_${id}`).value.trim(),
+          appeal: document.getElementById(`edit_appeal_${id}`).value.trim(),
+          giDol: document.getElementById(`edit_giDol_${id}`).value.trim(),
+          mbti: document.getElementById(`edit_mbti_${id}`).value.trim(),
+          pin: document.getElementById(`edit_pin_${id}`).value.trim()
+        };
+        updateParticipant(id, newData);
+      }
     });
   });
 }
@@ -946,9 +1005,11 @@ function validate(){
 
 /* 수동 정보 불러오기 함수 (닉네임 + 비밀번호 인증 시 프로필 복원) */
 async function loadMyInfo() {
-  const nick = S.nick.trim(); const pin = S.pin.trim();
+  const nick = S.nick.trim();
+  const pin = S.pin.trim();
   if(!nick){ alert("닉네임을 먼저 입력해주세요."); return; }
-  if(!pin || pin.length < 4){ alert("비밀번호 4자리를 정확히 입력해주세요."); return; }
+  if(!pin || pin.length < 4){ alert("비밀번호 4자리를 정확히 입력해주세요.");
+  return; }
   
   try {
     const snap = await mbtiCol.where("nick", "==", nick).get();
@@ -970,7 +1031,6 @@ async function loadMyInfo() {
       S.giDol = exData.giDol || "";
       
       localStorage.setItem("lmg_user", JSON.stringify(S.myEntry));
-      
       const bSnap = await balCol.where("nick", "==", nick).get();
       if(!bSnap.empty) {
         S.myBalEntry = { id: bSnap.docs[0].id, ...bSnap.docs[0].data() };
@@ -1004,7 +1064,8 @@ async function checkUserAuth(){
       const exData = snap.docs[0].data();
       if(exData.pin !== pin) {
         S.err = "이미 등록된 닉네임입니다. 비밀번호가 틀렸습니다.";
-        render(); return false;
+        render();
+        return false;
       }
       S.myEntry = { id: snap.docs[0].id, ...exData };
       localStorage.setItem("lmg_user", JSON.stringify(S.myEntry));
@@ -1030,13 +1091,15 @@ async function startBal(){
   if(S.myBalEntry) {
     S.screen = "balance_result"; render();
     alert("이미 참여한 밸런스 게임 결과를 불러왔습니다! ⚖️");
-  } else { S.balAnswers={};S.balIdx=0;S.screen="balance_test";render(); }
+  } else { S.balAnswers={};S.balIdx=0;S.screen="balance_test";render();
+  }
 }
  
 async function startDat(){
   const auth = await checkUserAuth(); if(!auth) return;
   if(S.myDatEntry) {
-    S.screen = "dating_result"; render();
+    S.screen = "dating_result";
+    render();
     alert("이미 참여한 연애 성향 결과를 불러왔습니다! 💕");
   } else { S.datAnswers={};S.datIdx=0;S.screen="dating_test";render(); }
 }
