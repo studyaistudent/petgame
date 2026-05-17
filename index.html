@@ -457,9 +457,36 @@ function load(){
       }
       if(S.screen==="board"&&S.tab==="lm_pet")render();
     });
-    gameStateCol.doc("chosung_current").onSnapshot(snap=>{
-      S.chosungState=snap.exists?snap.data():null;
-      if(S.screen==="board"&&S.tab==="lm_plaza")render();
+    gameStateCol.doc("chosung_current").onSnapshot(async snap=>{
+      S.chosungState = snap.exists ? snap.data() : null;
+      const state = S.chosungState;
+      // 정답 맞춰진 상태면 자동 다음 문제
+      if(state?.solvedBy && !window.__nextQuestionRunning){
+        window.__nextQuestionRunning = true;
+        setTimeout(async()=>{
+          try{
+            const latestSnap = await gameStateCol.doc("chosung_current").get();
+            if(!latestSnap.exists){
+              window.__nextQuestionRunning = false;
+              return;
+            }
+            const latest = latestSnap.data();
+            // 아직 같은 문제라면 다음 문제 생성
+            if(
+              latest.solvedBy &&
+              latest.qIdx === state.qIdx
+            ){
+              await startChosungQuestion((latest.qIdx || 0) + 1);
+            }
+          }catch(e){
+            console.error(e);
+          }
+          window.__nextQuestionRunning = false;
+        },3000);
+      }
+      if(S.screen==="board" && S.tab==="lm_plaza"){
+        render();
+      }
     });
     chatCol.orderBy("timestamp","desc").limit(40).onSnapshot(snap=>{
       S.chosungChat=snap.docs.map(d=>({id:d.id,...d.data()})).reverse();
