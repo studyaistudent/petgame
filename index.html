@@ -169,6 +169,33 @@ body::before{
 .lm-lb-pet{font-size:22px;}
 .lm-lb-nick{flex:1;font-size:13px;font-weight:600;}
 .lm-lb-pts{font-size:13px;font-weight:700;color:var(--gold);}
+
+/* ── 추가된 커스텀 기능 UI ── */
+.color-chart-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr); 
+  gap: 8px; margin-top: 15px;
+}
+.color-slot {
+  border: 1px solid var(--border); background: var(--cream);
+  padding: 12px 5px; text-align: center; border-radius: 8px; cursor: pointer;
+  transition: all 0.2s ease; box-shadow: 0 2px 4px rgba(232, 83, 122, 0.05);
+}
+.color-slot:hover {
+  background: var(--rose-pale); border-color: var(--rose); transform: translateY(-2px);
+}
+.color-slot .slot-num { font-size: 0.75rem; color: var(--text3); margin-bottom: 4px; }
+.color-slot .slot-nick { font-size: 0.85rem; font-weight: 500; color: var(--text2); word-break: break-all; }
+.color-slot.has-name { background: var(--rose-lt); border-color: var(--rose2); }
+.color-slot.has-name .slot-nick { color: var(--rose2); font-weight: 700; }
+.action-btn.premium {
+  background: linear-gradient(135deg, var(--gold), #e8c678);
+  color: #fff; border: none; padding: 10px; border-radius: 8px; width: 100%;
+  margin-top: 8px; cursor: pointer; font-weight: bold; font-family:'Noto Sans KR',sans-serif;
+  box-shadow: 0 3px 10px rgba(212,168,83,.3); transition: all 0.2s ease;
+}
+.action-btn.premium:hover { opacity: 0.9; transform: translateY(-1px); }
+.action-btn.premium:active { transform: scale(0.97); }
 </style>
 <script src="https://www.gstatic.com/firebasejs/10.10.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.10.0/firebase-firestore-compat.js"></script>
@@ -201,7 +228,6 @@ const balCol   =db.collection("balance_entries");
 const datCol   =db.collection("dating_entries");
 const roseCol  =db.collection("roses");
 const mutualCol=db.collection("mutual_roses");
-
 /* ── 러브몬 신규 컬렉션 ── */
 const petCol       =db.collection("lm_pets");
 const gameStateCol =db.collection("lm_game");
@@ -255,7 +281,6 @@ const QS=[
 const OPP={E:"I",I:"E",S:"N",N:"S",T:"F",F:"T",J:"P",P:"J"};
 const OPTS=[{v:2,l:"매우 그렇다"},{v:1,l:"그렇다"},{v:0,l:"보통이다"},{v:-1,l:"그렇지 않다"},{v:-2,l:"전혀 그렇지 않다"}];
 const DIM_LABELS={EI:"에너지 방향",SN:"인식 방식",TF:"판단 기준",JP:"생활 양식"};
-
 const BQ=[
   {id:1,a:"🍜 짜장면",b:"🌶️ 짬뽕"},{id:2,a:"🏖️ 바다",b:"⛰️ 산"},{id:3,a:"☀️ 여름",b:"❄️ 겨울"},{id:4,a:"🍗 치킨",b:"🍕 피자"},
   {id:5,a:"🎬 영화관 데이트",b:"🛋️ 집에서 넷플릭스"},{id:6,a:"☕ 카페",b:"🌿 공원 산책"},{id:7,a:"🌅 아침형 인간",b:"🌙 저녁형 인간"},
@@ -268,7 +293,6 @@ const BQ=[
 const DQ=[
   {id:1,q:"연락 스타일은?",a:"📱 아침저녁 안부 문자 필수",b:"💬 생각날 때 자유롭게"},{id:2,q:"기념일 챙기기는?",a:"🎂 모든 기념일 다 챙겨",b:"🎁 생일이랑 큰 날만"},{id:3,q:"질투심은?",a:"😤 질투심 있는 편",b:"😎 자유로운 편"},{id:4,q:"싸운 후엔?",a:"🤝 바로 화해하고 싶어",b:"🕐 시간이 좀 필요해"},{id:5,q:"데이트 비용은?",a:"⚖️ 더치페이",b:"🔄 번갈아 내기"},{id:6,q:"SNS 커플 인증은?",a:"📸 자주 올려!",b:"🤫 우리만 알면 돼"},{id:7,q:"스킨십 스타일은?",a:"💕 적극적으로!",b:"🌸 소극적으로"},{id:8,q:"이상형 우선순위는?",a:"👀 외모가 우선",b:"💖 성격이 우선"},{id:9,q:"사랑 표현 방식은?",a:"💬 말로 자주 표현",b:"🎯 행동으로 보여주기"},{id:10,q:"여행 스타일은?",a:"🧳 커플여행 자주 가기",b:"🏠 가끔 특별하게"},{id:11,q:"파트너 친구와는?",a:"🥂 다같이 친하게 지내기",b:"🤝 각자 친구는 따로"},{id:12,q:"취미 활동은?",a:"🎮 같이 하는 취미 중요",b:"🎨 각자 취미도 중요"},{id:13,q:"미래 이야기는?",a:"🏡 일찍 미래 계획 이야기",b:"🌊 흘러가는 대로"},{id:14,q:"파트너 과거 연애는?",a:"🔍 알고 싶어",b:"🙈 알고 싶지 않아"},{id:15,q:"화났을 때는?",a:"💬 바로 말하기",b:"🤐 혼자 삭히기"},{id:16,q:"연애 우선순위는?",a:"💑 연애가 1순위",b:"💼 일/공부도 중요해"},{id:17,q:"데이트 스타일은?",a:"🏠 집에서 같이 있기",b:"🎡 밖에 나가서 즐기기"},{id:18,q:"선물 취향은?",a:"💎 가치 있는 선물",b:"✉️ 정성 가득 소품"},{id:19,q:"파트너 핸드폰은?",a:"📱 투명하게 보여줄 수 있어",b:"🔒 서로 프라이버시 중요"},{id:20,q:"이상적인 미래는?",a:"💒 결혼 빨리 하고 싶어",b:"🌹 연애 오래 즐기고 싶어"}
 ];
-
 /* ═══════════════════════════════════════
    러브몬 및 초성게임 데이터 (50제)
 ═══════════════════════════════════════ */
@@ -681,15 +705,14 @@ const CHOSUNG_QS=[
   {genre:'직업',cho:['ㅋ','ㅁ','ㄷ','ㅇ'],ans:'코미디언',hint:'사람들을 웃게 만드는 개그맨'},
   {genre:'직업',cho:['ㅇ','ㅌ','ㅂ'],ans:'유튜버',hint:'동영상을 찍어 유튜브에 올리는 직업'},
 ];
-
 const MARKET_ITEMS=[
   {id:'feed_basic',  name:'기본 사료',   emoji:'🌾', cost:100,  xp:30,  desc:'XP +30, 기본 성장'},
   {id:'feed_dopamine',name:'도파민 특식',emoji:'🍗', cost:500,  xp:250,  desc:'XP +250, 댄스 이펙트!'},
   {id:'love_crystal',name:'진화의 결정', emoji:'💎', cost:2000, xp:1500, desc:'XP +1500 대폭 상승!'},
 ];
 const XP_PER_LV=500;
-const MAX_LV=15;
-
+const MAX_LV=99;
+const BREED_LV=5;
 /* ═══════════════════════════════════════
    STATE
 ═══════════════════════════════════════ */
@@ -704,8 +727,9 @@ let S={
   /* LoveMon */
   myPet:null,petEntries:[],breedRequests:[],familyTree:[],
   chosungState:null,chosungChat:[],chosungInput:"",
+  /* Color Chart */
+  colorSlots: {} // 1~45번 닉네임 저장용
 };
-
 /* Persist identity */
 (()=>{
   try{
@@ -716,7 +740,6 @@ let S={
     const p=JSON.parse(localStorage.getItem("lmg_pet")||"null");if(p)S.myPet=p;
   }catch(e){}
 })();
-
 /* ═══════════════════════════════════════
    HELPERS
 ═══════════════════════════════════════ */
@@ -747,11 +770,28 @@ function determinePet(mbti,balAnswers){
   if(spicy>=2)return{e:'😈',n:'악동몬',d:'매운맛 유전자! 뿔 달린 악동 몬스터 계열'};
   return PET_BY_MBTI[mbti]||{e:'🐾',n:'러브몬',d:'신비로운 인연의 펫'};
 }
+
+/* 성장 단계(진화) 시각화 반영 로직 추가 */
+function getPetEvolution(level, isBred, iconOverride) {
+  if (isBred && iconOverride) return { stage: "전설의 훈련사", icon: iconOverride };
+  if (level < 5) return { stage: "유아기", icon: "🌱 (유아기)" };
+  if (level < 10) return { stage: "성장기", icon: "🌿🌸 (성장기)" };
+  if (level < 15) return { stage: "청소년기", icon: "🌺🦋 (청소년기)" };
+  return { stage: "베테랑 훈련사", icon: "👑🧚‍♀️✨ (베테랑)" };
+}
+
 function lvLabel(lv){
-  if(lv>=MAX_LV)return'🏆 베테랑 훈련사';
-  if(lv>=10)return`청소년기 Lv.${lv}`;
-  if(lv>=5)return`성장기 Lv.${lv}`;
-  return`유아기 Lv.${lv}`;
+  if(lv>=MAX_LV)return'👑🧚‍♀️✨ 베테랑 훈련사';
+  if(lv>=10)return`🌺🦋 청소년기 Lv.${lv}`;
+  if(lv>=5)return`🌿🌸 성장기 Lv.${lv}`;
+  return`🌱 유아기 Lv.${lv}`;
+}
+function getVisualEmoji(pet) {
+  if (pet.isBred) return pet.petEmoji;
+  if (pet.level >= MAX_LV) return pet.petEmoji + "✨";
+  if (pet.level >= 10) return pet.petEmoji + "🌸";
+  if (pet.level >= 5) return pet.petEmoji + "🌿";
+  return pet.petEmoji + "🌱";
 }
 
 /* ═══════════════════════════════════════
@@ -782,7 +822,6 @@ function load(){
       S.mutualRoses=snap.docs.map(d=>({id:d.id,...d.data()}));
       if(S.screen==="board"&&S.tab==="rose")render();
     });
-
     /* 러브몬 리스너 */
     petCol.orderBy("timestamp","desc").onSnapshot(snap=>{
       S.petEntries=snap.docs.map(d=>({id:d.id,...d.data()}));
@@ -793,6 +832,13 @@ function load(){
       }
       if(S.screen==="board"&&S.tab==="lm_pet")render();
     });
+    /* 색상표 리스너 */
+    gameStateCol.doc("color_chart").onSnapshot(snap => {
+      if (snap.exists) S.colorSlots = snap.data();
+      else S.colorSlots = {};
+      if (S.screen === "board" && S.tab === "lm_colors") render();
+    });
+
     gameStateCol.doc("chosung_current").onSnapshot(async snap=>{
       S.chosungState = snap.exists ? snap.data() : null;
       const state = S.chosungState;
@@ -809,20 +855,15 @@ function load(){
             const latest = latestSnap.data();
             // 아직 같은 문제라면 다음 문제 생성
             if(
-              latest.solvedBy &&
-              latest.qIdx === state.qIdx
+              latest.solvedBy && latest.qIdx === state.qIdx
             ){
               await startChosungQuestion((latest.qIdx || 0) + 1);
             }
-          }catch(e){
-            console.error(e);
-          }
+          }catch(e){ console.error(e); }
           window.__nextQuestionRunning = false;
         },3000);
       }
-      if(S.screen==="board" && S.tab==="lm_plaza"){
-        render();
-      }
+      if(S.screen==="board" && S.tab==="lm_plaza"){ render(); }
     });
     chatCol.orderBy("timestamp","desc").limit(40).onSnapshot(snap=>{
       S.chosungChat=snap.docs.map(d=>({id:d.id,...d.data()})).reverse();
@@ -840,27 +881,17 @@ function load(){
       S.familyTree=snap.docs.map(d=>({id:d.id,...d.data()}));
       if(S.screen==="board"&&S.tab==="lm_pet")render();
     });
-
     if(S.myEntry?.nick && !S.myPet){
       initOrLoadPet(
-        S.myEntry.nick,
-        S.myEntry.gender,
-        S.myEntry.mbti,
-        S.myBalEntry?.answers
+        S.myEntry.nick, S.myEntry.gender, S.myEntry.mbti, S.myBalEntry?.answers
       );
     }
 
 // 초성게임 강제 초기화
-setTimeout(()=>{
-  ensureChosungGame();
-},1000);
+setTimeout(()=>{ ensureChosungGame(); },1000);
 
-if(S.myPet){
-  checkDailyBonus();
-}
-  }catch(e){
-    console.error(e);S.loading=false;render();
-  }
+if(S.myPet){ checkDailyBonus(); }
+  }catch(e){ console.error(e);S.loading=false;render(); }
 }
 
 /* ═══════════════════════════════════════
@@ -940,7 +971,8 @@ async function loadMyInfo() {
       if(exData.pin !== pin) { alert("이미 등록된 닉네임입니다. 비밀번호가 일치하지 않습니다."); return; }
       S.myEntry = { id: snap.docs[0].id, ...exData };
       S.area = exData.area || ""; S.gender = exData.gender || ""; S.height = exData.height || "";
-      S.freeTime = exData.freeTime || ""; S.idealType = exData.idealType || ""; S.appeal = exData.appeal || ""; S.giDol = exData.giDol || "";
+      S.freeTime = exData.freeTime || ""; S.idealType = exData.idealType || "";
+      S.appeal = exData.appeal || ""; S.giDol = exData.giDol || "";
       localStorage.setItem("lmg_user", JSON.stringify(S.myEntry));
       const bSnap = await balCol.where("nick", "==", nick).get();
       if(!bSnap.empty) { S.myBalEntry = { id: bSnap.docs[0].id, ...bSnap.docs[0].data() }; localStorage.setItem("lmg_bal", JSON.stringify(S.myBalEntry)); }
@@ -1010,7 +1042,8 @@ function datAns(v){
   else{
     const entry={nick:S.nick.trim(),gender:S.gender,answers:{...S.datAnswers},
       time:new Date().toLocaleString("ko-KR",{month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"})};
-    S.myDatEntry=entry; S.screen="dating_result"; render(); upsertDating(entry);
+    S.myDatEntry=entry;
+    S.screen="dating_result"; render(); upsertDating(entry);
   }
 }
 function login(){
@@ -1035,7 +1068,7 @@ async function initOrLoadPet(nick,gender,mbti,balAnswers){
     const petData={
       nick,gender,mbti,
       petEmoji:petInfo.e,petName:petInfo.n,petDesc:petInfo.d,
-      level:1,xp:0,points:100,
+      level:1,xp:0,points:100, isBred:false,
       lastLogin:todayStr(),loginStreak:1,
     };
     await petCol.doc(nick).set({...petData,timestamp:TS()});
@@ -1069,15 +1102,35 @@ async function checkAndLevelUp(nick){
     const snap=await petCol.doc(nick).get();
     if(!snap.exists)return;
     const data=snap.data();
-    if((data.xp||0)>=XP_PER_LV&&(data.level||1)<MAX_LV){
-      const newLv=(data.level||1)+1;const newXP=(data.xp||0)-XP_PER_LV;
-      await petCol.doc(nick).update({level:newLv,xp:newXP});
-      if(S.myPet?.nick===nick){S.myPet.level=newLv;S.myPet.xp=newXP;}
-      if(S.myEntry?.nick===nick)alert(`🎉 레벨 업! Lv.${newLv} 달성! ${newLv===MAX_LV?"✨ 성체 달성! 교배 가능 상태가 됐어요!":""}`);
-    }
-  }catch(e){}
-}
+    let lv=data.level||1;
+    let xp=data.xp||0;
+    let leveled=false;
+    let levelsGained=0;
 
+    // if → while 로 변경: XP가 충분한 동안 계속 레벨업
+    while(xp>=XP_PER_LV && lv<MAX_LV){
+      lv++;
+      xp-=XP_PER_LV;
+      leveled=true;
+      levelsGained++;
+    }
+
+    if(leveled){
+      await petCol.doc(nick).update({level:lv, xp:xp});
+      if(S.myPet?.nick===nick){
+        S.myPet.level=lv;
+        S.myPet.xp=xp;
+      }
+      if(S.myEntry?.nick===nick){
+        alert(
+          `🎉 레벨 업! Lv.${lv} 달성!`+
+          (levelsGained>1 ? ` (${levelsGained}단계 연속 상승! 🔥)` : "")+
+          (lv===MAX_LV ? "\n✨ 성체 달성! 교배 가능 상태가 됐어요!" : "")
+        );
+      }
+    }
+  }catch(e){console.error(e);}
+}
 async function feedPet(itemId, targetNick = null){
   const item=MARKET_ITEMS.find(i=>i.id===itemId);
   if(!item)return;
@@ -1094,18 +1147,12 @@ async function feedPet(itemId, targetNick = null){
   try{
     await petCol.doc(myNick).update({points:INC(-item.cost)});
     S.myPet.points=(S.myPet.points||0)-item.cost;
-
     if(item.xp>0){
       await petCol.doc(feedTarget).update({xp:INC(item.xp)});
       if(isSelf){S.myPet.xp=(S.myPet.xp||0)+item.xp;}
       await checkAndLevelUp(feedTarget);
     }
-    if(itemId==='rose_gift'&&!isSelf){
-      await petCol.doc(feedTarget).update({xp:INC(40)});
-      await checkAndLevelUp(feedTarget);
-    }
     await feedLogCol.add({from:myNick,to:feedTarget,item:item.name,emoji:item.emoji,xp:item.xp,timestamp:TS()});
-
     const msg=isSelf ?`${item.emoji} ${item.name} 급여 완료! XP +${item.xp}`:`${item.emoji} ${targetNick}님 펫에게 ${item.name}을 선물했습니다! 🎁`;
     alert(msg);render();
   }catch(e){console.error(e);alert("오류가 발생했습니다.");}
@@ -1131,17 +1178,27 @@ async function transferPoints(toNick){
 async function requestBreed(toNick){
   const myNick=S.myPet?.nick;
   if(!myNick||!S.myPet){alert("MBTI 검사 완료 후 이용해주세요!");return;}
-  if((S.myPet.level||1)<MAX_LV){alert(`교배는 Lv.${MAX_LV} 성체 달성 후 가능합니다!\n현재: Lv.${S.myPet.level}`);return;}
-
+  
+  // 변경: MAX_LV → BREED_LV
+  if((S.myPet.level||1)<BREED_LV){
+    alert(`교배는 Lv.${BREED_LV} 이상부터 가능합니다!\n현재: Lv.${S.myPet.level}`);
+    return;
+  }
+  
   const alreadyReq=S.breedRequests.some(r=>r.from===myNick&&r.to===toNick&&r.status==='pending');
   if(alreadyReq){alert("이미 교배 신청을 보낸 상대입니다 💕");return;}
-
+  
   const myPetInfo=S.myPet;
   const targetPet=S.petEntries.find(p=>p.nick===toNick);
-  if(!targetPet||(targetPet.level||1)<MAX_LV){alert(`${toNick}님의 펫도 Lv.${MAX_LV} 성체가 되어야 교배할 수 있어요!`);return;}
-
+  
+  // 변경: 상대방 조건도 BREED_LV로
+  if(!targetPet||(targetPet.level||1)<BREED_LV){
+    alert(`${toNick}님의 펫도 Lv.${BREED_LV} 이상이어야 교배할 수 있어요!`);
+    return;
+  }
+  
   if(!confirm(`💍 ${toNick}님 (${targetPet.petEmoji}${targetPet.petName})에게 교배 신청을 보내겠습니까?\n상대방도 수락하면 2세대 알이 탄생해요! 🥚`))return;
-
+  
   try{
     await breedReqCol.add({
       from:myNick,fromEmoji:myPetInfo.petEmoji,fromPetName:myPetInfo.petName,
@@ -1150,11 +1207,10 @@ async function requestBreed(toNick){
     });
     const mutualReq=S.breedRequests.find(r=>r.from===toNick&&r.to===myNick&&r.status==='pending');
     if(mutualReq){ await completeBreed(mutualReq.id,toNick,myNick,targetPet,myPetInfo); }
-    else{ alert(`💍 ${toNick}님에게 교배 신청을 보냈습니다!\n상대방도 신청하면 2세대 알이 탄생해요 🥚`); }
+    else{ alert(`💍 ${toNick}님에게 교배 신청을 보냈습니다!\n상대방도 수락하면 2세대 알이 탄생해요 🥚`); }
     render();
   }catch(e){console.error(e);}
 }
-
 async function acceptBreed(reqId,fromNick){
   const req=S.breedRequests.find(r=>r.id===reqId);
   if(!req)return;
@@ -1170,15 +1226,43 @@ async function acceptBreed(reqId,fromNick){
 async function completeBreed(reqId,parent1Nick,parent2Nick,pet1,pet2){
   try{
     await breedReqCol.doc(reqId).update({status:'accepted'});
-    const childEmoji=Math.random()>0.5?pet1.petEmoji:pet2.petEmoji;
-    const childName=`${shortNick(parent1Nick).slice(0,2)}×${shortNick(parent2Nick).slice(0,2)}몬`;
-    const childDesc=`${pet1.mbti||'??'} × ${pet2.mbti||'??'} 혼종 하이브리드 레어몬!`;
+    
+    // 신규 기능: 교배시 랜덤 수식어 & 랜덤 특이 몬스터 부여
+    const modifiers = ["빛나는", "신비로운", "매혹적인", "우아한", "전설의", "달빛을 머금은", "별빛 춤추는", "환상적인"];
+    const monsters = ["🦄💖", "🐉✨", "🦊🔥", "🐰🌙", "🦋💎", "🕊️🌸", "🧜‍♀️🌊"];
+    const randomMod = modifiers[Math.floor(Math.random() * modifiers.length)];
+    const randomMon = monsters[Math.floor(Math.random() * monsters.length)];
+    
+    const childEmoji = randomMon;
+    const childName = `${randomMod} ${shortNick(parent1Nick).slice(0,2)}×${shortNick(parent2Nick).slice(0,2)}몬`;
+    const childDesc = `${pet1.mbti||'??'} × ${pet2.mbti||'??'} 혼종 하이브리드 레어몬!`;
+    
     await familyCol.add({
       parent1Nick,parent1Emoji:pet1.petEmoji,parent1Pet:pet1.petName,
       parent2Nick,parent2Emoji:pet2.petEmoji,parent2Pet:pet2.petName,
       childEmoji,childName,childDesc,timestamp:TS()
     });
-    alert(`🎉 교배 성공! ${childEmoji}[${childName}] 2세대 알이 탄생했습니다!\n족보에 기록됐어요! 🌳`);
+    
+    // 교배를 진행한 본인의 펫도 새롭게 태어나도록 업데이트
+    const myNick = S.myPet?.nick;
+    if (myNick === parent1Nick || myNick === parent2Nick) {
+      await petCol.doc(myNick).update({
+        petEmoji: childEmoji,
+        petName: childName,
+        petDesc: childDesc,
+        level: 1, // 1레벨로 환생
+        xp: 0,
+        isBred: true
+      });
+      S.myPet.petEmoji = childEmoji;
+      S.myPet.petName = childName;
+      S.myPet.petDesc = childDesc;
+      S.myPet.level = 1;
+      S.myPet.xp = 0;
+      S.myPet.isBred = true;
+    }
+    
+    alert(`🎉 교배 성공! 족보에 기록되며 내 펫이 ${childEmoji}[${childName}](으)로 새롭게 태어났습니다! 🌳`);
     render();
   }catch(e){console.error(e);}
 }
@@ -1213,7 +1297,6 @@ async function submitChosungAnswer(){
   const isCorrect=val===state.answer;
   await chatCol.add({nick:shortNick(myNick),message:val,isCorrect,timestamp:TS()});
   inputEl.value="";S.chosungInput="";
-
   if(isCorrect){
     try{await gameStateCol.doc("chosung_current").update({solvedBy:shortNick(myNick),solvedAt:TS()});}catch(e){}
     if(S.myPet){
@@ -1254,7 +1337,7 @@ function rHome(){
     </div>
 
     ${myPet?`<div class="card card-gold" style="margin-bottom:10px;display:flex;align-items:center;gap:14px">
-      <div style="font-size:44px;animation:float 2.5s ease-in-out infinite">${esc(myPet.petEmoji)}</div>
+      <div style="font-size:44px;animation:float 2.5s ease-in-out infinite">${getVisualEmoji(myPet)}</div>
       <div style="flex:1;min-width:0">
         <div style="font-size:13px;font-weight:700;color:var(--text1)">${esc(myPet.petName)} <span style="font-size:11px;color:var(--text3)">(${lvLabel(myPet.level||1)})</span></div>
         <div style="font-size:11px;color:var(--text3);margin:2px 0">XP ${myPet.xp||0}/${XP_PER_LV} · 💰${myPet.points||0}P</div>
@@ -1358,7 +1441,7 @@ function rResult(){
     </div>
     ${myPet?`<div class="card card-gold" style="margin-bottom:12px;text-align:center">
       <p style="font-size:13px;font-weight:700;color:var(--text1);margin:0 0 8px">🐾 내 러브몬이 탄생했어요!</p>
-      <div style="font-size:52px;margin:8px 0" class="float">${esc(myPet.petEmoji)}</div>
+      <div style="font-size:52px;margin:8px 0" class="float">${getVisualEmoji(myPet)}</div>
       <div style="font-size:17px;font-weight:700;color:var(--rose2)">${esc(myPet.petName)}</div>
       <div style="font-size:12px;color:var(--text3);margin-top:4px">${esc(myPet.petDesc||'')}</div>
       <div style="font-size:11px;color:var(--gold);margin-top:8px;font-weight:600">💰 신규 보너스 100P 지급 완료!</div>
@@ -1469,14 +1552,15 @@ function rDatResult(){
   </div>`;
 }
 
-/* ─── BOARD WRAPPER (탭 6개로 확장) ─── */
+/* ─── BOARD WRAPPER (탭 확장) ─── */
 function rBoard(){
   const tabs=[
     {id:"board",label:"👥\n참여자"},
     {id:"compat",label:"💘\n궁합"},
     {id:"rose",label:"🌹\n장미꽃"},
     {id:"lm_pet",label:"🐾\n러브몬"},
-    {id:"lm_plaza",label:"⚡\n초성광장"},
+    {id:"lm_plaza",label:"⚡\n광장"},
+    {id:"lm_colors",label:"🎨\n색상표"},
     {id:"admin",label:"⚙️\n관리"},
   ];
   let content="";
@@ -1485,6 +1569,7 @@ function rBoard(){
   else if(S.tab==="rose")content=rRoseTab();
   else if(S.tab==="lm_pet")content=rLovemonTab();
   else if(S.tab==="lm_plaza")content=rPlazaTab();
+  else if(S.tab==="lm_colors")content=rColorTab();
   else if(S.tab==="admin")content=rAdminTab();
 
   return`<div class="fadein">
@@ -1511,7 +1596,7 @@ function rBoardTab(){
     return`<div class="card" style="margin-bottom:8px;display:flex;align-items:flex-start;gap:12px">
       <div style="position:relative;flex-shrink:0">
         <div style="width:46px;height:46px;border-radius:50%;background:${e.gender==="남성"?"linear-gradient(135deg,#BBDEFB,#64B5F6)":"linear-gradient(135deg,#FCE4EC,#F06292)"};display:flex;align-items:center;justify-content:center;font-size:22px;margin-top:2px">${e.gender==="남성"?"👨":"👩"}</div>
-        ${pet?`<div style="position:absolute;bottom:-2px;right:-4px;font-size:16px">${esc(pet.petEmoji)}</div>`:''}
+        ${pet?`<div style="position:absolute;bottom:-2px;right:-4px;font-size:16px">${getVisualEmoji(pet)}</div>`:''}
       </div>
       <div style="flex:1;min-width:0">
         <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:3px">
@@ -1596,7 +1681,7 @@ function rRoseTab(){
           return`<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border:1.5px solid var(--border);border-radius:10px;margin-bottom:7px;background:white">
             <div>
               <span style="font-weight:600;font-size:14px">${esc(shortNick(e.nick))}</span>
-              ${pet?`<span style="font-size:13px;margin-left:4px">${esc(pet.petEmoji)}</span>`:''}
+              ${pet?`<span style="font-size:13px;margin-left:4px">${getVisualEmoji(pet)}</span>`:''}
               <span style="font-size:11px;color:var(--text3);margin-left:6px">${esc(e.area||"미정")} · ${esc(e.mbti)}</span>
               ${rc>0?`<span class="rose-badge" style="margin-left:5px">🌹 ×${rc}</span>`:""}
             </div>
@@ -1620,6 +1705,65 @@ function rRoseTab(){
   return`${giveUI}<p style="font-size:13px;font-weight:700;color:var(--rose2);margin:0 0 8px">💞 서로 장미꽃 알림판</p>${mutualHTML}`;
 }
 
+/* ─── 🎨 색상표 (45 Color Chart) TAB ─── */
+function rColorTab() {
+  const COLOR_MAP = {
+    1:"#F7D02C", 2:"#E05252", 3:"#E87848", 4:"#E89030", 5:"#8BBF3C",
+    6:"#3A9E60", 7:"#40B898", 8:"#48AAB5", 9:"#5888B8", 10:"#4A5C8C",
+    11:"#6858A8", 12:"#8858A8", 13:"#CC5585", 14:"#B84055", 15:"#F5F0A0",
+    16:"#F0A0A0", 17:"#F0B078", 18:"#E8B875", 19:"#C8D078", 20:"#80C890",
+    21:"#70C8B5", 22:"#80B5D5", 23:"#88A5D8", 24:"#9898CE", 25:"#B0A0CE",
+    26:"#B088CE", 27:"#E888B0", 28:"#F0A0B5", 29:"#F8F0C5", 30:"#F8D0D5",
+    31:"#F8D8C5", 32:"#F8D0C5", 33:"#E8F0C5", 34:"#C8F0D5", 35:"#C8EEF0",
+    36:"#C8E8F0", 37:"#D8D8F0", 38:"#E0D8F0", 39:"#F0D8E8", 40:"#F8E8F0",
+    41:"#FAE0E0", 42:"#FAF0F0", 43:"#F8F8F8", 44:"#C8C8C8", 45:"#1A1A1A"
+  };
+
+  // 밝은 배경 번호 → 텍스트를 어둡게
+  const DARK_TEXT = new Set([15,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44]);
+
+  let colorChartHtml = `
+    <div class="card card-rose" style="margin-bottom:12px; padding: 12px;">
+      <div class="section-title" style="text-align:center;font-weight:bold;color:var(--rose2);margin-bottom:8px;">🎨 러브몬 45 컬러 차트</div>
+      <p style="text-align:center; font-size:0.85rem; color:var(--text2); margin-bottom:15px;">
+        원하는 번호를 클릭해 닉네임을 등록해보세요!<br>(빈 자리에만 등록 가능, 관리자는 수정 가능)
+      </p>
+      
+      <div class="color-chart-grid" style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; background-color: #f8f9fa; padding: 8px; border-radius: 10px;">
+  `;
+
+  for (let i = 1; i <= 45; i++) {
+    const nick = S.colorSlots[i] || "";
+    const hasNameClass = nick ? "has-name" : "";
+    const displayName = nick ? nick : "비어있음";
+
+    const tileColor = COLOR_MAP[i];
+    const isDark = DARK_TEXT.has(i);
+    const textColor    = isDark ? "#333333" : "#ffffff";
+    const textShadow   = isDark
+      ? "text-shadow: none;"
+      : "text-shadow: 1px 1px 2px rgba(0,0,0,0.7);";
+    const nickBg = isDark ? "rgba(0,0,0,0.12)" : "rgba(0,0,0,0.25)";
+
+    colorChartHtml += `
+      <div class="color-slot ${hasNameClass}" 
+           data-a="setColorSlot" 
+           data-slot="${i}" 
+           style="background-color: ${tileColor}; ${textShadow} color: ${textColor}; border: 2px solid #ffffff; box-shadow: 0 2px 5px rgba(0,0,0,0.15); border-radius: 8px; aspect-ratio: 1 / 1; display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; padding: 4px; box-sizing: border-box;">
+        
+        <div class="slot-num" style="font-size: 1.15rem; font-weight: bold; line-height: 1.2; margin-bottom: 2px;">${i}</div>
+        
+        <div class="slot-nick" style="font-size: 0.7rem; font-weight: normal; background: ${nickBg}; padding: 1px 4px; border-radius: 4px; max-width: 95%; text-align: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: 1.2;">
+          ${esc(displayName)}
+        </div>
+        
+      </div>
+    `;
+  }
+
+  colorChartHtml += `</div></div>`;
+  return colorChartHtml;
+}
 /* ─── ADMIN TAB ─── */
 function rAdminTab(){
   if(!S.isAdmin)return`<div class="card" style="text-align:center;max-width:360px;margin:0 auto"><div style="font-size:36px;margin-bottom:8px">🔐</div><p style="font-weight:600;margin:0 0 14px">관리자 로그인</p><input id="pwI" type="password" class="inp" placeholder="비밀번호 입력" style="margin-bottom:8px">${S.pwErr?`<p style="font-size:13px;color:#C62828;margin:0 0 8px">${S.pwErr}</p>`:""}<button class="btn btn-primary" style="width:100%;padding:10px" data-a="login">로그인</button></div>`;
@@ -1684,12 +1828,13 @@ function rLovemonTab(){
   const lvPct=Math.min(100,Math.round(((myPet.xp||0)/XP_PER_LV)*100));
   const incomingReqs=S.breedRequests.filter(r=>r.to===myNick&&r.status==='pending');
   const outgoingReqs=S.breedRequests.filter(r=>r.from===myNick&&r.status==='pending');
+  const evoInfo = getPetEvolution(myPet.level, myPet.isBred, myPet.petEmoji);
 
   /* ─ 내 펫 카드 ─ */
   const myPetHTML=`
   <div class="lm-pet-card" style="margin-bottom:12px">
-    <div style="font-size:11px;color:var(--text2);letter-spacing:.5px;margin-bottom:6px">${lvLabel(myPet.level||1)}</div>
-    <div style="font-size:68px;margin:4px 0 6px;animation:float 2.5s ease-in-out infinite">${esc(myPet.petEmoji)}</div>
+    <div class="pet-evolution-stage">[ ${evoInfo.stage} ]</div>
+    <div style="font-size:68px;margin:4px 0 6px;animation:float 2.5s ease-in-out infinite">${getVisualEmoji(myPet)}</div>
     <div style="font-size:21px;font-weight:700;color:var(--rose2);margin-bottom:3px">${esc(myPet.petName)}</div>
     <div style="font-size:12px;color:var(--text3);margin-bottom:14px">${esc(myPet.petDesc||'')}</div>
 
@@ -1706,7 +1851,36 @@ function rLovemonTab(){
       </div>
       <div class="lm-xp-bar"><div class="lm-xp-fill" style="width:${lvPct}%"></div></div>
     </div>
-    ${(myPet.level||1)>=MAX_LV?`<div style="font-size:12px;color:var(--gold);font-weight:700;margin-top:10px;padding:6px 12px;background:rgba(212,168,83,.1);border-radius:8px;border:1px solid rgba(212,168,83,.3)">✨ 성체 달성! 교배 신청 가능 상태</div>`:''}
+    ${(myPet.level||1)>=MAX_LV
+      ? `<div style="font-size:12px;color:var(--gold);font-weight:700;margin-top:10px;padding:6px 12px;background:rgba(212,168,83,.1);border-radius:8px;border:1px solid rgba(212,168,83,.3)">✨ 성체 달성! 모든 상대에게 교배 신청 가능!</div>`
+      : (myPet.level||1)>=BREED_LV
+        ? `<div style="font-size:12px;color:var(--mint);font-weight:700;margin-top:10px;padding:6px 12px;background:rgba(46,196,182,.08);border-radius:8px;border:1px solid rgba(46,196,182,.25)">💍 Lv.${BREED_LV} 달성! 교배 신청 가능 상태</div>`
+        : `<div style="font-size:12px;color:var(--text3);margin-top:10px;padding:6px 12px;background:rgba(0,0,0,.04);border-radius:8px">🔒 교배는 Lv.${BREED_LV} 달성 후 가능 (현재 Lv.${myPet.level||1})</div>`
+    }
+    
+    ${(myPet.level||1)>=BREED_LV
+      ? `<div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">
+           <p style="font-size:12px;font-weight:700;color:var(--text2);margin:0 0 8px">💍 교배 신청 가능한 상대</p>
+           ${S.petEntries.filter(p=>p.nick!==myNick&&(p.level||1)>=BREED_LV).length===0
+             ? `<p style="font-size:12px;color:var(--text3);text-align:center;padding:8px">아직 교배 가능한 상대가 없어요 (Lv.${BREED_LV}+ 필요)</p>`
+             : S.petEntries.filter(p=>p.nick!==myNick&&(p.level||1)>=BREED_LV).map(p=>{
+                 const alreadyReq=S.breedRequests.some(r=>r.from===myNick&&r.to===p.nick&&r.status==='pending');
+                 return`<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)">
+                   <div>
+                     <span style="font-size:22px">${getVisualEmoji(p)}</span>
+                     <span style="font-size:13px;font-weight:600;margin-left:4px">${esc(p.nick)}</span>
+                     <span style="font-size:11px;color:var(--text3);margin-left:4px">${esc(p.petName)} Lv.${p.level||1}</span>
+                   </div>
+                   ${alreadyReq
+                     ? `<span style="font-size:11px;color:var(--rose);background:var(--rose-lt);padding:4px 10px;border-radius:99px">신청중 ⏳</span>`
+                     : `<button class="btn btn-primary" style="padding:6px 14px;font-size:12px" data-a="lm_breedReq" data-nick="${esc(p.nick)}">💍 신청</button>`
+                   }
+                 </div>`;
+               }).join('')
+           }
+         </div>`
+      : ''
+    }
 
     ${incomingReqs.length>0?`
     <div class="lm-breed-incoming">
@@ -1737,6 +1911,7 @@ function rLovemonTab(){
         </div>
       `).join('')}
     </div>
+    <button class="action-btn premium" data-a="lm_buyRenameTicket">🎟️ 펫 이름짓기권 (10,000P)</button>
   </div>`;
 
   /* ─ 다른 유저 펫 ─ */
@@ -1747,11 +1922,11 @@ function rLovemonTab(){
       <p style="font-size:13.5px;font-weight:700;color:var(--rose2);margin:0 0 4px">🌍 다른 유저의 러브몬</p>
       <p style="font-size:11.5px;color:var(--text3);margin:0 0 10px">사료를 줘서 몰래 키워주는 우렁각시형 플러팅! 💕</p>
       ${otherPets.map(p=>{
-        const canBreed=(myPet.level||1)>=MAX_LV&&(p.level||1)>=MAX_LV;
+        const canBreed=(myPet.level||1)>=BREED_LV&&(p.level||1)>=BREED_LV;
         const alreadyReq=S.breedRequests.some(r=>r.from===myNick&&r.to===p.nick&&r.status==='pending');
         const pLvPct=Math.min(100,Math.round(((p.xp||0)/XP_PER_LV)*100));
         return`<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border)">
-          <div style="font-size:34px;flex-shrink:0">${esc(p.petEmoji)}</div>
+          <div style="font-size:34px;flex-shrink:0">${getVisualEmoji(p)}</div>
           <div style="flex:1;min-width:0">
             <div style="font-weight:700;font-size:14px">${esc(p.nick)} <span style="font-size:11px;color:var(--text3);font-weight:400">${esc(p.petName)} · Lv.${p.level||1} · ${esc(p.mbti||'')}</span></div>
             <div style="height:4px;background:rgba(155,89,182,.1);border-radius:99px;margin:5px 0 3px">
@@ -1820,7 +1995,6 @@ function rPlazaTab(){
         <div style="font-size:40px;margin-bottom:10px">🎉</div>
         <p style="font-size:13px">초성 게임 준비 중... 잠시 후 시작됩니다!</p>
       </div>`;
-
   const inputSection=state&&!state.solvedBy&&myNick
     ?`<div style="display:flex;gap:8px;margin-top:10px">
         <input id="lm_chosung_input" class="inp" placeholder="정답을 입력하세요..." value="${esc(S.chosungInput)}" style="flex:1">
@@ -1828,16 +2002,14 @@ function rPlazaTab(){
       </div>`
     :(!myNick?`<p style="font-size:12px;color:var(--text3);text-align:center;margin-top:10px;padding:10px;background:var(--rose-lt);border-radius:8px">포인트를 받으려면 MBTI 검사를 먼저 완료해주세요!</p>`:
       state?.solvedBy?`<p style="font-size:12px;color:var(--text3);text-align:center;margin-top:10px">다음 문제를 기다려주세요...</p>`:'');
-
   const lbHTML=sortedPets.length===0
     ?`<p style="font-size:13px;color:var(--text3);text-align:center;padding:1rem">아직 포인트 보유자가 없어요</p>`
     :sortedPets.map((p,i)=>`<div class="lm-lb-row">
         <div class="lm-lb-rank">${i===0?'🥇':i===1?'🥈':i===2?'🥉':i+1}</div>
-        <div class="lm-lb-pet">${esc(p.petEmoji||'🐾')}</div>
+        <div class="lm-lb-pet">${getVisualEmoji(p)}</div>
         <div class="lm-lb-nick">${esc(p.nick)} <span style="font-size:10px;color:var(--text3);font-weight:400">Lv.${p.level||1}</span></div>
         <div class="lm-lb-pts">${(p.points||0).toLocaleString()}P</div>
       </div>`).join('');
-
   return`
   <div class="card card-mint" style="margin-bottom:12px">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
@@ -1887,7 +2059,7 @@ function attachEvents(){
    ["idealI","idealType"],["appealI","appeal"],["gidolI","giDol"]
   ].forEach(([id,key])=>{const el=app.querySelector("#"+id);if(el)el.addEventListener("input",e=>{S[key]=e.target.value;});});
   const pwI=app.querySelector("#pwI");if(pwI)pwI.addEventListener("keydown",e=>{if(e.key==="Enter")login();});
-
+  
   /* 초성 인풋 */
   const chosungI=app.querySelector("#lm_chosung_input");
   if(chosungI){
@@ -1964,6 +2136,49 @@ function attachEvents(){
       else if(a==="lm_breedReq"){requestBreed(el.dataset.nick);}
       else if(a==="lm_breedAccept"){acceptBreed(el.dataset.id, el.dataset.from);}
       else if(a==="lm_submitAnswer"){submitChosungAnswer();}
+      /* ── 아이템 구매 (이름 변경권) ── */
+      else if (a === "lm_buyRenameTicket") {
+        const myNick = S.myEntry?.nick;
+        if (!myNick || !S.myPet) { alert("먼저 러브몬을 생성해주세요!"); return; }
+        if ((S.myPet.points || 0) < 10000) { alert("포인트가 부족합니다! (10,000P 필요)"); return; }
+        const newName = prompt("새로운 러브몬의 이름을 입력해주세요:");
+        if (newName && newName.trim() !== "") {
+          petCol.doc(myNick).update({
+              petName: newName.trim(),
+              points: INC(-10000)
+          }).then(() => {
+              S.myPet.points -= 10000;
+              S.myPet.petName = newName.trim();
+              alert(`펫의 이름이 '${newName.trim()}'(으)로 예쁘게 변경되었습니다!`);
+              render();
+          });
+        }
+      }
+      /* ── 색상표(Color Chart) 슬롯 등록 ── */
+      else if (a === "setColorSlot") {
+        const slot = el.dataset.slot;
+        const currentName = S.colorSlots[slot] || "";
+        const isAdmin = S.isAdmin;
+        
+        if (currentName !== "" && !isAdmin && currentName !== S.myEntry?.nick) {
+          alert("이미 다른 유저가 선점한 번호입니다. 본인의 자리만 수정 가능합니다.");
+          return;
+        }
+        
+        const newNick = prompt(`${slot}번 색상표에 등록할 닉네임을 입력하세요:\n(비워두면 삭제됩니다)`, currentName || S.myEntry?.nick || "");
+        if (newNick !== null) {
+          const updates = {};
+          if (newNick.trim() === "") {
+            updates[slot] = firebase.firestore.FieldValue.delete();
+            delete S.colorSlots[slot];
+          } else {
+            updates[slot] = newNick.trim();
+            S.colorSlots[slot] = newNick.trim();
+          }
+          gameStateCol.doc("color_chart").set(updates, { merge: true });
+          render();
+        }
+      }
     });
   });
 }
