@@ -3018,22 +3018,22 @@ function rBattleUI(){
     <p style="font-size:11.5px;font-weight:700;color:var(--text2);margin:0 0 8px">⚔️ 공격 스킬</p>
     <div class="skill-btn-grid" style="margin-bottom:10px">
       ${ATK_SKILLS.map(s=>`
-        <button class="btn ${s.sp<=ds.playerSp?(s.id==='basic'?'btn-primary':'btn-plum'):'btn-danger'}"
+        <button class="btn ${(s.mp||0)<=ds.playerMp?(s.id==='basic'?'btn-primary':'btn-plum'):'btn-danger'}"
           style="padding:7px 6px;font-size:11.5px;flex-direction:column;gap:2px;text-align:center"
           data-a="lm_dungeonAction" data-type="attack" data-skill="${s.id}">
           <span>${s.emoji} ${s.name}</span>
-          <span style="font-size:10px;opacity:.8">${s.sp>0?`SP-${s.sp}`:'무료'}</span>
+          <span style="font-size:10px;opacity:.8">${(s.mp||0)>0?`MP-${s.mp}`:'무료'}</span>
         </button>
       `).join('')}
     </div>
     <p style="font-size:11.5px;font-weight:700;color:var(--text2);margin:0 0 8px">🛡️ 방어 스킬</p>
     <div class="skill-btn-grid" style="margin-bottom:10px">
       ${DEF_SKILLS.map(s=>`
-        <button class="btn ${s.sp<=ds.playerSp?'btn-mint':'btn-danger'}"
+        <button class="btn ${(s.mp||0)<=ds.playerMp?'btn-mint':'btn-danger'}"
           style="padding:7px 6px;font-size:11.5px;flex-direction:column;gap:2px;text-align:center"
           data-a="lm_dungeonAction" data-type="defense" data-skill="${s.id}">
           <span>${s.emoji} ${s.name}</span>
-          <span style="font-size:10px;opacity:.8">SP-${s.sp}${s.mpCost?` MP-${s.mpCost}`:''}</span>
+          <span style="font-size:10px;opacity:.8">MP-${s.mp||0}</span>
         </button>
       `).join('')}
     </div>
