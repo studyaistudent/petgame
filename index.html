@@ -778,7 +778,7 @@ const ATK_SKILLS=[
   {id:'basic', name:'기본 공격',       emoji:'⚔️',  sp:0,  dmgMult:1.0, desc:'기본 타격 (SP 소모 없음)'},
   {id:'power', name:'파워 스트라이크', emoji:'💥',  mp:20, dmgMult:2.0, desc:'강력한 일격 · MP -20'},
   {id:'magic', name:'마법 폭발',       emoji:'✨',  mp:25, dmgMult:2.3, mpCost:10, desc:'마법 타격 · MP -25'},
-  {id:'crit',  name:'크리티컬 히트',   emoji:'🗡️',  sp:50, dmgMult:8, desc:'치명타 확정 · SP -50'},
+  {id:'crit',  name:'크리티컬 히트',   emoji:'🗡️',  mp:50, dmgMult:3, desc:'치명타 확정 · MP -50'},
 ];
 const DEF_SKILLS=[
   {id:'guard', name:'철벽 가드',    emoji:'🛡️',  mp:15, defMult:2.5, desc:'방어력 2.5배 (이번 턴) · MP -15'},
@@ -794,18 +794,18 @@ const POTION_ITEMS=[
 const DUNGEON_FLOORS=[
   {floor:1, name:'풀숲 입구',   emoji:'🌿', reqLv:1,
    mobs:[
-     {name:'풀 슬라임',    emoji:'🟢', hp:140,  atk:16,  def:12,  eva:10,  xp:100,  pts:255},
-     {name:'버섯 몬스터',  emoji:'🍄', hp:155,  atk:18,  def:23,  eva:10,  xp:155,  pts:255},
+     {name:'풀 슬라임',    emoji:'🟢', hp:140,  atk:16,  def:12,  eva:10,  xp:50,  pts:255},
+     {name:'버섯 몬스터',  emoji:'🍄', hp:155,  atk:18,  def:23,  eva:10,  xp:105,  pts:255},
    ]},
   {floor:2, name:'어두운 동굴', emoji:'🕳️', reqLv:5,
    mobs:[
-     {name:'박쥐 귀신',    emoji:'🦇', hp:380,  atk:54, def:35,  eva:12, xp:190,  pts:560},
-     {name:'돌 골렘',      emoji:'🪨', hp:520, atk:80, def:48, eva:15,  xp:210, pts:575},
+     {name:'박쥐 귀신',    emoji:'🦇', hp:380,  atk:54, def:35,  eva:12, xp:150,  pts:560},
+     {name:'돌 골렘',      emoji:'🪨', hp:520, atk:80, def:48, eva:15,  xp:170, pts:575},
    ]},
   {floor:3, name:'용암 지대',   emoji:'🌋', reqLv:10,
    mobs:[
-     {name:'화염 도마뱀',  emoji:'🦎', hp:700, atk:102, def:40, eva:15, xp:360, pts:1110},
-     {name:'불꽃 오크',    emoji:'👹', hp:1000, atk:120, def:50, eva:15,  xp:385, pts:1130},
+     {name:'화염 도마뱀',  emoji:'🦎', hp:700, atk:102, def:40, eva:15, xp:200, pts:1110},
+     {name:'불꽃 오크',    emoji:'👹', hp:1000, atk:120, def:50, eva:15,  xp:255, pts:1130},
    ]},
   {floor:4, name:'마왕의 성',   emoji:'🏰', reqLv:15,
    mobs:[
