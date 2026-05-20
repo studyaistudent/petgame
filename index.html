@@ -775,16 +775,17 @@ const BREED_AFFECTION=100;
 
 /* ── 던전 / 배틀 상수 ── */
 const ATK_SKILLS=[
-  {id:'basic', name:'기본 공격',       emoji:'⚔️',  sp:0,  dmgMult:1.0, desc:'기본 타격 (SP 소모 없음)'},
+  {id:'basic', name:'기본 공격',       emoji:'⚔️',  mp:0,  dmgMult:1.0, desc:'기본 타격 (MP 소모 없음)'},
   {id:'power', name:'파워 스트라이크', emoji:'💥',  mp:20, dmgMult:2.0, desc:'강력한 일격 · MP -20'},
-  {id:'magic', name:'마법 폭발',       emoji:'✨',  mp:25, dmgMult:2.3, mpCost:10, desc:'마법 타격 · MP -25'},
-  {id:'crit',  name:'크리티컬 히트',   emoji:'🗡️',  mp:50, dmgMult:3, desc:'치명타 확정 · MP -50'},
+  {id:'magic', name:'마법 폭발',       emoji:'✨',  mp:25, dmgMult:2.3, desc:'마법 타격 · MP -25'},
+  {id:'crit',  name:'크리티컬 히트',   emoji:'🗡️',  mp:50, dmgMult:3.0, desc:'치명타 확정 · MP -50'},
 ];
 const DEF_SKILLS=[
   {id:'guard', name:'철벽 가드',    emoji:'🛡️',  mp:15, defMult:2.5, desc:'방어력 2.5배 (이번 턴) · MP -15'},
   {id:'dodge', name:'회피 강화',    emoji:'💨',  mp:20, evaMult:2.0, desc:'회피율 2배 (이번 턴) · MP -20'},
-  {id:'heal',  name:'자가 치유',    emoji:'💚',  mp:30, mpCost:30, healPct:0.22, desc:'HP 22% 회복 · MP -30'},
+  {id:'heal',  name:'자가 치유',    emoji:'💚',  mp:30, healPct:0.22, desc:'HP 22% 회복 · MP -30'},
 ];
+
 const POTION_ITEMS=[
   {id:'hp_sm',  name:'HP 소형 물약',  emoji:'🧪', cost:50,  hp:200,   desc:'HP +200 즉시 회복'},
   {id:'hp_lg',  name:'HP 대형 물약',  emoji:'🫙', cost:150,  hp:500,  desc:'HP +500 즉시 회복'},
