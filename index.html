@@ -5770,7 +5770,7 @@ function rHatchedBabyUI(baby, myNick){
 }
 
 /* ═══════════════════════════════════════
-   🏠 하우스 탭 — 인테리어 잡지 감성 ver.
+   🏠 하우스 탭 — 가구 편집 기능 통합 ver.
 ═══════════════════════════════════════ */
 function rHouseTab(){
   const myNick = S.myEntry?.nick;
@@ -5779,8 +5779,9 @@ function rHouseTab(){
   const houseData = isVisiting ? S.houseEntries.find(h => h.nick === targetNick) : S.myHouse;
   const tier = houseData ? (HOUSE_TIERS.find(t => t.id === houseData.tier) || HOUSE_TIERS[0]) : null;
   const myPoints = S.myPet?.points || 0;
+  const editing = S.editingFurniture; // { id, x, z, rotation }
  
-  /* ── 집이 없을 때 ── */
+  /* 집이 없을 때 */
   if (!isVisiting && !S.myHouse) {
     return `
     <div class="house-onboarding">
@@ -5794,7 +5795,7 @@ function rHouseTab(){
     </div>`;
   }
  
-  /* ── 방문 중인데 상대방 집이 없을 때 ── */
+  /* 방문 중인데 상대방 집이 없음 */
   if (isVisiting && !houseData) {
     return `
     <div class="card" style="text-align:center;padding:2rem">
@@ -5809,7 +5810,10 @@ function rHouseTab(){
   const guestbook = houseData?.guestbook || [];
   const furniture = houseData?.furniture || [];
   const inventory = houseData?.inventory || [];
-  const decoTab = S._decoTab || 'tier';
+  const decoTab = S._decoTab || (editing ? 'mine' : 'tier');
+ 
+  /* 편집 중인 가구 데이터 */
+  const editingItem = editing ? furniture.find(f => f.id === editing.id) : null;
  
   /* ─────────────────────────────────────
      1) 메인 3D 스테이지
@@ -5838,7 +5842,12 @@ function rHouseTab(){
       <div id="house3d-canvas" style="width:100%;height:420px"></div>
     </div>
  
-    <div class="house-ctrl-hint">← 드래그하여 둘러보기 →</div>
+    ${editing && editingItem ? `
+      <div class="editing-banner">
+        🎯 ${esc(editingItem.emoji)} ${esc(editingItem.name)} 배치 중...
+      </div>` : ''}
+ 
+    <div class="house-ctrl-hint">${editing ? '편집 중' : '← 드래그하여 둘러보기 →'}</div>
  
     <div class="house-action-bar">
       <div class="info">
@@ -5850,11 +5859,79 @@ function rHouseTab(){
   </div>`;
  
   /* ─────────────────────────────────────
-     2) 본인 집 — 인테리어 데코 패널 (탭형)
+     2) 가구 편집기 (편집 중일 때만 표시)
+     ───────────────────────────────────── */
+  let editorHTML = '';
+  if (editing && editingItem && !isVisiting) {
+    const rotDeg = Math.round(editing.rotation * 180 / Math.PI) % 360;
+    const rotDegNorm = rotDeg < 0 ? rotDeg + 360 : rotDeg;
+ 
+    const rotPresets = [0, 45, 90, 135, 180, 225, 270, 315];
+ 
+    editorHTML = `
+    <div class="furniture-editor">
+      <div class="editor-header">
+        <span class="e-emoji">${editingItem.emoji}</span>
+        <span class="e-name">${esc(editingItem.name)}</span>
+        <span class="e-tag">🎯 배치 중</span>
+      </div>
+ 
+      <div class="editor-help">
+        💡 <b>주황색 화살표</b>가 가구의 앞쪽 방향이에요. 슬라이더나 ◀ ▶ 버튼으로 미세 조정하세요.
+      </div>
+ 
+      <!-- 좌우 (X축) -->
+      <div class="editor-row">
+        <span class="e-label">↔️ 좌우</span>
+        <button class="e-step-btn" data-a="lm_editStep" data-field="x" data-v="-0.3">◀</button>
+        <input type="range" min="-6" max="6" step="0.1" value="${editing.x}"
+               id="edit_slider_x" class="e-slider" data-a="lm_editSlide" data-field="x">
+        <button class="e-step-btn" data-a="lm_editStep" data-field="x" data-v="0.3">▶</button>
+        <span class="e-val" id="edit_val_x">${editing.x.toFixed(1)}</span>
+      </div>
+ 
+      <!-- 앞뒤 (Z축) -->
+      <div class="editor-row">
+        <span class="e-label">↕️ 앞뒤</span>
+        <button class="e-step-btn" data-a="lm_editStep" data-field="z" data-v="-0.3">◀</button>
+        <input type="range" min="-5" max="5" step="0.1" value="${editing.z}"
+               id="edit_slider_z" class="e-slider" data-a="lm_editSlide" data-field="z">
+        <button class="e-step-btn" data-a="lm_editStep" data-field="z" data-v="0.3">▶</button>
+        <span class="e-val" id="edit_val_z">${editing.z.toFixed(1)}</span>
+      </div>
+ 
+      <!-- 회전 (0~360°) -->
+      <div class="editor-row">
+        <span class="e-label">🔄 회전</span>
+        <button class="e-step-btn" data-a="lm_editStep" data-field="rotation" data-v="-15">◀</button>
+        <input type="range" min="0" max="360" step="1" value="${rotDegNorm}"
+               id="edit_slider_r" class="e-slider" data-a="lm_editSlide" data-field="rotation">
+        <button class="e-step-btn" data-a="lm_editStep" data-field="rotation" data-v="15">▶</button>
+        <span class="e-val" id="edit_val_r">${rotDegNorm}°</span>
+      </div>
+ 
+      <!-- 회전 프리셋 (45° 스냅) -->
+      <div class="rot-presets">
+        ${rotPresets.map(deg => `
+          <button class="rot-preset ${rotDegNorm === deg ? 'active' : ''}"
+                  data-a="lm_editSetRot" data-v="${deg}">${deg}°</button>
+        `).join('')}
+      </div>
+ 
+      <!-- 액션 -->
+      <div class="editor-actions">
+        <button class="btn btn-remove" data-a="lm_editRemove">🗑️ 보관</button>
+        <button class="btn btn-cancel" data-a="lm_editCancel">취소</button>
+        <button class="btn btn-confirm" data-a="lm_editConfirm">✅ 저장</button>
+      </div>
+    </div>`;
+  }
+ 
+  /* ─────────────────────────────────────
+     3) 인테리어 스튜디오 (본인 집만)
      ───────────────────────────────────── */
   let decoHTML = '';
   if (!isVisiting) {
-    /* 탭 헤더 */
     const tabs = [
       { id: 'tier',  label: '🏛️ 등급' },
       { id: 'wall',  label: '🎨 벽/바닥' },
@@ -5862,7 +5939,6 @@ function rHouseTab(){
       { id: 'mine',  label: '📦 인벤' },
     ];
  
-    /* 탭별 컨텐츠 */
     let panelContent = '';
     if (decoTab === 'tier') {
       panelContent = `
@@ -5937,16 +6013,21 @@ function rHouseTab(){
       </div>`;
     } else if (decoTab === 'mine') {
       panelContent = `
+      <div class="editor-help" style="margin-bottom:12px">
+        💡 배치된 가구를 클릭하면 <b>위치/회전 편집</b>이 가능해요! 보관 중인 가구는 클릭하면 집에 배치됩니다.
+      </div>
+ 
       ${furniture.length > 0 ? `
         <p style="font-size:11px;color:var(--text3);letter-spacing:1px;margin-bottom:8px;text-transform:uppercase">
           🏠 Placed (${furniture.length}/${tier?.maxSlots || 3})
         </p>
         <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px">
           ${furniture.map(f => `
-            <div class="furn-chip placed" data-a="lm_removeFurniture" data-id="${f.id}" title="제거">
+            <div class="furn-chip ${editing?.id === f.id ? 'editing' : 'placed'}"
+                 data-a="lm_editFurniture" data-id="${f.id}" title="편집">
               <span class="chip-emoji">${f.emoji}</span>
               <span>${esc(f.name)}</span>
-              <span class="chip-x">✕</span>
+              <span class="chip-edit">${editing?.id === f.id ? '🎯' : '✎'}</span>
             </div>
           `).join('')}
         </div>` : ''}
@@ -5990,7 +6071,7 @@ function rHouseTab(){
   }
  
   /* ─────────────────────────────────────
-     3) 방명록
+     4) 방명록
      ───────────────────────────────────── */
   const guestbookHTML = `
   <div class="card" style="padding:16px">
@@ -6027,7 +6108,7 @@ function rHouseTab(){
     `}
   </div>`;
  
-  return stageHTML + decoHTML + guestbookHTML;
+  return stageHTML + editorHTML + decoHTML + guestbookHTML;
 }
 
 /* ═══════════════════════════════════════
