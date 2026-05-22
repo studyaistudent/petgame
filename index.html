@@ -3339,32 +3339,30 @@ function initCatchmindCanvas(){
   const myNick=S.myEntry?.nick;
   const state=S.catchmindState;
   const isDrawer=state?.status==='drawing'&&state?.drawerNick===myNick;
-  if(window.__cmCanvas){
-    window.__cmCanvas.isDrawer=isDrawer;
-    window.__cmCanvas.redrawAll(S.cmStrokes);
-    return;
-  }
+
+  /* render() 후 DOM이 새로 생성되므로 항상 새 인스턴스 생성 */
   const inst=new CatchmindCanvas('cm_canvas',isDrawer,S.cmTool);
-  if(inst.el){
-    window.__cmCanvas=inst;
-    inst.redrawAll(S.cmStrokes);
-    /* 타이머 인터벌 */
-    if(window.__cmTimer)clearInterval(window.__cmTimer);
-    window.__cmTimer=setInterval(()=>{
-      const timerEl=document.getElementById('cm_timer');
-      if(!timerEl)return;
-      const st=S.catchmindState;
-      if(!st||st.status!=='drawing'){timerEl.textContent='';return;}
-      const elapsed=(Date.now()-(st.startedAt||0))/1000;
-      const rem=Math.max(0,Math.ceil((st.roundTime||90)-elapsed));
-      timerEl.textContent=rem+'초';
-      timerEl.style.color=rem<=10?'#C62828':rem<=30?'#FF5722':'var(--text1)';
-      if(rem===0&&!st.solvedBy){
-        timerEl.textContent='⏰ 시간 초과!';
-        clearInterval(window.__cmTimer);window.__cmTimer=null;
-      }
-    },500);
-  }
+  if(!inst.el)return;
+
+  window.__cmCanvas=inst;
+  inst.redrawAll(S.cmStrokes);
+
+  /* 타이머 재시작 */
+  if(window.__cmTimer)clearInterval(window.__cmTimer);
+  window.__cmTimer=setInterval(()=>{
+    const timerEl=document.getElementById('cm_timer');
+    if(!timerEl)return;
+    const st=S.catchmindState;
+    if(!st||st.status!=='drawing'){timerEl.textContent='';return;}
+    const elapsed=(Date.now()-(st.startedAt||0))/1000;
+    const rem=Math.max(0,Math.ceil((st.roundTime||90)-elapsed));
+    timerEl.textContent=rem+'초';
+    timerEl.style.color=rem<=10?'#C62828':rem<=30?'#FF5722':'var(--text1)';
+    if(rem===0&&!st.solvedBy){
+      timerEl.textContent='⏰ 시간 초과!';
+      clearInterval(window.__cmTimer);window.__cmTimer=null;
+    }
+  },500);
 }
 
 function renderCMGuesses(){
