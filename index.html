@@ -1685,24 +1685,28 @@ function initDungeonCoolTimer(){
   const myPet=S.myPet;
   if(!myPet)return;
   const cooldownEnd=(myPet.dungeonCooldownStart||0)+DUNGEON_COOLDOWN_MS;
+  if(Date.now()>=cooldownEnd)return;
   const tick=()=>{
     const timerEl=document.getElementById('dungeon_cool_timer');
+    const progEl=document.getElementById('dungeon_cool_progress');
     if(!timerEl){clearInterval(window.__dungeonCoolTimer);window.__dungeonCoolTimer=null;return;}
     const rem=cooldownEnd-Date.now();
     if(rem<=0){
-      timerEl.textContent='완료!';
+      timerEl.textContent='✅ 완료!';
       clearInterval(window.__dungeonCoolTimer);window.__dungeonCoolTimer=null;
-      if(S.screen==='board'&&S.tab==='lm_dungeon')render();
+      setTimeout(()=>{if(S.screen==='board'&&S.tab==='lm_dungeon')render();},500);
       return;
     }
     const m=Math.floor(rem/60000);
     const s=Math.floor((rem%60000)/1000);
     timerEl.textContent=`${m}분 ${s}초`;
+    if(progEl){
+      const pct=Math.min(100,Math.round(((DUNGEON_COOLDOWN_MS-rem)/DUNGEON_COOLDOWN_MS)*100));
+      progEl.style.width=pct+'%';
+    }
   };
-  tick(); /* 즉시 1회 실행해서 "계산 중..." 없애기 */
-  if(Date.now()<cooldownEnd){
-    window.__dungeonCoolTimer=setInterval(tick,1000);
-  }
+  tick();
+  window.__dungeonCoolTimer=setInterval(tick,1000);
 }
 
   
@@ -2787,27 +2791,28 @@ async function finalizeDungeon(won){
       const floorNum=ds.floorIdx+1;
       kills[floorNum]=true;
       const now=Date.now();
-      const newKills={...kills,[floorNum]:true};
-      const allCleared=DUNGEON_ALL_FLOORS.every(f=>newKills[f]);
+      const newBattleCount=(S.myPet.dungeonBattleCount||0)+1;
+      const triggerCooldown=newBattleCount>=5;
       const dbUpdate={
         xp:newXp,level:newLv,points:INC(ds.totalPts),
         currentHp:ds.playerHp,currentMp:ds.playerMp,currentSp:ds.playerSp,
-        inventory:ds.inventory,dungeonKills:newKills,
+        inventory:ds.inventory,
+        dungeonBattleCount:triggerCooldown?0:newBattleCount,
       };
-      if(allCleared){
+      S.myPet.dungeonBattleCount=triggerCooldown?0:newBattleCount;
+      if(triggerCooldown){
         dbUpdate.dungeonCooldownStart=now;
-        dbUpdate.dungeonKills={};
         S.myPet.dungeonCooldownStart=now;
       }
-      S.myPet.dungeonKills=allCleared?{}:newKills;
       S.myPet.dungeonKills=kills;
       S.myPet.dungeonCooldownStart=now;
       await petCol.doc(myNick).update(dbUpdate);
       S.myPet={...S.myPet,xp:newXp,level:newLv,
         points:(S.myPet.points||0)+ds.totalPts,
         currentHp:ds.playerHp,currentMp:ds.playerMp,currentSp:ds.playerSp,inventory:ds.inventory};
-      alert(`🏆 전투 승리!\n획득: XP +${ds.totalXp} · 포인트 +${ds.totalPts}${leveled?`\n🎉 레벨업! Lv.${newLv} 달성!`:''}\n\n⏳ 5분 후 다시 던전에 입장할 수 있어요!`);
-    }else{
+      const battleCount=S.myPet.dungeonBattleCount||0;
+      const remainBattles=triggerCooldown?0:(5-battleCount);
+      alert(`🏆 전투 승리!\n획득: XP +${ds.totalXp} · 포인트 +${ds.totalPts}${leveled?`\n🎉 레벨업! Lv.${newLv} 달성!`:''}${triggerCooldown?'\n\n⏳ 5전 완료! 5분 쿨타임 시작!':`\n\n⚔️ 이번 라운드 ${battleCount}전/${5}전 (${remainBattles}전 더 하면 쿨타임)`}`);    }else{
       const penaltyXp=Math.min(100,S.myPet.xp||0);
       const newXp=Math.max(0,(S.myPet.xp||0)-penaltyXp);
       await petCol.doc(myNick).update({
@@ -4743,25 +4748,44 @@ function rDungeonTab(){
   const clearedCount=DUNGEON_ALL_FLOORS.filter(f=>kills[f]).length;
 
   return `
- ${isCooldown?`<div class="dungeon-cooltime">
-    <span style="font-size:28px">⏳</span>
-    <div style="flex:1">
-      <div style="font-size:12px;font-weight:700;color:#E64A19;margin-bottom:4px">🏆 전층 클리어! 쿨타임 중</div>
-      <div id="dungeon_cool_timer" class="cooltime-timer">계산 중...</div>
-      <div style="font-size:10.5px;color:#BF360C;margin-top:4px">5분 후 자동으로 초기화됩니다 ⚔️</div>
-    </div>
-  </div>`:`<div class="card card-mint" style="margin-bottom:12px;padding:10px 14px">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
-      <span style="font-size:12px;font-weight:700;color:var(--mint)">⚔️ 이번 라운드 클리어 현황 (${clearedCount}/${DUNGEON_ALL_FLOORS.length})</span>
-    </div>
-    <div style="display:flex;gap:6px">
-      ${DUNGEON_ALL_FLOORS.map(f=>`<div style="flex:1;text-align:center;padding:6px 4px;border-radius:8px;background:${kills[f]?'rgba(46,196,182,.15)':'rgba(0,0,0,.04)'};border:1px solid ${kills[f]?'rgba(46,196,182,.4)':'var(--border)'}">
-        <div style="font-size:14px">${kills[f]?'✅':'⚔️'}</div>
-        <div style="font-size:10px;color:${kills[f]?'var(--mint)':'var(--text3)'};">${f}층</div>
-      </div>`).join('')}
-    </div>
-    ${clearedCount===5?`<p style="font-size:11px;color:var(--rose2);font-weight:700;margin:6px 0 0;text-align:center">🔥 마지막 층만 남았어요! 클리어하면 5분 쿨타임 시작!</p>`:''}
-  </div>`}
+  ${(()=>{
+    const battleCount=myPet.dungeonBattleCount||0;
+    const dots=Array.from({length:5},(_,i)=>i<battleCount);
+    if(isCooldown){
+      return `<div class="dungeon-cooltime" style="flex-direction:column;align-items:flex-start;gap:10px">
+        <div style="display:flex;align-items:center;gap:12px;width:100%">
+          <span style="font-size:28px">⏳</span>
+          <div style="flex:1">
+            <div style="font-size:12px;font-weight:700;color:#E64A19;margin-bottom:4px">5전 완료! 쿨타임 중...</div>
+            <div id="dungeon_cool_timer" class="cooltime-timer" style="font-size:28px">계산 중...</div>
+            <div style="font-size:10.5px;color:#BF360C;margin-top:4px">쿨타임 후 자동으로 입장 가능합니다 ⚔️</div>
+          </div>
+        </div>
+        <div style="width:100%;background:rgba(255,87,34,.08);border-radius:10px;padding:8px 12px">
+          <div style="font-size:10.5px;color:#BF360C;margin-bottom:6px;font-weight:600">쿨타임 진행률</div>
+          <div style="height:8px;background:rgba(255,87,34,.15);border-radius:99px;overflow:hidden">
+            <div id="dungeon_cool_progress" style="height:100%;background:linear-gradient(90deg,#FF6D00,#FF9100);border-radius:99px;transition:width .5s linear;width:${Math.min(100,Math.round(((DUNGEON_COOLDOWN_MS-coolRemain)/DUNGEON_COOLDOWN_MS)*100))}%"></div>
+          </div>
+          <div style="display:flex;justify-content:space-between;font-size:10px;color:#BF360C;margin-top:4px">
+            <span>0분</span><span>5분</span>
+          </div>
+        </div>
+      </div>`;
+    }
+    return `<div class="card card-mint" style="margin-bottom:12px;padding:10px 14px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+        <span style="font-size:12px;font-weight:700;color:var(--mint)">⚔️ 이번 라운드 전투 횟수</span>
+        <span style="font-size:12px;font-weight:700;color:var(--mint)">${battleCount} / 5전</span>
+      </div>
+      <div style="display:flex;gap:8px;justify-content:center;margin-bottom:6px">
+        ${dots.map(done=>`<div style="width:36px;height:36px;border-radius:50%;background:${done?'linear-gradient(135deg,var(--mint),#1A9E95)':'rgba(0,0,0,.06)'};border:2px solid ${done?'rgba(46,196,182,.6)':'var(--border)'};display:flex;align-items:center;justify-content:center;font-size:18px;transition:all .3s">${done?'✅':'⚔️'}</div>`).join('')}
+      </div>
+      <div style="height:6px;background:rgba(46,196,182,.15);border-radius:99px;overflow:hidden;margin-bottom:6px">
+        <div style="height:100%;width:${(battleCount/5)*100}%;background:linear-gradient(90deg,var(--mint),#1A9E95);border-radius:99px;transition:width .4s ease"></div>
+      </div>
+      <p style="font-size:11px;color:var(--text3);text-align:center;margin:0">${battleCount===0?'⚔️ 던전에 입장해서 전투를 시작하세요!':battleCount>=4?`🔥 마지막 1전! 클리어하면 5분 쿨타임 시작!`:`⚔️ ${5-battleCount}전 더 하면 5분 쿨타임`}</p>
+    </div>`;
+  })()}
     <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
       <div style="font-size:44px">${myPet.petEmoji||'🐾'}</div>
       <div style="flex:1">
