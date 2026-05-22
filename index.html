@@ -1685,17 +1685,14 @@ function initDungeonCoolTimer(){
   const myPet=S.myPet;
   if(!myPet)return;
   const cooldownEnd=(myPet.dungeonCooldownStart||0)+DUNGEON_COOLDOWN_MS;
-  if(Date.now()>=cooldownEnd)return; // 이미 쿨타임 아님
-
+  if(Date.now()>=cooldownEnd)return;
   window.__dungeonCoolTimer=setInterval(()=>{
     const rem=cooldownEnd-Date.now();
     const timerEl=document.getElementById('dungeon_cool_timer');
     if(!timerEl){
-      // 탭에서 벗어남 → 인터벌 정리
       clearInterval(window.__dungeonCoolTimer);window.__dungeonCoolTimer=null;return;
     }
     if(rem<=0){
-      // 쿨타임 만료 → 인터벌 정리 후 재렌더
       clearInterval(window.__dungeonCoolTimer);window.__dungeonCoolTimer=null;
       if(S.screen==='board'&&S.tab==='lm_dungeon')render();
       return;
@@ -2776,51 +2773,40 @@ async function finalizeDungeon(won){
   const ds=S.dungeonState;
   const myNick=S.myEntry?.nick;
   if(!myNick||!S.myPet)return;
-try{
+  try{
     if(won){
-      /* 보상: XP + 포인트 적립, 현재 HP/MP/SP 저장 */
       let newXp=(S.myPet.xp||0)+ds.totalXp;
-let newLv=S.myPet.level||1;
+      let newLv=S.myPet.level||1;
       let leveled=false;
       while(newXp>=XP_PER_LV&&newLv<MAX_LV){newLv++;newXp-=XP_PER_LV;leveled=true;}
-      /* ★ 층별 킬 기록 */
       const kills={...(S.myPet.dungeonKills||{})};
-const floorNum=ds.floorIdx+1;
+      const floorNum=ds.floorIdx+1;
       kills[floorNum]=true;
-      const allCleared=DUNGEON_ALL_FLOORS.every(f=>kills[f]);
+      const now=Date.now();
       const dbUpdate={
         xp:newXp,level:newLv,points:INC(ds.totalPts),
         currentHp:ds.playerHp,currentMp:ds.playerMp,currentSp:ds.playerSp,
         inventory:ds.inventory,dungeonKills:kills,
+        dungeonCooldownStart:now,
       };
-if(allCleared){
-        /* 전 층 클리어 → 쿨타임 시작 + 킬 초기화 */
-        dbUpdate.dungeonKills={};
-dbUpdate.dungeonCooldownStart=Date.now();
-        S.myPet.dungeonKills={};
-        S.myPet.dungeonCooldownStart=Date.now();
-      }else{
-        S.myPet.dungeonKills=kills;
-      }
+      S.myPet.dungeonKills=kills;
+      S.myPet.dungeonCooldownStart=now;
       await petCol.doc(myNick).update(dbUpdate);
-S.myPet={...S.myPet,xp:newXp,level:newLv,
+      S.myPet={...S.myPet,xp:newXp,level:newLv,
         points:(S.myPet.points||0)+ds.totalPts,
         currentHp:ds.playerHp,currentMp:ds.playerMp,currentSp:ds.playerSp,inventory:ds.inventory};
-const clearedStr=DUNGEON_ALL_FLOORS.map(f=>`${f}층 ${kills[f]?'✅':'❌'}`).join(' ');
-      alert(`🏆 전투 승리!\n획득: XP +${ds.totalXp} · 포인트 +${ds.totalPts}${leveled?`\n🎉 레벨업! Lv.${newLv} 달성!`:''}\n\n📊 클리어 현황: ${clearedStr}${allCleared?'\n\n🔥 전 층 클리어! 5분 쿨타임 시작!':''}`);
-}else{
-      /* 패배: XP -100, 포인트 -1000, HP 1로 부활 */
+      alert(`🏆 전투 승리!\n획득: XP +${ds.totalXp} · 포인트 +${ds.totalPts}${leveled?`\n🎉 레벨업! Lv.${newLv} 달성!`:''}\n\n⏳ 5분 후 다시 던전에 입장할 수 있어요!`);
+    }else{
       const penaltyXp=Math.min(100,S.myPet.xp||0);
-const newXp=Math.max(0,(S.myPet.xp||0)-penaltyXp);
+      const newXp=Math.max(0,(S.myPet.xp||0)-penaltyXp);
       await petCol.doc(myNick).update({
-        xp:newXp, points:INC(-1000),
-        currentHp:1, currentMp:ds.playerMp,
-        currentSp:ds.playerSp,
+        xp:newXp,points:INC(-1000),
+        currentHp:1,currentMp:ds.playerMp,currentSp:ds.playerSp,
       });
-S.myPet={...S.myPet,xp:newXp,
+      S.myPet={...S.myPet,xp:newXp,
         points:Math.max(0,(S.myPet.points||0)-1000),
         currentHp:1,currentMp:ds.playerMp,currentSp:ds.playerSp};
-alert(`💀 전투 패배...\n페널티: XP -${penaltyXp} · 포인트 -1000\nHP 1로 부활했어요. 물약을 사용해 회복하세요!`);
+      alert(`💀 전투 패배...\n페널티: XP -${penaltyXp} · 포인트 -1000\nHP 1로 부활했어요. 물약을 사용해 회복하세요!`);
     }
   }catch(e){console.error(e);}
   S.dungeonState=null;
@@ -4746,12 +4732,12 @@ function rDungeonTab(){
   const clearedCount=DUNGEON_ALL_FLOORS.filter(f=>kills[f]).length;
 
   return `
-  ${isCooldown?`<div class="dungeon-cooltime">
+   ${isCooldown?`<div class="dungeon-cooltime">
     <span style="font-size:28px">⏳</span>
     <div style="flex:1">
-      <div style="font-size:12px;font-weight:700;color:#E64A19;margin-bottom:4px">전 층 클리어! 쿨타임 중</div>
+      <div style="font-size:12px;font-weight:700;color:#E64A19;margin-bottom:4px">전투 완료! 쿨타임 중</div>
       <div id="dungeon_cool_timer" class="cooltime-timer">${Math.floor(coolRemain/60000)}분 ${Math.floor((coolRemain%60000)/1000)}초</div>
-      <div style="font-size:10.5px;color:#BF360C;margin-top:4px">쿨타임이 끝나면 자동으로 입장 가능해집니다</div>
+      <div style="font-size:10.5px;color:#BF360C;margin-top:4px">5분 후 자동으로 입장 가능해집니다 ⚔️</div>
     </div>
   </div>`:`<div class="card card-mint" style="margin-bottom:12px;padding:10px 14px">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
