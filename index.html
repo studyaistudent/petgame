@@ -5623,7 +5623,7 @@ function rLovemonTab(){
             ${(()=>{
               const pvpCd=S.myPet?.pvpCooldown||0;
               const pvpReady=Date.now()>pvpCd+PVP_COOLDOWN_MS;
-              const remH=Math.ceil((pvpCd+PVP_COOLDOWN_MS-Date.now())/120000);
+              const remH=Math.ceil((pvpCd+PVP_COOLDOWN_MS-Date.now())/3600000);
               return pvpReady
                 ?`<button class="btn btn-danger" style="padding:5px 10px;font-size:11px;min-width:56px" data-a="lm_pvp" data-nick="${esc(p.nick)}">⚔️PvP</button>`
                 :`<span style="font-size:9px;color:#C62828;text-align:center">⚔️${remH}h후</span>`;
