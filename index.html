@@ -4315,11 +4315,10 @@ class HouseRenderer3D {
     const c = this.renderer.domElement;
     c.style.touchAction = 'none';
     c.style.cursor = 'grab';
-    onst onDown = (clientX) => {
-    // ★ 이 부분을 추가하세요: 편집 중인 가구가 있으면 카메라 회전 로직을 수행하지 않고 종료
-    if (S.editingFurniture) return; 
-    this.isDrag = true;
-    this.autoRotate = false;
+    const onDown = (clientX) => {
+      if (this.editingId) return; // ★ 추가: 가구 편집 중에는 화면 회전(드래그) 방지
+      this.isDrag = true;
+      this.autoRotate = false;
       this.lastX = clientX;
       c.style.cursor = 'grabbing';
     };
@@ -4328,28 +4327,10 @@ class HouseRenderer3D {
       this.targetTheta += (clientX - this.lastX) * 0.012;
       this.lastX = clientX;
     };
-    const onUp = (clientX, clientY) => {
-    // ... (기존 드래그 종료 코드)
-
-    // 마우스가 이동하지 않았을 때만(클릭으로 간주) 가구 선택 로직 실행
-    if (!this.isMoved) { 
-        const raycaster = new THREE.Raycaster();
-        // 마우스 좌표를 3D 공간으로 변환
-        raycaster.setFromCamera(this.mouse, this.camera);
-        
-        // 씬(Scene) 안에 있는 가구 객체들만 검사
-        const intersects = raycaster.intersectObjects(this.furnitureGroup.children);
-        
-        if (intersects.length > 0) {
-            const selectedObject = intersects[0].object;
-            const furnitureId = selectedObject.userData.id; // 가구의 고유 ID
-            
-            // 편집 모드 진입 함수 호출
-            selectFurnitureForEdit(furnitureId);
-        }
-    }
-    this.isDrag = false;
-};
+    const onUp = () => {
+      this.isDrag = false;
+      c.style.cursor = 'grab';
+    };
  
     c.addEventListener('mousedown', e => onDown(e.clientX));
     window.addEventListener('mousemove', e => onMove(e.clientX));
@@ -4422,28 +4403,7 @@ class HouseRenderer3D {
     }
   }
 }
-function selectFurnitureForEdit(fId) {
-    // 이미 편집 중이라면 무시
-    if (S.editingFurniture) return;
-
-    // 해당 가구 찾기
-    const targetFurniture = S.myHouse.furniture.find(f => f.id === fId);
-    if (!targetFurniture) return;
-
-    // 편집 상태 저장 (이 좌표/회전값이 UI 슬라이더와 연동됨)
-    S.editingFurniture = { 
-        id: targetFurniture.id, 
-        x: targetFurniture.position.x || 0, 
-        z: targetFurniture.position.z || 0, 
-        rotation: targetFurniture.rotation || 0 
-    };
-
-    // 3D 렌더러에 편집 중임을 알림
-    if (window.__houseR) window.__houseR.setEditingItem(fId);
-
-    // 편집 패널 UI 표시를 위해 render 호출
-    render(); 
-} 
+ 
 function initHouse3D(containerId, houseData, petEmoji) {
   if (window.__houseR) { window.__houseR.destroy(); window.__houseR = null; }
   setTimeout(() => {
