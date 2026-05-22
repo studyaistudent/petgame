@@ -4726,7 +4726,6 @@ function rDungeonTab(){
   </div>`:`<div class="card card-mint" style="margin-bottom:12px;padding:10px 14px">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
       <span style="font-size:12px;font-weight:700;color:var(--mint)">⚔️ 이번 라운드 클리어 현황 (${clearedCount}/5)</span>
-      ${clearedCount>0?`<button class="btn" style="padding:3px 8px;font-size:10.5px;color:#C62828;border-color:#FFCDD2" data-a="lm_resetDungeonKills">초기화</button>`:''}
     </div>
     <div style="display:flex;gap:6px">
       ${DUNGEON_ALL_FLOORS.map(f=>`<div style="flex:1;text-align:center;padding:6px 4px;border-radius:8px;background:${kills[f]?'rgba(46,196,182,.15)':'rgba(0,0,0,.04)'};border:1px solid ${kills[f]?'rgba(46,196,182,.4)':'var(--border)'}">
