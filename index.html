@@ -6859,7 +6859,51 @@ function rPlazaTab(){
 /* ═══════════════════════════════════════
    DOM EVENTS BINDING
 ═══════════════════════════════════════ */
+/* ★ 가구 편집기 실시간 UI 및 3D 동기화 함수 */
+function updateEditorUI() {
+  if (!S.editingFurniture || !window.__houseR) return;
+  const e = S.editingFurniture;
+  
+  // 3D 캔버스 실시간 업데이트
+  window.__houseR.updateEditingTransform(e.x, e.z, e.rotation);
+
+  // UI 텍스트 및 슬라이더 값 동기화
+  const deg = Math.round(e.rotation * 180 / Math.PI) % 360;
+  const normDeg = deg < 0 ? deg + 360 : deg;
+
+  const elValX = document.getElementById('edit_val_x');
+  const elValZ = document.getElementById('edit_val_z');
+  const elValR = document.getElementById('edit_val_r');
+  const elSlideX = document.getElementById('edit_slider_x');
+  const elSlideZ = document.getElementById('edit_slider_z');
+  const elSlideR = document.getElementById('edit_slider_r');
+
+  if (elValX) elValX.innerText = e.x.toFixed(1);
+  if (elValZ) elValZ.innerText = e.z.toFixed(1);
+  if (elValR) elValR.innerText = normDeg + '°';
+
+  if (elSlideX) elSlideX.value = e.x;
+  if (elSlideZ) elSlideZ.value = e.z;
+  if (elSlideR) elSlideR.value = normDeg;
+}
 function attachEvents(){
+  const app = document.getElementById("app");
+  
+  /* ---- 여기서부터 추가 ---- */
+  // 슬라이더(범위 조절) 실시간 입력 이벤트 처리
+  app.addEventListener("input", (e) => {
+    if (e.target.dataset.a === "lm_editSlide") {
+      if (!S.editingFurniture) return;
+      const field = e.target.dataset.field;
+      const val = parseFloat(e.target.value);
+      if (field === 'rotation') {
+        S.editingFurniture.rotation = val * Math.PI / 180; // 각도를 라디안으로
+      } else {
+        S.editingFurniture[field] = val;
+      }
+      updateEditorUI();
+    }
+  });
   const app=document.getElementById("app");
   [["nickI","nick"],["areaI","area"],["pinI","pin"],["heightI","height"],["freeI","freeTime"],
    ["idealI","idealType"],["appealI","appeal"],["gidolI","giDol"]
@@ -7112,6 +7156,91 @@ function attachEvents(){
             render();
           }).catch(()=>alert("이름 변경 중 오류가 발생했습니다."));
         }
+      }
+      /* ★ 가구 편집 모드 진입 (배치된 가구 클릭 시) */
+      else if (a === "lm_editFurniture") {
+        const myNick = S.myEntry?.nick;
+        if (!myNick || !S.myHouse) return;
+        const f = (S.myHouse.furniture || []).find(x => x.id === el.dataset.id);
+        if (!f) return;
+        
+        // 기존 위치/회전값이 없으면 0으로 초기화
+        const px = f.position?.x || 0;
+        const pz = f.position?.z || 0;
+        const rot = f.rotation || 0;
+        
+        S.editingFurniture = { id: f.id, x: px, z: pz, rotation: rot };
+        S._decoTab = 'mine'; // 편집 패널을 띄우기 위해 탭 고정
+        if (window.__houseR) window.__houseR.setEditingItem(f.id);
+        render();
+      }
+      /* ★ 가구 위치/회전 미세 조정 (◀ ▶ 버튼 클릭) */
+      else if (a === "lm_editStep") {
+        if (!S.editingFurniture) return;
+        const field = el.dataset.field;
+        const val = parseFloat(el.dataset.v);
+        if (field === 'rotation') {
+          let deg = Math.round(S.editingFurniture.rotation * 180 / Math.PI) + val;
+          S.editingFurniture.rotation = (deg % 360) * Math.PI / 180;
+        } else {
+          S.editingFurniture[field] = parseFloat((S.editingFurniture[field] + val).toFixed(1));
+        }
+        updateEditorUI();
+      }
+      /* ★ 가구 회전 프리셋 (45도, 90도 등) */
+      else if (a === "lm_editSetRot") {
+        if (!S.editingFurniture) return;
+        const deg = parseFloat(el.dataset.v);
+        S.editingFurniture.rotation = deg * Math.PI / 180;
+        updateEditorUI();
+      }
+      /* ★ 편집 완료 (저장) */
+      else if (a === "lm_editConfirm") {
+        const myNick = S.myEntry?.nick;
+        if (!myNick || !S.myHouse || !S.editingFurniture) return;
+        
+        const fList = [...S.myHouse.furniture];
+        const idx = fList.findIndex(x => x.id === S.editingFurniture.id);
+        if (idx > -1) {
+          fList[idx].position = { x: S.editingFurniture.x, z: S.editingFurniture.z };
+          fList[idx].rotation = S.editingFurniture.rotation;
+        }
+        
+        houseCol.doc(myNick).update({ furniture: fList }).catch(()=>{});
+        S.myHouse.furniture = fList;
+        S.editingFurniture = null;
+        if (window.__houseR) window.__houseR.setEditingItem(null);
+        render();
+      }
+      /* ★ 편집 취소 */
+      else if (a === "lm_editCancel") {
+        S.editingFurniture = null;
+        if (window.__houseR) window.__houseR.setEditingItem(null);
+        render();
+      }
+      /* ★ 가구 보관 (인벤토리로 회수) */
+      else if (a === "lm_editRemove") {
+        const myNick = S.myEntry?.nick;
+        if (!myNick || !S.myHouse || !S.editingFurniture) return;
+        
+        const fId = S.editingFurniture.id;
+        const fList = (S.myHouse.furniture || []).filter(x => x.id !== fId);
+        const removed = (S.myHouse.furniture || []).find(x => x.id === fId);
+        const inv = [...(S.myHouse.inventory || [])];
+        
+        if (removed) {
+          // 보관 시 위치값 초기화 (다시 꺼낼 때 깨짐 방지)
+          delete removed.position;
+          delete removed.rotation;
+          inv.push(removed);
+        }
+        
+        houseCol.doc(myNick).update({ furniture: fList, inventory: inv }).catch(()=>{});
+        S.myHouse.furniture = fList;
+        S.myHouse.inventory = inv;
+        S.editingFurniture = null;
+        if (window.__houseR) window.__houseR.setEditingItem(null);
+        render();
       }
       /* ── 색상표 슬롯 ── */
       else if(a==="setColorSlot"){
