@@ -6073,8 +6073,8 @@ g.position.z = z;
     this.pet = window.buildFullBodyPet3D({
       petEmoji: this.petEmoji,
       equipment: this.equipment,
-      bodyColor: 0xFFE4EF,
-      accentColor: 0xFFB5C8
+      //bodyColor: 0xFFE4EF,
+      //accentColor: 0xFFB5C8
     });
     this.pet.position.set(0, 0, 1);
     /* 애니메이션 참조 저장 */
@@ -6399,8 +6399,8 @@ function initMiniPet3D(containerId, petData) {
     const pet = window.buildFullBodyPet3D({
       petEmoji: petData.petEmoji || '🐾',
       equipment: petData.equipment || {},
-      bodyColor: 0xFFE4EF,
-      accentColor: 0xFFB5C8
+      //bodyColor: 0xFFE4EF,
+      //accentColor: 0xFFB5C8
     });
     scene.add(pet);
     /* 회전 컨트롤 */
