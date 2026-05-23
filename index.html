@@ -3121,12 +3121,12 @@ window.buildFullBodyPet3D = function(opts){
       hasMuzzle: false, hasHorns: true, mouthType: 'smirk'
     },
     '🐦': { /* 새 */
-      body: 0x81C784, accent: 0xFFD54F, ear: 0x81C784,
-      muzzle: 0xFFD54F, nose: 0x6D4C41,
-      eyeShape: 'round', earType: 'none', tailType: 'bird',
-      hasMuzzle: false, hasHorns: false, mouthType: 'beak'
-    },
-    '🐾': { /* 기본 */
+      body: 0xFFF59D, accent: 0xFFD54F, ear: 0xFFF59D, // 귀여운 연노랑색 베이스
+      muzzle: 0xFFFFFF, nose: 0xFFA000, beakColor: 0xFFB300,
+      eyeShape: 'bead', earType: 'bird_crest', tailType: 'bird',
+      hasMuzzle: false, hasBeak: true, mouthType: 'beak',
+      armType: 'wing', legType: 'bird' // 새 전용 날개와 발 적용
+    },    '🐾': { /* 기본 */
       body: 0xFFE4EF, accent: 0xFFB5C8, ear: 0xFFB5C8,
       muzzle: 0xFFFFFF, nose: 0xFF69B4,
       eyeShape: 'round', earType: 'small_round', tailType: 'tiny',
@@ -3257,28 +3257,7 @@ window.buildFullBodyPet3D = function(opts){
     innerR.position.set(0.15, 0.7, -0.02);
     innerR.rotation.z = -0.12;
     headGroup.add(innerR);
-  } else if (D.earType === 'mouse_big') {
-
-/* 🐦 새 — 부리와 벼슬 */
-  } else if (D.earType === 'none') {
-    // 부리 생성
-    if (D.hasBeak) {
-      const beakMat = new THREE.MeshLambertMaterial({ color: D.beakColor || 0xFFD54F });
-      const beakGeo = new THREE.ConeGeometry(0.07, 0.18, 8);
-      const beak = new THREE.Mesh(beakGeo, beakMat);
-      beak.rotation.x = Math.PI / 2; // 앞을 향하게 회전
-      beak.position.set(0, 0.05, 0.35); // 얼굴 앞쪽 중심
-      beak.castShadow = true;
-      headGroup.add(beak);
-    }
-    // 벼슬 (머리 위 포인트)
-    const crestGeo = new THREE.ConeGeometry(0.04, 0.12, 8);
-    const crestMat = new THREE.MeshLambertMaterial({ color: D.accent || 0x66BB6A });
-    const crest = new THREE.Mesh(crestGeo, crestMat);
-    crest.position.set(0, 0.52, 0); // 머리 정수리
-    crest.rotation.z = Math.PI / 12; // 살짝 삐죽하게
-    headGroup.add(crest);
-
+} else if (D.earType === 'mouse_big') {
     /* 쥐 — 동그란 큰 귀 */
     const earGeo = new THREE.SphereGeometry(0.16, 14, 14);
     const earL = new THREE.Mesh(earGeo, earMat);
@@ -3301,7 +3280,17 @@ window.buildFullBodyPet3D = function(opts){
     innerR.position.set(0.3, 0.4, 0);
     innerR.scale.set(1, 1.1, 0.4);
     headGroup.add(innerR);
-  } else if (D.earType === 'fluffy_big') {
+  } else if (D.earType === 'bird_crest') {
+    /* 🐦 새 — 머리 위 작은 깃털(벼슬) */
+    const crestGeo = new THREE.ConeGeometry(0.05, 0.15, 8);
+    const crestMat = new THREE.MeshLambertMaterial({ color: D.accent || 0xFFD54F });
+    const crest = new THREE.Mesh(crestGeo, crestMat);
+    crest.position.set(0, 0.48, 0); 
+    crest.rotation.z = Math.PI / 12; 
+    headGroup.add(crest);
+  } else if (D.earType === 'none') {
+    /* 귀 없음 (거북이, 개구리 등) - 아무것도 추가하지 않음 */
+  }  else if (D.earType === 'fluffy_big') {
     /* 코알라 — 큰 솜털 귀 */
     const earGeo = new THREE.SphereGeometry(0.2, 14, 14);
     const earL = new THREE.Mesh(earGeo, earMat);
@@ -3355,15 +3344,14 @@ window.buildFullBodyPet3D = function(opts){
     headGroup.add(muzzle);
   }
 
-  /* ── 부리 (올빼미) ── */
+/* ── 부리 (올빼미 & 새) ── */
   if (D.hasBeak) {
-    const beakMat = new THREE.MeshLambertMaterial({ color: 0xFFA500 });
+    const beakMat = new THREE.MeshLambertMaterial({ color: D.beakColor || 0xFFA500 });
     const beak = new THREE.Mesh(new THREE.ConeGeometry(0.08, 0.15, 6), beakMat);
     beak.position.set(0, -0.05, 0.42);
     beak.rotation.x = Math.PI / 2;
     headGroup.add(beak);
   }
-
   /* ── 코 (눈 아래) ── */
   if (D.hasMuzzle || D.hasBeak === undefined) {
     if (!D.hasBeak) {
@@ -3700,52 +3688,110 @@ window.buildFullBodyPet3D = function(opts){
     group.add(belly);
   }
 
-  /* ═══════════════ 팔 ═══════════════ */
-  const armL = new THREE.Group();
-  const upperArmL = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.085, 0.32, 12), bodyMat);
-  upperArmL.position.y = -0.16;
-  upperArmL.castShadow = true;
-  armL.add(upperArmL);
-  const forearmL = new THREE.Mesh(new THREE.CylinderGeometry(0.085, 0.07, 0.28, 12), bodyMat);
-  forearmL.position.y = -0.45;
-  forearmL.castShadow = true;
-  armL.add(forearmL);
-  const handL = new THREE.Mesh(new THREE.SphereGeometry(0.1, 12, 12), accentMat);
-  handL.position.y = -0.62;
-  handL.castShadow = true;
-  armL.add(handL);
-  for (let i = 0; i < 3; i++) {
-    const finger = new THREE.Mesh(new THREE.SphereGeometry(0.025, 8, 8), accentMat);
-    finger.position.set(-0.06 + i * 0.04, -0.7, 0.06);
-    armL.add(finger);
+/* ═══════════════ 팔 / 날개 ═══════════════ */
+  if (D.armType === 'wing') {
+    // 🐦 귀여운 둥근 날개
+    const armL = new THREE.Group();
+    const wingL = new THREE.Mesh(new THREE.SphereGeometry(0.18, 12, 12), bodyMat);
+    wingL.scale.set(0.25, 1, 0.7);
+    wingL.position.set(-0.35, -0.15, 0);
+    wingL.rotation.z = 0.2;
+    wingL.castShadow = true;
+    armL.add(wingL);
+    armL.position.set(0, 1.0, 0);
+    group.add(armL);
+    ud.armL = armL;
+
+    const armR = new THREE.Group();
+    const wingR = new THREE.Mesh(new THREE.SphereGeometry(0.18, 12, 12), bodyMat);
+    wingR.scale.set(0.25, 1, 0.7);
+    wingR.position.set(0.35, -0.15, 0);
+    wingR.rotation.z = -0.2;
+    wingR.castShadow = true;
+    armR.add(wingR);
+    armR.position.set(0, 1.0, 0);
+    group.add(armR);
+    ud.armR = armR;
+  } else {
+    // 🐾 기본 팔 (사람 체형)
+    const armL = new THREE.Group();
+    const upperArmL = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.085, 0.32, 12), bodyMat);
+    upperArmL.position.y = -0.16;
+    upperArmL.castShadow = true;
+    armL.add(upperArmL);
+    
+    const forearmL = new THREE.Mesh(new THREE.CylinderGeometry(0.085, 0.07, 0.28, 12), bodyMat);
+    forearmL.position.y = -0.45;
+    forearmL.castShadow = true;
+    armL.add(forearmL);
+    
+    const handL = new THREE.Mesh(new THREE.SphereGeometry(0.1, 12, 12), accentMat);
+    handL.position.y = -0.62;
+    handL.castShadow = true;
+    armL.add(handL);
+    
+    for (let i = 0; i < 3; i++) {
+      const finger = new THREE.Mesh(new THREE.SphereGeometry(0.025, 8, 8), accentMat);
+      finger.position.set(-0.06 + i * 0.04, -0.7, 0.06);
+      armL.add(finger);
+    }
+    armL.position.set(-0.45, 1.0, 0);
+    armL.rotation.z = 0.25;
+    group.add(armL);
+    ud.armL = armL;
+
+    const armR = new THREE.Group();
+    const upperArmR = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.085, 0.32, 12), bodyMat);
+    upperArmR.position.y = -0.16;
+    upperArmR.castShadow = true;
+    armR.add(upperArmR);
+    
+    const forearmR = new THREE.Mesh(new THREE.CylinderGeometry(0.085, 0.07, 0.28, 12), bodyMat);
+    forearmR.position.y = -0.45;
+    forearmR.castShadow = true;
+    armR.add(forearmR);
+    
+    const handR = new THREE.Mesh(new THREE.SphereGeometry(0.1, 12, 12), accentMat);
+    handR.position.y = -0.62;
+    handR.castShadow = true;
+    armR.add(handR);
+    
+    for (let i = 0; i < 3; i++) {
+      const finger = new THREE.Mesh(new THREE.SphereGeometry(0.025, 8, 8), accentMat);
+      finger.position.set(-0.06 + i * 0.04, -0.7, 0.06);
+      armR.add(finger);
+    }
+    armR.position.set(0.45, 1.0, 0);
+    armR.rotation.z = -0.25;
+    group.add(armR);
+    ud.armR = armR;
   }
-  armL.position.set(-0.45, 1.0, 0);
-  armL.rotation.z = 0.25;
-  group.add(armL);
-  ud.armL = armL;
-  const armR = new THREE.Group();
-  const upperArmR = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.085, 0.32, 12), bodyMat);
-  upperArmR.position.y = -0.16;
-  upperArmR.castShadow = true;
-  armR.add(upperArmR);
-  const forearmR = new THREE.Mesh(new THREE.CylinderGeometry(0.085, 0.07, 0.28, 12), bodyMat);
-  forearmR.position.y = -0.45;
-  forearmR.castShadow = true;
-  armR.add(forearmR);
-  const handR = new THREE.Mesh(new THREE.SphereGeometry(0.1, 12, 12), accentMat);
-  handR.position.y = -0.62;
-  handR.castShadow = true;
-  armR.add(handR);
-  for (let i = 0; i < 3; i++) {
-    const finger = new THREE.Mesh(new THREE.SphereGeometry(0.025, 8, 8), accentMat);
-    finger.position.set(-0.06 + i * 0.04, -0.7, 0.06);
-    armR.add(finger);
-  }
-  armR.position.set(0.45, 1.0, 0);
-  armR.rotation.z = -0.25;
-  group.add(armR);
-  ud.armR = armR;
-  /* ═══════════════ 다리 ═══════════════ */
+/* ═══════════════ 다리 / 발 ═══════════════ */
+  if (D.legType === 'bird') {
+    // 🐦 얇고 앙증맞은 새 발
+    const footMat = new THREE.MeshLambertMaterial({ color: D.beakColor || 0xFFA000 });
+    const legL = new THREE.Group();
+    const shinL = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.02, 0.25, 8), footMat);
+    shinL.position.y = -0.12;
+    legL.add(shinL);
+    const footL = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.04, 0.16), footMat);
+    footL.position.set(0, -0.25, 0.05);
+    legL.add(footL);
+    legL.position.set(-0.15, 0.45, 0);
+    group.add(legL);
+    ud.legL = legL;
+
+    const legR = new THREE.Group();
+    const shinR = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.02, 0.25, 8), footMat);
+    shinR.position.y = -0.12;
+    legR.add(shinR);
+    const footR = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.04, 0.16), footMat);
+    footR.position.set(0, -0.25, 0.05);
+    legR.add(footR);
+    legR.position.set(0.15, 0.45, 0);
+    group.add(legR);
+    ud.legR = legR;
+  } else {
   const legL = new THREE.Group();
   const thighL = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.1, 0.3, 12), bodyMat);
   thighL.position.y = -0.15;
@@ -3763,7 +3809,6 @@ window.buildFullBodyPet3D = function(opts){
   legL.position.set(-0.18, 0.45, 0);
   group.add(legL);
   ud.legL = legL;
-
   const legR = new THREE.Group();
   const thighR = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.1, 0.3, 12), bodyMat);
   thighR.position.y = -0.15;
@@ -3781,6 +3826,7 @@ window.buildFullBodyPet3D = function(opts){
   legR.position.set(0.18, 0.45, 0);
   group.add(legR);
   ud.legR = legR;
+}
 
   /* ═══════════════ 꼬리 (종별) ═══════════════ */
   const tail = new THREE.Group();
