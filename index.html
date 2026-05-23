@@ -3014,7 +3014,6 @@ window.buildFullBodyPet3D = function(opts){
   const equipment = opts.equipment || {};
   const group = new THREE.Group();
   const ud = {};
-  console.log("렌더링할 펫 이모지:", opts.petEmoji);
   /* ─── 색상 유틸 ─────────────────────────────────
      pastel 베이스에 끝부분만 진하게(darken) / 밝게(lighten)
   ─────────────────────────────────────────────── */
@@ -3193,6 +3192,7 @@ window.buildFullBodyPet3D = function(opts){
     }
   };
   const D = PET_DESIGN[petEmoji] || PET_DESIGN['🐾'];
+  console.log("선택된 디자인(D):", D);
   const P = D.proportions || { head: 1.0, torso: 1.0, torsoRound: 1.0, legLen: 1.0, armLen: 1.0 };
 
   /* 옵션으로 색상 강제 변경 가능 (몹용) */
