@@ -1303,7 +1303,7 @@ const FURNITURE_SHOP=[
   {id:'f24',name:'장난감 곰돌이', emoji:'🧸',grade:'rare',  cost:200000, type:'toy',      w:1,h:1},
   {id:'f25',name:'트로피',        emoji:'🏆',grade:'epic',  cost:1200000,type:'trophy',   w:1,h:1},
   {id:'f26',name:'러브 캔들',     emoji:'🕯️',grade:'normal',cost:35000,  type:'candle',   w:1,h:1},
-  {id:'f27',name:'마법의 거울',   emoji:'🪞',grade:'epic',  cost:1500000,type:'mirror',   w:1,h:2},
+  {id:'f27',name:'마법의 거울',   emoji:'🌙',grade:'epic',  cost:1500000,type:'mirror',   w:1,h:2},
   {id:'f28',name:'유니콘 인형',   emoji:'🦄',grade:'unique',cost:3000000,type:'unicorn',  w:1,h:1},
   {id:'f29',name:'미니 정원',     emoji:'🌿',grade:'rare',  cost:450000, type:'garden',   w:2,h:1},
   {id:'f30',name:'러브 풍선',     emoji:'🎈',grade:'normal',cost:50000,  type:'balloon',  w:1,h:1},
@@ -1319,6 +1319,106 @@ const FURNITURE_SHOP=[
   {id:'fm04',name:'향수 오브제 화장대', emoji:'💄',grade:'myth',cost:17000000,type:'perfume_vanity',   w:2,h:2},
   {id:'fm05',name:'크리스탈 아쿠아돔',  emoji:'🐠',grade:'myth',cost:21000000,type:'crystal_aquarium', w:3,h:2},
 ];
+
+/* ═══════════════════════════════════════
+   🪑 가구 스탯 자동 할당 — 등급/타입/크기 기반
+   ─ 비쌀수록(상위 등급) 더 좋은 스탯
+   ─ 가구 타입에 따라 분배 비율이 다름 (침실 → HP, 책장 → MP 등)
+   ─ 크기(w×h)도 보너스
+═══════════════════════════════════════ */
+(function _autoAssignFurnitureStats(){
+  /* 등급별 총 스탯 예산 (가공 전 원시 포인트) */
+  const GRADE_BUDGET = {
+    normal: 16, rare: 48, epic: 115, unique: 200, legend: 295, myth: 460
+  };
+
+  /* 타입별 분배 비율 [HP, MP, ATK, DEF, EVA] (합 100) */
+  const TYPE_PROFILE = {
+    /* 휴식·침실 → HP 위주 */
+    sofa:           [55,20, 0,18, 7],
+    bed:            [60,25, 0,12, 3],
+    sakura_picnic:  [40,30, 0,10,20],
+    pearl_shell_bed:[55,25, 0,12, 8],
+
+    /* 자연·치유 → HP+MP */
+    plant:    [35,30, 0, 5,30],
+    tree:     [40,30, 0,10,20],
+    garden:   [40,30, 0,10,20],
+    aquarium: [35,35, 0, 5,25],
+    fountain: [40,40, 0, 8,12],
+    moon_fountain:      [40,40, 0,10,10],
+    fairy_moon_fountain:[40,30,10,10,10],
+
+    /* 학구·지성 → MP 위주 */
+    desk:      [10,55, 5, 5,25],
+    library:   [10,55, 5, 5,25],
+    bookshelf: [15,55, 0, 5,25],
+
+    /* 무드·로맨틱 → MP+EVA */
+    lamp:    [20,45, 0, 5,30],
+    candle:  [25,45, 0, 5,25],
+    mirror:  [25,35,10,10,20],
+
+    /* 위엄·전투 → ATK+DEF */
+    statue:      [25,10,30,30, 5],
+    throne:      [30,15,25,25, 5],
+    trophy:      [25,10,30,30, 5],
+    love_trophy: [30,20,20,25, 5],
+    diamond:     [20,20,25,25,10],
+    flag:        [10, 5,55,25, 5],
+    fireplace:   [40, 5,30,20, 5],
+
+    /* 엔터테인먼트·즐거움 → HP+EVA */
+    tv:       [40,15, 5, 5,35],
+    piano:    [25,35, 5, 5,30],
+    speaker:  [30,25,10, 5,30],
+    cocktail: [35,30, 5, 5,25],
+    toy:      [45,20, 5, 5,25],
+    balloon:  [40,25, 5, 5,25],
+    table:    [40,30, 5,10,15],
+
+    /* 환상·전설 → 균형 + EVA */
+    unicorn:        [25,25,15,15,20],
+    rainbow_bridge: [25,25,15,15,20],
+    aurora:         [25,25,15,15,20],
+
+    /* 기념·추억 */
+    frame: [30,30,10,10,20],
+    clock: [25,35,10,10,20],
+
+    /* 신화 등급 명품 가구 */
+    royal_throne:    [30,25,20,20, 5],
+    sky_chandelier:  [30,30,15,15,10],
+    gold_piano:      [30,30,15,15,10],
+    perfume_vanity:  [30,30,10,10,20],
+    crystal_aquarium:[40,30,10,10,10],
+  };
+
+  const DEFAULT_PROFILE = [35,25,10,15,15];
+
+  /* 스탯별 가중치 (HP/MP는 큰 숫자, ATK/DEF/EVA는 작은 숫자가 강력) */
+  const STAT_SCALE = { hp:1.00, mp:0.80, atk:0.18, def:0.25, eva:0.15 };
+
+  FURNITURE_SHOP.forEach(item=>{
+    if(item.stats) return; // 이미 stats가 있으면 건너뛰기
+
+    const budget = GRADE_BUDGET[item.grade] || 16;
+    const profile = TYPE_PROFILE[item.type] || DEFAULT_PROFILE;
+    const sizeMul = Math.sqrt((item.w||1)*(item.h||1));  // 1x1=1, 2x1≈1.41, 2x2=2, 3x2≈2.45
+    const total = budget * sizeMul;
+
+    const keys = ['hp','mp','atk','def','eva'];
+    const stats = {};
+    keys.forEach((k, i)=>{
+      const raw = (total * profile[i] / 100) * STAT_SCALE[k];
+      const val = Math.round(raw);
+      if(val > 0){
+        stats[k] = (k === 'eva') ? Math.min(val, 12) : val;  // 회피는 가구당 최대 12%
+      }
+    });
+    item.stats = stats;
+  });
+})();
 
 /* ═══════════════════════════════════════
    🎴 펫 카드 스킨 정의
@@ -4226,7 +4326,68 @@ function getEquippedStats(pet) {
       if (t.stats.eva) base.eva = Math.min(75, base.eva + t.stats.eva);
     }
   }
+
+  /* 🆕 가구 보너스 가산 — 내 집에 배치된 가구의 스탯이 합산됨 */
+  const fs = getFurnitureStatsForPet(pet);
+  if (fs.hp)  base.maxHp += fs.hp;
+  if (fs.mp)  base.maxMp += fs.mp;
+  if (fs.atk) base.atk   += fs.atk;
+  if (fs.def) base.def   += fs.def;
+  if (fs.eva) base.eva   = Math.min(75, base.eva + fs.eva);
+
   return base;
+}
+
+/* ═══════════════════════════════════════
+   🏠 가구 스탯 합산 — 펫에 대한 가구 보너스 반환
+   ─ 펫의 nick으로 집을 찾고 furniture 배열의 모든 stats 합산
+   ─ 본인 펫이면 S.myHouse 우선, 아니면 S.houseEntries에서 검색
+   ─ 배치 전(인벤토리)에 저장된 가구라 stats가 없으면 FURNITURE_SHOP에서 lookup
+═══════════════════════════════════════ */
+function getFurnitureStatsForPet(pet){
+  const out = { hp:0, mp:0, atk:0, def:0, eva:0 };
+  if(!pet) return out;
+  const petNick = pet.nick;
+
+  /* 집 데이터 결정 */
+  let houseData = null;
+  if(S.myPet && (petNick === S.myPet.nick || petNick === S.myEntry?.nick || pet === S.myPet)){
+    houseData = S.myHouse;
+  } else if(petNick){
+    houseData = (S.houseEntries||[]).find(h => h.nick === petNick);
+  }
+  if(!houseData?.furniture) return out;
+
+  houseData.furniture.forEach(f=>{
+    /* 배치된 가구 자체에 stats가 있으면 사용, 없으면 상점에서 lookup */
+    let stats = f.stats;
+    if(!stats){
+      const src = (typeof FURNITURE_SHOP!=='undefined') ? FURNITURE_SHOP.find(s=>s.id===f.id) : null;
+      if(src) stats = src.stats;
+    }
+    if(!stats) return;
+    Object.entries(stats).forEach(([k,v])=>{
+      if(out[k] !== undefined) out[k] += (v||0);
+    });
+  });
+
+  /* 회피는 합산 후 캡 (단일 가구 캡과 별개) */
+  out.eva = Math.min(35, out.eva);
+  return out;
+}
+
+/* 🆕 배치된 가구 한 점의 적용 스탯 — UI 표시용 */
+function getFurnitureItemStats(furn){
+  if(!furn) return {};
+  if(furn.stats) return furn.stats;
+  const src = (typeof FURNITURE_SHOP!=='undefined') ? FURNITURE_SHOP.find(s=>s.id===furn.id) : null;
+  return src?.stats || {};
+}
+/* 🆕 가구 스탯을 간단한 문자열로 (예: HP+12 · MP+4) */
+function fmtFurnitureStats(stats){
+  if(!stats) return '';
+  const order = ['hp','mp','atk','def','eva'];
+  return order.filter(k => stats[k]).map(k => `${k.toUpperCase()}+${stats[k]}${k==='eva'?'%':''}`).join(' · ');
 }
 async function rerollDice(){
   const myNick=S.myEntry?.nick;
@@ -5045,7 +5206,7 @@ async function startOnecard(bet){
   render();
 }
 function ocCanPlay(card, top, currentSuit){
-  return card.suit===currentSuit || card.rank===top.rank || card.rank==='7'; // 7은 무늬 변경 가능 → 언제든 낼 수 있음
+  return card.suit===currentSuit || card.rank===top.rank;
 }
 function ocSuitSymbol(suitId){
   return ONECARD_SUITS.find(s=>s.id===suitId)?.symbol||'?';
@@ -5231,13 +5392,16 @@ async function buyFurnitureItem(itemId){
   const myNick=S.myEntry?.nick;if(!myNick||!S.myPet||!S.myHouse)return;
 const item=FURNITURE_SHOP.find(f=>f.id===itemId);if(!item)return;
   if(item.cost>0&&(S.myPet.points||0)<item.cost){alert(`포인트 부족! (필요: ${item.cost.toLocaleString()}P)`);return;}
-  if(!confirm(`${item.emoji} ${item.name} 구입? (-${item.cost.toLocaleString()}P)`))return;
+  /* 🆕 구매 확인에 스탯 효과 표시 */
+  const fst = (typeof fmtFurnitureStats==='function') ? fmtFurnitureStats(item.stats) : '';
+  const statLine = fst ? `\n🏠 배치 시 발동: ${fst}` : '';
+  if(!confirm(`${item.emoji} ${item.name} 구입? (-${item.cost.toLocaleString()}P)${statLine}`))return;
   try{
     if(item.cost>0)await petCol.doc(myNick).update({points:INC(-item.cost)});
     const inv=[...(S.myHouse.inventory||[]),{...item}];
 await houseCol.doc(myNick).update({inventory:inv});
     if(item.cost>0)S.myPet.points=(S.myPet.points||0)-item.cost;
-    S.myHouse.inventory=inv;alert(`✅ ${item.emoji} ${item.name} 구입!`);
+    S.myHouse.inventory=inv;alert(`✅ ${item.emoji} ${item.name} 구입!${statLine}`);
     onQuestEvent('furniture',1);
     render();
   }catch(e){console.error(e);}
@@ -6615,6 +6779,443 @@ wallTexture(baseColor, pattern) {
       return (r << 16) | (g << 8) | b;
     };
     switch (type) {
+        /* ═══════════════════ 1. royal_sofa ═══════════════════ */
+  case 'royal_sofa': {
+    const baseMat = MTL(0x7a1f3a, { roughness: 0.92, sheen: 1, sheenColor: 0xffffff });
+    const goldMat = MTL(0xd4af37, { roughness: 0.08 });
+    const body = new THREE.Mesh(new THREE.BoxGeometry(1.85, 0.62, 0.88), baseMat);
+    body.position.y = 0.36; body.castShadow = true;
+    group.add(body);
+
+    const back = new THREE.Mesh(new THREE.BoxGeometry(1.78, 0.78, 0.16), baseMat);
+    back.position.set(0, 0.82, -0.34);
+    back.rotation.x = -0.12;
+    back.castShadow = true;
+    group.add(back);
+
+    [[-0.87, 0], [0.87, 0]].forEach(([x]) => {
+      const arm = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.55, 0.82), baseMat);
+      arm.position.set(x, 0.53, 0);
+      arm.castShadow = true;
+      group.add(arm);
+
+      const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 0.82, 12), goldMat);
+      cap.position.set(x, 0.83, 0);
+      cap.rotation.x = Math.PI / 2;
+      group.add(cap);
+    });
+
+    [-0.45, 0.45].forEach(x => {
+      const cushion = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.22, 0.7), M(lighten(0x7a1f3a, 28)));
+      cushion.position.set(x, 0.5, 0.03);
+      cushion.castShadow = true;
+      group.add(cushion);
+    });
+
+    for(let i=0;i<8;i++){
+      const gem = new THREE.Mesh(new THREE.OctahedronGeometry(0.04, 0), MTL([0x00E5FF,0xFF1744,0xFFD700,0xE040FB][i%4], { transmission: 0.75, roughness: 0.05, emissiveIntensity: 0.25 }));
+      gem.position.set(-0.72 + i*0.21, 0.98, 0.28);
+      group.add(gem);
+    }
+    break;
+  }
+
+  /* ═══════════════════ 2. pearl_shell_bed ═══════════════════ */
+  case 'pearl_shell_bed': {
+    const shellMat = MTL(0xf8bbd0, { roughness: 0.55, sheen: 1, sheenColor: 0xffffff });
+    const pearlMat = MTL(0xffffff, { transmission: 0.88, roughness: 0.03, emissive: 0xffe4ef, emissiveIntensity: 0.12 });
+    const frame = new THREE.Mesh(new THREE.BoxGeometry(1.92, 0.22, 1.18), M(0x6d4c41));
+    frame.position.y = 0.11; frame.castShadow = true;
+    group.add(frame);
+
+    const mattress = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.18, 1.04), M(lighten(gradeColor, 25)));
+    mattress.position.y = 0.27; mattress.castShadow = true;
+    group.add(mattress);
+
+    const shellL = new THREE.Mesh(new THREE.SphereGeometry(0.58, 20, 16, 0, Math.PI), shellMat);
+    shellL.scale.set(1, 0.72, 1);
+    shellL.position.set(-0.42, 0.7, -0.22);
+    shellL.rotation.z = Math.PI / 2;
+    group.add(shellL);
+
+    const shellR = shellL.clone();
+    shellR.position.x = 0.42;
+    shellR.rotation.z = -Math.PI / 2;
+    group.add(shellR);
+
+    const pearl = new THREE.Mesh(new THREE.SphereGeometry(0.12, 18, 18), pearlMat);
+    pearl.position.set(0, 0.62, 0.1);
+    group.add(pearl);
+
+    for(let i=0;i<6;i++){
+      const leaf = new THREE.Mesh(new THREE.SphereGeometry(0.03, 8, 8), BM(0xE040FB, { transparent: true, opacity: 0.45 }));
+      leaf.position.set(-0.55 + i*0.22, 0.42 + (i%2)*0.04, 0.48);
+      group.add(leaf);
+    }
+    break;
+  }
+
+  /* ═══════════════════ 3. aurora_vanity ═══════════════════ */
+  case 'aurora_vanity': {
+    const wood = MTL(0x4a2f2a, { roughness: 0.88, sheen: 0.3 });
+    const gold = MTL(0xd4af37, { roughness: 0.06 });
+    const mirrorGlass = MTL(0xb3e5fc, { transmission: 0.94, transparent: true, opacity: 0.42, roughness: 0.02 });
+
+    const table = new THREE.Mesh(new THREE.BoxGeometry(1.45, 0.2, 0.55), wood);
+    table.position.y = 0.62; table.castShadow = true;
+    group.add(table);
+
+    const legs = [[-0.62,-0.2], [0.62,-0.2], [-0.62,0.2], [0.62,0.2]];
+    legs.forEach(([x,z]) => {
+      const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.06, 0.64, 10), wood);
+      leg.position.set(x, 0.31, z);
+      group.add(leg);
+    });
+
+    const mirrorFrame = new THREE.Mesh(new THREE.TorusGeometry(0.42, 0.06, 14, 36), gold);
+    mirrorFrame.position.set(0, 1.18, 0);
+    group.add(mirrorFrame);
+
+    const mirror = new THREE.Mesh(new THREE.CircleGeometry(0.39, 36), mirrorGlass);
+    mirror.position.set(0, 1.18, 0.02);
+    group.add(mirror);
+
+    const glow = new THREE.Mesh(new THREE.CircleGeometry(0.31, 32), BM(0xE040FB, { transparent: true, opacity: 0.38 }));
+    glow.position.set(0, 1.18, 0.03);
+    group.add(glow);
+
+    for(let i=0;i<4;i++){
+      const gem = new THREE.Mesh(new THREE.OctahedronGeometry(0.05, 0), BM([0xFF1744,0x00E5FF,0x76FF03,0xFFEB3B][i]));
+      const p = [[-0.42,1.18],[0.42,1.18],[0,1.60],[0,0.76]];
+      gem.position.set(p[i][0], p[i][1], 0.04);
+      group.add(gem);
+    }
+
+    const drawer = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.16, 0.33), wood);
+    drawer.position.set(0, 0.42, 0.12);
+    group.add(drawer);
+    break;
+  }
+
+  /* ═══════════════════ 4. deepsea_chandelier ═══════════════════ */
+  case 'deepsea_chandelier': {
+    const gold = MTL(0xd4af37, { roughness: 0.08 });
+    const crystal = MTL(0xb3e5fc, { transmission: 0.95, transparent: true, opacity: 0.35, roughness: 0.02 });
+    const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.05, 1.05, 12), gold);
+    stem.position.y = 1.0;
+    group.add(stem);
+
+    const crown = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.12, 0.16, 12), gold);
+    crown.position.y = 2.0;
+    group.add(crown);
+
+    for(let i=0;i<10;i++){
+      const a = (i/10)*Math.PI*2;
+      const x = Math.cos(a)*0.78;
+      const z = Math.sin(a)*0.78;
+
+      const chain = new THREE.Mesh(new THREE.CylinderGeometry(0.01, 0.01, 0.54, 6), gold);
+      chain.position.set(x, 1.06, z);
+      group.add(chain);
+
+      const prism = new THREE.Mesh(new THREE.OctahedronGeometry(0.09 + (i%2)*0.015, 0), crystal);
+      prism.position.set(x, 0.74, z);
+      group.add(prism);
+    }
+
+    for(let i=0;i<6;i++){
+      const a = (i/6)*Math.PI*2;
+      const x = Math.cos(a)*0.5;
+      const z = Math.sin(a)*0.5;
+      const candle = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.18, 8), MTL(0xfdf5e6, { roughness: 0.5 }));
+      candle.position.set(x, 1.54, z);
+      group.add(candle);
+
+      const flame = new THREE.Mesh(new THREE.SphereGeometry(0.04, 8, 8), BM(0xffe082));
+      flame.position.set(x, 1.67, z);
+      group.add(flame);
+    }
+
+    group.add(new THREE.PointLight(0xfff4c2, 1.9, 6.2, 2));
+    break;
+  }
+
+  /* ═══════════════════ 5. dragon_aquarium ═══════════════════ */
+  case 'dragon_aquarium': {
+    const frame = MTL(0xb08d57, { roughness: 0.22 });
+    const glass = MTL(0xb3e5fc, { transmission: 0.95, transparent: true, opacity: 0.35, roughness: 0.02 });
+    const water = MTL(0x6fd3ff, { transmission: 0.9, transparent: true, opacity: 0.22, roughness: 0.03 });
+
+    const base = new THREE.Mesh(new THREE.BoxGeometry(2.1, 0.32, 1.0), frame);
+    base.position.y = 0.16; base.castShadow = true;
+    group.add(base);
+
+    const tank = new THREE.Mesh(new THREE.BoxGeometry(1.85, 1.0, 0.78), glass);
+    tank.position.y = 1.0;
+    group.add(tank);
+
+    const innerWater = new THREE.Mesh(new THREE.BoxGeometry(1.72, 0.84, 0.64), water);
+    innerWater.position.y = 0.98;
+    group.add(innerWater);
+
+    for(let i=0;i<5;i++){
+      const fish = new THREE.Mesh(new THREE.SphereGeometry(0.04 + (i%2)*0.01, 10, 10), MTL([0xFF7043,0x4FC3F7,0xFFD54F,0xE040FB,0x81C784][i], { roughness: 0.35, emissiveIntensity: 0.08 }));
+      fish.position.set(-0.55 + i*0.28, 0.85 + (i%3)*0.14, -0.06 + (i%2)*0.12);
+      group.add(fish);
+    }
+
+    const dragonTail = new THREE.Mesh(new THREE.TorusGeometry(0.18, 0.04, 8, 18, Math.PI*1.4), MTL(0x455a64, { roughness: 0.5 }));
+    dragonTail.position.set(0.46, 1.05, 0.18);
+    dragonTail.rotation.y = Math.PI / 2;
+    group.add(dragonTail);
+
+    const coral = new THREE.Mesh(new THREE.ConeGeometry(0.08, 0.34, 6), BM(0xFF80AB));
+    coral.position.set(-0.55, 0.48, 0.16);
+    group.add(coral);
+
+    group.add(new THREE.PointLight(0x81d4fa, 0.85, 4.2, 2));
+    break;
+  }
+
+  /* ═══════════════════ 6. moon_fountain ═══════════════════ */
+  case 'moon_fountain': {
+    const stone = MTL(0xbdbdbd, { roughness: 0.85 });
+    const water = MTL(0x81d4fa, { transmission: 0.92, transparent: true, opacity: 0.28, roughness: 0.03 });
+
+    const pool = new THREE.Mesh(new THREE.CylinderGeometry(0.95, 1.02, 0.26, 30), stone);
+    pool.position.y = 0.13; pool.castShadow = true;
+    group.add(pool);
+
+    const basin = new THREE.Mesh(new THREE.CylinderGeometry(0.72, 0.8, 0.16, 28), stone);
+    basin.position.y = 0.42;
+    group.add(basin);
+
+    const pillar = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.16, 0.9, 18), stone);
+    pillar.position.y = 0.93;
+    group.add(pillar);
+
+    const topBowl = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.38, 0.18, 22), stone);
+    topBowl.position.y = 1.38;
+    group.add(topBowl);
+
+    const waterTop = new THREE.Mesh(new THREE.CylinderGeometry(0.30, 0.30, 0.04, 22), water);
+    waterTop.position.y = 1.45;
+    group.add(waterTop);
+
+    const moonOrb = new THREE.Mesh(new THREE.SphereGeometry(0.11, 14, 14), MTL(0xffd700, { roughness: 0.18, emissive: 0xffd700, emissiveIntensity: 0.12 }));
+    moonOrb.position.y = 1.58;
+    group.add(moonOrb);
+
+    for(let i=0;i<6;i++){
+      const drop = new THREE.Mesh(new THREE.SphereGeometry(0.05, 8, 8), BM(0x81d4fa));
+      this.animated.push({ mesh: drop, type: 'drop', phase: i * 1.0 });
+      group.add(drop);
+    }
+    group.add(new THREE.PointLight(0x29B6F6, 0.8, 4.2, 2));
+    break;
+  }
+
+  /* ═══════════════════ 7. opera_piano ═══════════════════ */
+  case 'opera_piano': {
+    const bodyMat = MTL(0x0d0d0d, { roughness: 0.12, metalness: 0.9, clearcoat: 1 });
+    const trimMat = MTL(0xd4af37, { roughness: 0.06 });
+    const whiteKeyMat = M(0xffffff);
+    const blackKeyMat = M(0x000000);
+
+    const body = new THREE.Mesh(new THREE.BoxGeometry(1.65, 0.25, 0.86), bodyMat);
+    body.position.y = 0.75;
+    body.castShadow = true;
+    group.add(body);
+
+    [[-0.65,-0.3], [0.65,-0.3], [0,0.3]].forEach(([x,z]) => {
+      const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.04, 0.7, 8), bodyMat);
+      leg.position.set(x, 0.35, z);
+      group.add(leg);
+    });
+
+    const lid = new THREE.Mesh(new THREE.BoxGeometry(1.56, 0.04, 0.81), new THREE.MeshStandardMaterial({ color: 0x1a1a1a, metalness: 0.8, roughness: 0.2 }));
+    lid.position.set(0, 1.0, -0.05);
+    lid.rotation.x = -0.42;
+    group.add(lid);
+
+    const lidProp = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 0.55, 6), trimMat);
+    lidProp.position.set(0.6, 1.0, 0.0);
+    lidProp.rotation.x = 0.3;
+    group.add(lidProp);
+
+    for(let i=0;i<14;i++){
+      const key = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.04, 0.3), whiteKeyMat);
+      key.position.set(-0.5 + i * 0.075, 0.9, 0.32);
+      group.add(key);
+    }
+
+    const blackKeyPattern = [0,1,3,4,5];
+    for(let oct=0; oct<2; oct++){
+      blackKeyPattern.forEach((p) => {
+        const xPos = -0.5 + (oct * 7 + p + 0.6) * 0.075;
+        const key = new THREE.Mesh(new THREE.BoxGeometry(0.045, 0.05, 0.18), blackKeyMat);
+        key.position.set(xPos, 0.93, 0.25);
+        group.add(key);
+      });
+    }
+
+    const standUp = new THREE.Mesh(new THREE.BoxGeometry(0.72, 0.42, 0.04), bodyMat);
+    standUp.position.set(0, 1.1, 0.2);
+    standUp.rotation.x = 0.2;
+    group.add(standUp);
+
+    const sheet = new THREE.Mesh(new THREE.BoxGeometry(0.56, 0.36, 0.01), M(0xFFFDE7));
+    sheet.position.set(0, 1.1, 0.23);
+    sheet.rotation.x = 0.2;
+    group.add(sheet);
+
+    const highlight = new THREE.Mesh(new THREE.BoxGeometry(1.56, 0.005, 0.03), BM(0xffffff, { transparent: true, opacity: 0.5 }));
+    highlight.position.set(0, 0.88, 0.43);
+    group.add(highlight);
+    break;
+  }
+
+  /* ═══════════════════ 8. stardust_library ═══════════════════ */
+  case 'stardust_library': {
+    const wood = MTL(0x4e342e, { roughness: 0.9 });
+    const gold = MTL(0xd4af37, { roughness: 0.08 });
+
+    const body = new THREE.Mesh(new THREE.BoxGeometry(1.9, 1.55, 0.42), wood);
+    body.position.y = 0.78;
+    body.castShadow = true;
+    group.add(body);
+
+    const shelves = 4;
+    for(let s=1; s<shelves; s++){
+      const board = new THREE.Mesh(new THREE.BoxGeometry(1.82, 0.04, 0.36), M(0x6d4c41));
+      board.position.set(0, (1.55 * s) / shelves, 0.05);
+      group.add(board);
+    }
+
+    const bookColors = [0xc62828,0x1565c0,0x2e7d32,0xef6c00,0x6a1b9a,0x00838f,0xD32F2F,0x1976D2];
+    for(let s=0; s<shelves; s++){
+      for(let i=0; i<8; i++){
+        const bh = 0.30 + Math.random()*0.1;
+        const bw = 0.12 + Math.random()*0.04;
+        const book = new THREE.Mesh(new THREE.BoxGeometry(bw, bh, 0.1), M(bookColors[Math.floor(Math.random()*bookColors.length)]));
+        const xStart = -0.82 + i * 0.2 + (Math.random()*0.02);
+        const yStart = 0.18 + (1.55 * s) / shelves + bh / 2;
+        book.position.set(xStart, yStart, 0.11);
+        if(Math.random() < 0.18) book.rotation.z = (Math.random() - 0.5) * 0.18;
+        group.add(book);
+
+        if(Math.random() < 0.4){
+          const stripe = new THREE.Mesh(new THREE.BoxGeometry(bw + 0.01, 0.02, 0.11), gold);
+          stripe.position.set(xStart, yStart + bh/4, 0.12);
+          group.add(stripe);
+        }
+      }
+    }
+
+    const topTrim = new THREE.Mesh(new THREE.BoxGeometry(1.96, 0.08, 0.44), M(0x3e2723));
+    topTrim.position.y = 1.58;
+    group.add(topTrim);
+
+    const star = new THREE.Mesh(new THREE.OctahedronGeometry(0.08, 0), BM(0xFFD700));
+    star.position.set(0, 1.78, 0.08);
+    group.add(star);
+    break;
+  }
+
+  /* ═══════════════════ 9. crystal_showcase ═══════════════════ */
+  case 'crystal_showcase': {
+    const baseMat = MTL(0x8d6e63, { roughness: 0.82 });
+    const glassMat = MTL(0xb3e5fc, { transmission: 0.94, transparent: true, opacity: 0.3, roughness: 0.02 });
+    const gold = MTL(0xd4af37, { roughness: 0.06 });
+
+    const base = new THREE.Mesh(new THREE.BoxGeometry(1.55, 0.24, 0.68), baseMat);
+    base.position.y = 0.12;
+    base.castShadow = true;
+    group.add(base);
+
+    const caseBody = new THREE.Mesh(new THREE.BoxGeometry(1.25, 1.15, 0.48), glassMat);
+    caseBody.position.y = 0.95;
+    group.add(caseBody);
+
+    const frameTop = new THREE.Mesh(new THREE.BoxGeometry(1.32, 0.06, 0.54), gold);
+    frameTop.position.y = 1.53;
+    group.add(frameTop);
+
+    const frameBottom = new THREE.Mesh(new THREE.BoxGeometry(1.32, 0.06, 0.54), gold);
+    frameBottom.position.y = 0.38;
+    group.add(frameBottom);
+
+    const left = new THREE.Mesh(new THREE.BoxGeometry(0.05, 1.18, 0.54), gold);
+    left.position.set(-0.625, 0.97, 0);
+    group.add(left);
+    const right = left.clone();
+    right.position.x = 0.625;
+    group.add(right);
+
+    for(let i=0;i<3;i++){
+      const trophy = new THREE.Mesh(new THREE.OctahedronGeometry(0.08 + i*0.015, 0), MTL([0xffd700,0xff5bae,0x7c4dff][i], { transmission: 0.8, roughness: 0.04, emissiveIntensity: 0.2 }));
+      trophy.position.set(-0.25 + i*0.25, 1.0, 0.12);
+      group.add(trophy);
+    }
+
+    group.add(new THREE.PointLight(0xffd54f, 0.7, 4.5, 2));
+    break;
+  }
+
+  /* ═══════════════════ 10. rainbow_greenhouse ═══════════════════ */
+  case 'rainbow_greenhouse': {
+    const dirt = new THREE.Mesh(new THREE.BoxGeometry(1.55, 0.14, 0.72), M(0x3E2723));
+    dirt.position.y = 0.07;
+    group.add(dirt);
+
+    [-0.75, 0.75].forEach(x => {
+      const side = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.22, 0.76), M(0x6d4c41));
+      side.position.set(x, 0.11, 0);
+      group.add(side);
+    });
+
+    [-0.32, 0.32].forEach(z => {
+      const end = new THREE.Mesh(new THREE.BoxGeometry(1.62, 0.22, 0.06), M(0x6d4c41));
+      end.position.set(0, 0.11, z);
+      group.add(end);
+    });
+
+    for(let i=0;i<30;i++){
+      const grass = new THREE.Mesh(new THREE.ConeGeometry(0.014, 0.11, 4), M(0x66BB6A));
+      grass.position.set(-0.7 + Math.random()*1.4, 0.18, -0.28 + Math.random()*0.56);
+      group.add(grass);
+    }
+
+    const flowerColors = [0xE91E63, 0xFFEB3B, 0xE040FB, 0xFF5252, 0xFF9100];
+    for(let i=0;i<7;i++){
+      const x = -0.6 + i*0.2;
+      const stalk = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.02, 0.22, 6), M(0x43A047));
+      stalk.position.set(x, 0.29, 0.0);
+      group.add(stalk);
+
+      const petal = new THREE.Mesh(new THREE.SphereGeometry(0.045, 8, 8), M(flowerColors[i % flowerColors.length]));
+      petal.position.set(x, 0.42, 0.0);
+      group.add(petal);
+    }
+
+    const archL = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 1.0, 8), M(0x6d4c41));
+    archL.position.set(-0.62, 0.62, 0.28);
+    archL.rotation.z = -0.12;
+    group.add(archL);
+
+    const archR = archL.clone();
+    archR.position.x = 0.62;
+    archR.rotation.z = 0.12;
+    group.add(archR);
+
+    const roof = new THREE.Mesh(new THREE.CylinderGeometry(0.92, 0.92, 0.05, 24, 1, true, 0, Math.PI), MTL(0xE040FB, { transparent: true, opacity: 0.16, roughness: 0.1, transmission: 0.6 }));
+    roof.position.y = 1.0;
+    roof.rotation.z = Math.PI / 2;
+    group.add(roof);
+
+    group.add(new THREE.PointLight(0xffb6e1, 0.7, 4.5, 2));
+    break;
+  }
       /* ═══════════════════ 1. 소파 ═══════════════════ */
       case 'sofa': {
         /* 베이스 쿠션 */
@@ -8354,6 +8955,201 @@ wallTexture(baseColor, pattern) {
         };
         break;
       }
+      /* ═══════════════════ 🌸 sakura_picnic (벚꽃 피크닉 매트) ═══════════════════ */
+      case 'sakura_picnic': {
+        /* 푹신한 체크 매트 */
+        const matMat   = MTL(0xffd1dc, { roughness: 0.85, sheen: 1, sheenColor: 0xffffff });
+        const matAlt   = MTL(0xfff5f8, { roughness: 0.85 });
+        const mat = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.07, 1.6), matMat);
+        mat.position.y = 0.035; mat.castShadow = true;
+        group.add(mat);
+        /* 체크무늬 — 작은 정사각형들 */
+        for(let r=0; r<5; r++){
+          for(let c=0; c<7; c++){
+            if((r+c) % 2) continue;
+            const sq = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.005, 0.28),
+              new THREE.MeshLambertMaterial({ color: 0xffb6c1 }));
+            sq.position.set(-0.9 + c*0.3, 0.073, -0.6 + r*0.3);
+            group.add(sq);
+          }
+        }
+        /* 가운데 피크닉 바구니 */
+        const basket = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.26, 0.24, 14),
+          MTL(0xb07a45, { roughness: 0.8 }));
+        basket.position.set(-0.55, 0.2, 0); basket.castShadow = true;
+        group.add(basket);
+        const lid = new THREE.Mesh(new THREE.CylinderGeometry(0.27, 0.27, 0.05, 14),
+          MTL(0xa55c2c, { roughness: 0.7 }));
+        lid.position.set(-0.55, 0.34, 0);
+        group.add(lid);
+        /* 작은 컵 + 도시락 */
+        const cup = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.06, 0.13, 12),
+          MTL(0xffffff, { roughness: 0.4 }));
+        cup.position.set(0.15, 0.135, 0.25);
+        group.add(cup);
+        const bento = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.09, 0.24),
+          MTL(0xd84315, { roughness: 0.6 }));
+        bento.position.set(0.55, 0.115, -0.15);
+        group.add(bento);
+        /* 흩날리는 벚꽃잎 — 작은 원반들 */
+        for(let i=0;i<22;i++){
+          const petal = new THREE.Mesh(new THREE.CircleGeometry(0.045, 6),
+            new THREE.MeshBasicMaterial({ color: 0xffb7c5, side: THREE.DoubleSide, transparent: true, opacity: 0.85 }));
+          petal.position.set(
+            -1 + Math.random()*2,
+            0.2 + Math.random()*1.1,
+            -0.7 + Math.random()*1.4
+          );
+          petal.rotation.set(Math.random()*Math.PI, Math.random()*Math.PI, Math.random()*Math.PI);
+          group.add(petal);
+        }
+        break;
+      }
+
+      /* ═══════════════════ ⛲ fairy_moon_fountain (요정 정원 분수대) ═══════════════════ */
+      case 'fairy_moon_fountain': {
+        const stoneMat = MTL(0xe1bee7, { roughness: 0.7, sheen: 1, sheenColor: 0xffffff });
+        const waterMat = MTL(0x80deea, { transmission: 0.85, transparent: true, opacity: 0.7, roughness: 0.05 });
+        const goldMat  = MTL(0xd4af37, { roughness: 0.08 });
+        /* 3단 받침 */
+        const baseRing = new THREE.Mesh(new THREE.CylinderGeometry(1.05, 1.15, 0.18, 32), stoneMat);
+        baseRing.position.y = 0.09; baseRing.castShadow = true;
+        group.add(baseRing);
+        const baseDecor = new THREE.Mesh(new THREE.TorusGeometry(1.06, 0.04, 12, 48), goldMat);
+        baseDecor.rotation.x = Math.PI/2; baseDecor.position.y = 0.18;
+        group.add(baseDecor);
+        /* 하단 풀 (물웅덩이) */
+        const pool = new THREE.Mesh(new THREE.CylinderGeometry(0.98, 0.98, 0.08, 32), waterMat);
+        pool.position.y = 0.22;
+        group.add(pool);
+        /* 가운데 기둥 */
+        const column = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.26, 0.55, 16), stoneMat);
+        column.position.y = 0.52; column.castShadow = true;
+        group.add(column);
+        /* 중간 접시 */
+        const dishMid = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.5, 0.08, 24), stoneMat);
+        dishMid.position.y = 0.82;
+        group.add(dishMid);
+        const dishMidWater = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.55, 0.04, 24), waterMat);
+        dishMidWater.position.y = 0.865;
+        group.add(dishMidWater);
+        /* 상단 기둥 */
+        const column2 = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.16, 0.35, 14), stoneMat);
+        column2.position.y = 1.06;
+        group.add(column2);
+        /* 최상단 접시 (작은) */
+        const dishTop = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.24, 0.06, 18), stoneMat);
+        dishTop.position.y = 1.27;
+        group.add(dishTop);
+        const dishTopWater = new THREE.Mesh(new THREE.CylinderGeometry(0.27, 0.27, 0.04, 18), waterMat);
+        dishTopWater.position.y = 1.305;
+        group.add(dishTopWater);
+        /* 솟구치는 물 */
+        const jet = new THREE.Mesh(new THREE.ConeGeometry(0.08, 0.35, 14), waterMat);
+        jet.position.y = 1.51;
+        group.add(jet);
+        /* 요정빛 — 떠다니는 별가루 */
+        const fairyLights = [];
+        for(let i=0;i<14;i++){
+          const a = (i/14)*Math.PI*2;
+          const r = 0.55 + Math.random()*0.4;
+          const light = new THREE.Mesh(new THREE.SphereGeometry(0.04, 8, 8),
+            new THREE.MeshBasicMaterial({ color: [0xffeb3b,0xe1bee7,0x80deea,0xfff59d][i%4], transparent:true, opacity:0.9 }));
+          light.position.set(Math.cos(a)*r, 0.6 + Math.random()*0.9, Math.sin(a)*r);
+          light.userData = { baseY: light.position.y, phase: Math.random()*Math.PI*2 };
+          group.add(light);
+          fairyLights.push(light);
+        }
+        /* 흘러내리는 물방울 */
+        for(let i=0;i<10;i++){
+          const drop = new THREE.Mesh(new THREE.SphereGeometry(0.04, 10, 10), waterMat);
+          drop.position.set(-0.5 + Math.random()*1, 0.42 + Math.random()*0.55, -0.3 + Math.random()*0.6);
+          group.add(drop);
+        }
+        group.add(new THREE.PointLight(0xfff59d, 1.2, 5, 2));
+        group.userData.update = function(t){
+          fairyLights.forEach(function(l){
+            l.position.y = l.userData.baseY + Math.sin(t * 1.4 + l.userData.phase) * 0.18;
+          });
+        };
+        break;
+      }
+
+      /* ═══════════════════ 🛏️ fairy_shell_bed (요정 조개 침대) ═══════════════════ */
+      case 'fairy_shell_bed': {
+        const shellMat = MTL(0xfce4ec, { roughness: 0.45, sheen: 1, sheenColor: 0xffffff });
+        const pearlMat = MTL(0xffffff, { transmission: 0.9, roughness: 0.04, emissive: 0xffe4ef, emissiveIntensity: 0.18 });
+        const goldMat  = MTL(0xd4af37, { roughness: 0.1 });
+        const fairyMat = new THREE.MeshBasicMaterial({ color: 0xfff59d, transparent: true, opacity: 0.9 });
+        /* 침대 프레임 (조개 모양 베이스) */
+        const baseShell = new THREE.Mesh(new THREE.SphereGeometry(1.05, 28, 16, 0, Math.PI * 2, 0, Math.PI/2), shellMat);
+        baseShell.scale.set(1, 0.45, 0.85);
+        baseShell.position.y = 0.05;
+        baseShell.castShadow = true;
+        group.add(baseShell);
+        /* 매트리스 */
+        const mattress = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.18, 1.0),
+          MTL(this.lighten(gradeColor, 35), { roughness: 0.7 }));
+        mattress.position.y = 0.52; mattress.castShadow = true;
+        group.add(mattress);
+        /* 별가루 쿠션 */
+        const pillow = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.13, 0.34),
+          MTL(0xe1bee7, { roughness: 0.6 }));
+        pillow.position.set(-0.45, 0.66, 0); pillow.castShadow = true;
+        group.add(pillow);
+        const pillow2 = pillow.clone();
+        pillow2.position.x = 0.18;
+        group.add(pillow2);
+        /* 위쪽 조개 헤드보드 */
+        const headShell = new THREE.Mesh(new THREE.SphereGeometry(0.65, 24, 12, 0, Math.PI), shellMat);
+        headShell.scale.set(1.4, 1.1, 0.4);
+        headShell.position.set(0, 0.78, -0.5);
+        headShell.rotation.x = -Math.PI/2;
+        group.add(headShell);
+        /* 조개 능선 (방사형 줄무늬) */
+        for(let i=0;i<7;i++){
+          const angle = -Math.PI/2.4 + (i/6) * Math.PI/1.2;
+          const rib = new THREE.Mesh(new THREE.BoxGeometry(0.015, 0.6, 0.025),
+            MTL(0xf48fb1, { roughness: 0.5 }));
+          rib.position.set(Math.sin(angle)*0.75, 0.82, -0.55);
+          rib.rotation.z = angle * 0.6;
+          group.add(rib);
+        }
+        /* 가운데 큰 진주 */
+        const pearl = new THREE.Mesh(new THREE.SphereGeometry(0.13, 20, 20), pearlMat);
+        pearl.position.set(0, 0.88, -0.45);
+        group.add(pearl);
+        /* 황금 테두리 */
+        const trim = new THREE.Mesh(new THREE.TorusGeometry(0.78, 0.025, 10, 36, Math.PI), goldMat);
+        trim.position.set(0, 0.42, -0.45);
+        trim.rotation.x = -Math.PI/2;
+        group.add(trim);
+        /* 떠다니는 별가루 (요정빛) */
+        const fairyDust = [];
+        for(let i=0;i<18;i++){
+          const dot = new THREE.Mesh(new THREE.SphereGeometry(0.03, 6, 6), fairyMat);
+          dot.position.set(-0.9 + Math.random()*1.8, 0.7 + Math.random()*0.9, -0.7 + Math.random()*1.2);
+          dot.userData = { baseY: dot.position.y, phase: Math.random()*Math.PI*2 };
+          group.add(dot);
+          fairyDust.push(dot);
+        }
+        /* 헤드보드 위 빛나는 보석 */
+        const gemColors = [0xb39ddb, 0x80deea, 0xfff59d, 0xf48fb1];
+        for(let i=0;i<4;i++){
+          const gem = new THREE.Mesh(new THREE.OctahedronGeometry(0.05, 0),
+            MTL(gemColors[i], { transmission: 0.7, roughness: 0.05, emissive: gemColors[i], emissiveIntensity: 0.4 }));
+          gem.position.set(-0.55 + i*0.37, 1.25, -0.45);
+          group.add(gem);
+        }
+        group.add(new THREE.PointLight(0xfff59d, 1.0, 4.5, 2));
+        group.userData.update = function(t){
+          fairyDust.forEach(function(d){
+            d.position.y = d.userData.baseY + Math.sin(t * 1.2 + d.userData.phase) * 0.14;
+          });
+        };
+        break;
+      }
+
       /* ═══════════════════ 폴백 (기본 큐브) ═══════════════════ */
       default: {
         const box = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 0.8), M(gradeColor));
@@ -8419,7 +9215,18 @@ wallTexture(baseColor, pattern) {
     if (e.includes('🌌')) return 'aurora';
     if (e.includes('🌳') || e.includes('🌲')) return 'tree';
     if (e.includes('🌿')) return 'garden';
-    return 'sofa';
+    if (e.includes('🌸')) return 'sakura_picnic';
+    if (e.includes('⛲') && item.name?.includes('달빛')) return 'moon_fountain';
+    if (e.includes('⛲')) return 'fairy_moon_fountain';
+    if (e.includes('🛏️')) return 'pearl_shell_bed';
+    if (e.includes('💄')) return 'aurora_vanity';
+    if (e.includes('✨')) return 'deepsea_chandelier';
+    if (e.includes('🐠')) return 'dragon_aquarium';
+    if (e.includes('🎹')) return 'opera_piano';
+    if (e.includes('📚')) return 'stardust_library';
+    if (e.includes('🏆')) return 'crystal_showcase';
+    if (e.includes('🌈')) return 'rainbow_greenhouse';
+    return 'royal_sofa';
   }
   /* 가구 배치 — position / rotation 필드 사용 (기존 데이터 호환) */
   placeFurniture3D() {
@@ -11126,17 +11933,24 @@ async function submitChosungAnswer(){await submitQuizAnswer();}
 ═══════════════════════════════════════ */
 // 1. render() 함수 전체 교체
 function render(){
-if(S.pvpBattle && document.querySelector('.pvp-modal')) {
-    return;
-  }
-  // ★ 오픈월드 모드일 경우, 캔버스를 건드리지 않고 UI 영역만 안전하게 업데이트합니다.
+  if(S.pvpBattle && document.querySelector('.pvp-modal')) return;
+
   if(S.screen === 'openworld' && document.getElementById('ow-ui-root')){
     document.getElementById('ow-ui-root').innerHTML = rOpenWorldUIOnly();
+
+    let modalRoot = document.getElementById('global-modal-root');
+    if(!modalRoot){
+      modalRoot = document.createElement('div');
+      modalRoot.id = 'global-modal-root';
+      document.getElementById('app').appendChild(modalRoot);
+    }
+    modalRoot.innerHTML = S.preview ? rPreviewModal() : '';
+
     attachEvents();
     if(__owRenderer) updateOWOverlays(__owRenderer);
     return;
   }
-  
+
   let owCanvas = null, owOverlays = null;
   if(S.screen === 'openworld' && __owRenderer && __owRenderer.canvas){
     owCanvas = __owRenderer.canvas;
@@ -11144,8 +11958,9 @@ if(S.pvpBattle && document.querySelector('.pvp-modal')) {
     if(owCanvas && owCanvas.parentNode) owCanvas.parentNode.removeChild(owCanvas);
     if(owOverlays && owOverlays.parentNode) owOverlays.parentNode.removeChild(owOverlays);
   }
-  document.getElementById("app").innerHTML=getHTML();
-  
+
+  document.getElementById("app").innerHTML = getHTML();
+
   if(owCanvas){
     const slot = document.getElementById('ow-canvas');
     if(slot && slot.parentNode) slot.parentNode.replaceChild(owCanvas, slot);
@@ -11158,23 +11973,30 @@ if(S.pvpBattle && document.querySelector('.pvp-modal')) {
   attachEvents();
 }
 function getHTML(){
-  /* 🌸 오픈월드 모드 — 전용 풀스크린 렌더 (모달 위에 안 깔림) */
-  if(S.screen === 'openworld'){
-    return rOpenWorldScreen();
+  if (S.screen === 'openworld') {
+    return rOpenWorldScreen() + (S.preview ? rPreviewModal() : '');
   }
-  /* 모달 오버레이 — 모든 화면 위에 표시 */
-  const modalOverlay = (S.viewingPet ? rPetInfoModal() : '') + rSkinModal() + rTitleModal() + rEnhanceModal() + (S.preview ? rPreviewModal() : '') + (S.pvpBattle ? rPvpBattleModal() : '');
+
+  const modalOverlay =
+    (S.viewingPet ? rPetInfoModal() : '') +
+    rSkinModal() +
+    rTitleModal() +
+    rEnhanceModal() +
+    (S.preview ? rPreviewModal() : '') +
+    (S.pvpBattle ? rPvpBattleModal() : '');
+
   let main = '';
   switch(S.screen){
-    case"home":           main = rHome(); break;
-    case"test":           main = rMBTITest(); break;
-    case"result":         main = rResult(); break;
-    case"balance_test":   main = rBalTest(); break;
-    case"balance_result": main = rBalResult(); break;
-    case"dating_test":    main = rDatTest(); break;
-    case"dating_result":  main = rDatResult(); break;
-    default:              main = rBoard();
+    case "home":           main = rHome(); break;
+    case "test":           main = rMBTITest(); break;
+    case "result":         main = rResult(); break;
+    case "balance_test":   main = rBalTest(); break;
+    case "balance_result": main = rBalResult(); break;
+    case "dating_test":    main = rDatTest(); break;
+    case "dating_result":  main = rDatResult(); break;
+    default:               main = rBoard();
   }
+
   return main + modalOverlay;
 }
 
@@ -12071,7 +12893,7 @@ function rLovemonTab(){
           <span style="font-size:26px;flex-shrink:0">${item.emoji}</span>
           <div style="flex:1;min-width:0">
             <div style="font-size:12.5px;font-weight:700" class="grade-${item.grade}">${esc(item.name)}</div>
-            <div style="font-size:10.5px;color:var(--text3)">${item.slot} · ${Object.entries(item.stats).map(([k,v])=>k.toUpperCase()+'+'+v).join(' ')}</div>
+            <div style="font-size:10.5px;color:var(--text3)">${item.slot} · ${Object.entries(item.stats).map(([k,v])=>k.toUpperCase()+'+'+v+(k==='eva'?'%':'')).join(' ')}</div>
           </div>
           <button class="btn" style="padding:5px 8px;font-size:10.5px;flex-shrink:0;background:#F3E5F5;color:#6A1B9A;border:1px solid #CE93D8" data-a="lm_previewEquip" data-id="${item.id}">👁️</button>
           <button class="btn btn-gold" style="padding:5px 10px;font-size:11px;flex-shrink:0" data-a="lm_buyEquip" data-id="${item.id}">${item.cost.toLocaleString()}P</button>
@@ -12570,6 +13392,46 @@ function rStatBreakdown(pet){
     </div>`;
   }
 
+  /* 🆕 가구 발동 효과 — 배치된 가구 각각의 스탯 + 합계 */
+  let furnitureSection = '';
+  let furnitureCount = 0;
+  const myNick = S.myEntry?.nick;
+  const isMyPet = pet === S.myPet || pet.nick === myNick;
+  const houseData = isMyPet ? S.myHouse : (S.houseEntries||[]).find(h=>h.nick===pet.nick);
+  const placedFurniture = houseData?.furniture || [];
+  const furnSum = getFurnitureStatsForPet(pet);
+  const hasFurniture = Object.values(furnSum).some(v=>v>0);
+
+  if(placedFurniture.length === 0){
+    furnitureSection = `<div class="stat-empty">🏠 배치된 가구가 없어요 — 가구를 배치하면 스탯 보너스를 받아요</div>`;
+  } else if(!hasFurniture){
+    furnitureSection = `<div class="stat-empty">🏠 ${placedFurniture.length}개 가구 배치됨 — 스탯 보너스 없음</div>`;
+  } else {
+    /* 배치된 가구 중 스탯이 있는 것만 표시 (최대 6개까지 펼침, 나머지는 + N개 더) */
+    const withStats = placedFurniture
+      .map(f => ({ furn:f, stats:getFurnitureItemStats(f) }))
+      .filter(x => Object.keys(x.stats).length > 0);
+    furnitureCount = withStats.length;
+    const shown = withStats.slice(0, 6);
+    const rest = withStats.length - shown.length;
+    const rows = shown.map(({furn, stats})=>{
+      const txt = fmtFurnitureStats(stats);
+      return `<div class="stat-item-row">
+        <span class="e">${furn.emoji||'🛋️'}</span>
+        <span class="nm grade-${furn.grade||'normal'}">${esc(furn.name||'가구')}<span style="font-size:9.5px;color:var(--text3);font-weight:400;margin-left:4px">${(furn.w||1)}×${(furn.h||1)}</span></span>
+        <span class="bn">${txt}</span>
+      </div>`;
+    }).join('');
+    /* 합계 줄 — 모든 가구 합산 */
+    const sumTxt = fmtFurnitureStats(furnSum);
+    const sumRow = `<div class="stat-item-row" style="background:rgba(255,215,0,.07);border-radius:8px;padding:4px 6px;margin-top:4px">
+      <span class="e">✨</span>
+      <span class="nm" style="color:var(--gold);font-weight:700">가구 합계 보너스</span>
+      <span class="bn" style="color:var(--gold)">${sumTxt}</span>
+    </div>`;
+    furnitureSection = rows + (rest>0?`<div class="stat-empty" style="text-align:center;font-size:10.5px;padding:4px">…외 ${rest}개</div>`:'') + sumRow;
+  }
+
   /* 최종 합산 */
   const totalsRow = `
     <div class="stat-total-row">
@@ -12602,7 +13464,7 @@ function rStatBreakdown(pet){
 
   return `
   <div class="stat-card">
-    <div class="stat-card-title">📊 능력치 분석 <span style="font-size:10px;color:var(--text3);font-weight:500;margin-left:auto">기본+장비+칭호</span></div>
+    <div class="stat-card-title">📊 능력치 분석 <span style="font-size:10px;color:var(--text3);font-weight:500;margin-left:auto">기본+장비+칭호+가구</span></div>
     <div class="stat-section">
       <div class="stat-section-head">⚔️ 장비 발동 효과 <span style="color:var(--text3);font-weight:500;font-size:10px;margin-left:auto">${equippedItems.length}/6</span></div>
       ${equipSection}
@@ -12610,6 +13472,10 @@ function rStatBreakdown(pet){
     <div class="stat-section">
       <div class="stat-section-head">🏆 칭호 발동 효과</div>
       ${titleSection}
+    </div>
+    <div class="stat-section">
+      <div class="stat-section-head">🏠 가구 발동 효과 <span style="color:var(--text3);font-weight:500;font-size:10px;margin-left:auto">${placedFurniture.length}개 배치</span></div>
+      ${furnitureSection}
     </div>
     ${totalsRow}
   </div>`;
@@ -12984,7 +13850,29 @@ function rHouseTab(){
       </div>
       ${!isVisiting ? `<div class="info" style="color:var(--gold);font-weight:700">💰 ${myPoints.toLocaleString()}P</div>` : ''}
     </div>
-  </div>`;
+  </div>
+  ${(()=>{
+    /* 🆕 가구 합산 스탯을 항상 보이게 — 본인 집일 때 */
+    if(isVisiting || !S.myPet) return '';
+    const sum = getFurnitureStatsForPet(S.myPet);
+    const has = Object.values(sum).some(v=>v>0);
+    if(!has) return '';
+    return `
+    <div class="card" style="margin-bottom:14px;padding:11px 14px;background:linear-gradient(135deg,rgba(255,215,0,.08),rgba(255,91,174,.06));border:1px solid rgba(255,215,0,.25)">
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
+        <span style="font-size:14px">🏠✨</span>
+        <span style="font-size:12px;font-weight:700;color:var(--gold)">가구 발동 효과 (총 ${furniture.length}개)</span>
+        <span style="font-size:10px;color:var(--text3);margin-left:auto">러브몬·던전·PvP 자동 적용</span>
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:5px">
+        ${sum.hp?`<span style="background:rgba(229,57,53,.10);color:#E53935;padding:3px 9px;border-radius:99px;font-size:11px;font-weight:700">HP +${sum.hp}</span>`:''}
+        ${sum.mp?`<span style="background:rgba(30,136,229,.10);color:#1E88E5;padding:3px 9px;border-radius:99px;font-size:11px;font-weight:700">MP +${sum.mp}</span>`:''}
+        ${sum.atk?`<span style="background:rgba(232,83,122,.10);color:var(--rose2);padding:3px 9px;border-radius:99px;font-size:11px;font-weight:700">ATK +${sum.atk}</span>`:''}
+        ${sum.def?`<span style="background:rgba(155,89,182,.10);color:var(--plum);padding:3px 9px;border-radius:99px;font-size:11px;font-weight:700">DEF +${sum.def}</span>`:''}
+        ${sum.eva?`<span style="background:rgba(46,196,182,.10);color:var(--mint);padding:3px 9px;border-radius:99px;font-size:11px;font-weight:700">EVA +${sum.eva}%</span>`:''}
+      </div>
+    </div>`;
+  })()}`;
   /* ─────────────────────────────────────
      1.5) 내 펫 위치 컨트롤 (어디서든 사용 가능)
      ───────────────────────────────────── */
@@ -13179,36 +14067,70 @@ function rHouseTab(){
         🛍️ Furniture Atelier
       </p>
       <div class="furn-grid-pro">
-        ${FURNITURE_SHOP.map(f => `
+        ${FURNITURE_SHOP.map(f => {
+          const fStatTxt = fmtFurnitureStats(f.stats);
+          return `
           <div class="furn-card-pro ${f.grade==='myth'?'myth-card':''}" style="position:relative">
             <button class="furn-preview-btn" data-a="lm_previewFurn" data-id="${f.id}" title="미리보기">👁️</button>
             <div class="grade-tag ${f.grade}">${f.grade}</div>
             <div class="furn-emoji" data-a="lm_buyFurniture" data-id="${f.id}">${f.emoji}</div>
             <div class="furn-name" data-a="lm_buyFurniture" data-id="${f.id}">${esc(f.name)}</div>
+            ${fStatTxt?`<div style="font-size:9.5px;color:var(--mint);font-weight:600;margin:2px 0 3px;line-height:1.3;padding:0 4px" data-a="lm_buyFurniture" data-id="${f.id}">${fStatTxt}</div>`:''}
             <div class="furn-cost" data-a="lm_buyFurniture" data-id="${f.id}">${f.cost === 0 ? '무료' : f.cost.toLocaleString() + 'P'}</div>
           </div>
-        `).join('')}
+        `;}).join('')}
       </div>`;
     } else if (decoTab === 'mine') {
+      /* 🆕 배치된 가구의 합산 스탯 패널 — 본인 집일 때만 표시 */
+      const furnStatsSum = isVisiting ? null : (S.myPet ? getFurnitureStatsForPet(S.myPet) : null);
+      const furnHasStats = furnStatsSum && Object.values(furnStatsSum).some(v=>v>0);
+      const furnPanelHtml = furnHasStats ? `
+        <div style="background:linear-gradient(135deg,rgba(255,215,0,.10),rgba(255,91,174,.07));
+                    border:1px solid rgba(255,215,0,.3);border-radius:11px;padding:11px 13px;margin-bottom:14px">
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:7px">
+            <span style="font-size:14px">✨</span>
+            <span style="font-size:12px;font-weight:700;color:var(--gold)">가구 발동 효과 합산</span>
+            <span style="font-size:10px;color:var(--text3);margin-left:auto">${furniture.length}개 배치 중</span>
+          </div>
+          <div style="display:flex;flex-wrap:wrap;gap:5px">
+            ${furnStatsSum.hp?`<span style="background:rgba(229,57,53,.10);color:#E53935;padding:3px 9px;border-radius:99px;font-size:11px;font-weight:700">HP +${furnStatsSum.hp}</span>`:''}
+            ${furnStatsSum.mp?`<span style="background:rgba(30,136,229,.10);color:#1E88E5;padding:3px 9px;border-radius:99px;font-size:11px;font-weight:700">MP +${furnStatsSum.mp}</span>`:''}
+            ${furnStatsSum.atk?`<span style="background:rgba(232,83,122,.10);color:var(--rose2);padding:3px 9px;border-radius:99px;font-size:11px;font-weight:700">ATK +${furnStatsSum.atk}</span>`:''}
+            ${furnStatsSum.def?`<span style="background:rgba(155,89,182,.10);color:var(--plum);padding:3px 9px;border-radius:99px;font-size:11px;font-weight:700">DEF +${furnStatsSum.def}</span>`:''}
+            ${furnStatsSum.eva?`<span style="background:rgba(46,196,182,.10);color:var(--mint);padding:3px 9px;border-radius:99px;font-size:11px;font-weight:700">EVA +${furnStatsSum.eva}%</span>`:''}
+          </div>
+          <div style="font-size:10px;color:var(--text3);margin-top:7px;line-height:1.5">
+            💡 배치된 가구는 러브몬 탭/던전 탭/PvP 전투에서 자동으로 스탯 보너스를 제공해요
+          </div>
+        </div>` : (!isVisiting && furniture.length > 0 ? `
+        <div style="font-size:11px;color:var(--text3);padding:8px 12px;background:rgba(0,0,0,.03);border-radius:8px;margin-bottom:14px">
+          💡 배치된 가구가 있지만 스탯 효과 없는 가구들이에요
+        </div>` : '');
+
       panelContent = `
       <div class="editor-help" style="margin-bottom:12px">
         💡 배치된 가구를 클릭하면 <b>위치/회전 편집</b>이 가능해요! 보관 중인 가구는 클릭하면 집에 배치됩니다.
       </div>
+      ${furnPanelHtml}
       ${furniture.length > 0 ? `
   <p style="font-size:11px;color:var(--text3);letter-spacing:1px;margin-bottom:8px;text-transform:uppercase">
     🏠 Placed (${furniture.length}/${tier?.maxSlots || 3})
   </p>
   <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px">
-    ${furniture.map(f => `
+    ${furniture.map(f => {
+      const fst = fmtFurnitureStats(getFurnitureItemStats(f));
+      return `
       <div class="furn-chip ${editing?.id === f.id ? 'editing' : 'placed'}" 
-           style="padding:0; display:inline-flex; align-items:stretch; overflow:hidden;">
+           style="padding:0; display:inline-flex; align-items:stretch; overflow:hidden;"
+           title="${fst?'발동 효과: '+fst:''}">
         <button type="button" 
                 style="padding:7px 10px; cursor:pointer; display:flex; align-items:center; gap:5px; background:transparent; border:none; font-family:inherit; font-size:inherit; color:inherit;" 
                 data-a="lm_editFurniture" 
                 data-id="${f.id}" 
-                title="클릭하여 위치/회전 편집">
+                title="클릭하여 위치/회전 편집${fst?' · '+fst:''}">
           <span class="chip-emoji">${f.emoji}</span>
           <span>${esc(f.name)}</span>
+          ${fst?`<span style="font-size:9px;color:var(--mint);font-weight:700;background:rgba(46,196,182,.12);padding:1px 5px;border-radius:99px;margin-left:2px">${fst}</span>`:''}
           <span class="chip-edit" style="margin-left:4px; font-size:14px;">${editing?.id === f.id ? '🎯' : '✎'}</span>
         </button>
         <button type="button"
@@ -13219,7 +14141,7 @@ function rHouseTab(){
           📦
         </button>
       </div>
-    `).join('')}
+    `;}).join('')}
   </div>` : ''}
       ${inventory.length > 0 ? `
         <p style="font-size:11px;color:var(--text3);letter-spacing:1px;margin-bottom:8px;text-transform:uppercase">
@@ -13229,10 +14151,12 @@ function rHouseTab(){
           ${inventory.map(f => {
             const shopItem=FURNITURE_SHOP.find(x=>x.id===f.id);
             const sellPrice=shopItem?Math.floor(shopItem.cost*0.5):0;
-            return `<div class="furn-chip" style="padding:0;display:inline-flex;align-items:stretch;overflow:hidden">
-              <button type="button" style="padding:7px 10px;cursor:pointer;display:flex;align-items:center;gap:5px;background:transparent;border:none;font-family:inherit;font-size:inherit;color:inherit" data-a="lm_placeFurniture" data-id="${f.id}" title="집에 배치">
+            const fst = fmtFurnitureStats(getFurnitureItemStats(f));
+            return `<div class="furn-chip" style="padding:0;display:inline-flex;align-items:stretch;overflow:hidden" title="${fst?'배치 시: '+fst:''}">
+              <button type="button" style="padding:7px 10px;cursor:pointer;display:flex;align-items:center;gap:5px;background:transparent;border:none;font-family:inherit;font-size:inherit;color:inherit" data-a="lm_placeFurniture" data-id="${f.id}" title="집에 배치${fst?' · '+fst:''}">
                 <span class="chip-emoji">${f.emoji}</span>
                 <span>${esc(f.name)}</span>
+                ${fst?`<span style="font-size:9px;color:var(--gold);font-weight:700;background:rgba(212,168,83,.12);padding:1px 5px;border-radius:99px;margin-left:2px">${fst}</span>`:''}
                 <span style="font-size:11px;color:var(--mint)">→</span>
               </button>
               ${(!isVisiting && sellPrice>0)?`<button type="button" class="sell-btn" style="margin:3px;font-size:10px" data-a="sellFurniture" data-id="${f.id}" title="${sellPrice.toLocaleString()}P 되팔기">💰${sellPrice>=1000?Math.floor(sellPrice/1000)+'k':sellPrice}</button>`:''}
@@ -15117,6 +16041,7 @@ function attachEvents(){
       else if(a==="ow_openCraft"){ owOpenCraft(); }
       else if(a==="ow_closeCraft"){ owCloseCraft(); }
       else if(a==="ow_craft"){ owDoCraft(el.dataset.id); }
+      else if(a==="ow_previewCraft"){owPreviewCraft(el.dataset.id);}
       else if(a==="ow_openBackpack"){ owOpenBackpack(); }
       else if(a==="ow_closeBackpack"){ owCloseBackpack(); }
       else if(a==="ow_toggleCar"){ owToggleCar(); }
@@ -15967,23 +16892,29 @@ function openPreviewEquip(itemId){
   setTimeout(()=>initPreview3D(), 60);
 }
 function openPreviewFurn(itemId){
-  const item = FURNITURE_SHOP.find(f=>f.id===itemId);
+  let item = FURNITURE_SHOP.find(f=>f.id===itemId);
+  if(!item){
+    const rec = CRAFT_RECIPES.find(r=>r.result && r.result.id===itemId);
+    if(rec) item = rec.result;
+  }
   if(!item) return;
   S.preview = { kind:'furn', item, id:itemId };
   render();
   setTimeout(()=>initPreview3D(), 60);
 }
+// 1) 미리보기 열기 함수 2개 수정
 function openPreviewWall(wallId){
   const wall = WALLPAPERS[wallId];
   if(!wall) return;
-  S.preview = { kind:'wall', item:{...wall, id:wallId}, id:wallId };
+  S.preview = { kind:'wall', item:{ ...wall, id:wallId }, id:wallId };
   render();
   setTimeout(()=>initPreview3D(), 60);
 }
+
 function openPreviewFloor(floorId){
   const fl = FLOORS[floorId];
   if(!fl) return;
-  S.preview = { kind:'floor', item:{...fl, id:floorId}, id:floorId };
+  S.preview = { kind:'floor', item:{ ...fl, id:floorId }, id:floorId };
   render();
   setTimeout(()=>initPreview3D(), 60);
 }
@@ -16000,9 +16931,13 @@ function closePreview(){
 /* 미리보기에서 직접 구매 */
 function buyFromPreview(){
   if(!S.preview) return;
-  const { kind, id } = S.preview;
+  const { kind, id, fromCraft, recipeId } = S.preview;
   closePreview();
   setTimeout(()=>{
+    if(fromCraft && recipeId){          // ✅ 제작 화면에서 진입한 경우 → 제작 실행
+      owDoCraft(recipeId);
+      return;
+    }
     if(kind === 'equip') buyEquipItem(id);
     else if(kind === 'furn') buyFurnitureItem(id);
     else if(kind === 'wall') setWallpaper(id);
@@ -16013,11 +16948,23 @@ function buyFromPreview(){
 /* 미리보기 모달 렌더 */
 function rPreviewModal(){
   if(!S.preview) return '';
-  const { kind, item } = S.preview;
+  const { kind, item, fromCraft, recipeId } = S.preview;
   const grade = item.grade || 'normal';
   const myPts = S.myPet?.points || 0;
-  const cost = item.cost || 0;
-  const canAfford = myPts >= cost;
+  /* 🆕 제작에서 진입시 — costP 사용 + 재료 검사도 함께 */
+  let cost = item.cost || 0;
+  let canAfford = myPts >= cost;
+  let materialsOk = true;
+  let rec = null;
+  if(fromCraft && recipeId){
+    rec = CRAFT_RECIPES.find(r => r.id === recipeId);
+    if(rec){
+      cost = rec.costP || 0;
+      canAfford = myPts >= cost;
+      const mats = S.ow?.materials || {};
+      materialsOk = Object.entries(rec.materials||{}).every(([id,n]) => (mats[id]||0) >= n);
+    }
+  }
 
   let title='', hint='', emoji='', name='', statsHtml='';
   if(kind === 'equip'){
@@ -16028,7 +16975,7 @@ function rPreviewModal(){
     statsHtml = `<div class="preview-stats-grid">
       ${Object.entries(item.stats||{}).map(([k,v])=>{
         const label = ({atk:'공격력',def:'방어력',hp:'HP',mp:'MP',eva:'회피'})[k]||k.toUpperCase();
-        return `<div class="preview-stat-chip">${label} <b>+${v}</b></div>`;
+        return `<div class="preview-stat-chip">${label} <b>+${v}${k==='eva'?'%':''}</b></div>`;
       }).join('')}
     </div>`;
   } else if(kind === 'furn'){
@@ -16036,7 +16983,19 @@ function rPreviewModal(){
     hint = '✨ 드래그하여 회전 · 배치된 모습 그대로';
     emoji = item.emoji;
     name = item.name;
-    statsHtml = `<div style="font-size:11.5px;color:rgba(255,255,255,.7);margin-top:4px">크기 ${item.w}×${item.h} · 타입 ${esc(item.type||'기본')}</div>`;
+    /* 🆕 가구도 스탯 표기 — 배치 시 적용됨 */
+    const fstats = item.stats || (FURNITURE_SHOP.find(s=>s.id===item.id)?.stats) || {};
+    const statChips = Object.entries(fstats).map(([k,v])=>{
+      const label = ({atk:'공격력',def:'방어력',hp:'HP',mp:'MP',eva:'회피'})[k]||k.toUpperCase();
+      return `<div class="preview-stat-chip">${label} <b>+${v}${k==='eva'?'%':''}</b></div>`;
+    }).join('');
+    statsHtml = `
+      <div style="font-size:11.5px;color:rgba(255,255,255,.7);margin-top:4px">크기 ${item.w}×${item.h} · 타입 ${esc(item.type||'기본')}</div>
+      ${statChips ? `
+        <div style="font-size:10.5px;color:#FFD700;margin-top:8px;font-weight:600">🏠 배치 시 발동 효과</div>
+        <div class="preview-stats-grid">${statChips}</div>
+      ` : ''}
+    `;
   } else if(kind === 'wall'){
     title = '🎨 벽지 미리보기';
     hint = '✨ 방에 적용된 모습';
@@ -16048,11 +17007,26 @@ function rPreviewModal(){
     emoji = '🪵'; name = item.name;
     statsHtml = '';
   }
+  /* 🆕 제작 미리보기인 경우 재료 부족 안내 */
+  let materialHtml = '';
+  if(fromCraft && rec){
+    const matChips = Object.entries(rec.materials||{}).map(([id,n])=>{
+      const m = (typeof FISH_TABLE!=='undefined'?FISH_TABLE:[]).find(f => f.id === id);
+      const have = (S.ow?.materials||{})[id] || 0;
+      const ok = have >= n;
+      return `<span style="font-size:10.5px;padding:2px 7px;border-radius:99px;
+        background:${ok ? 'rgba(67,160,71,.18)' : 'rgba(244,67,54,.16)'};
+        color:${ok ? '#A5D6A7' : '#FFAB91'};margin:2px 3px 0 0;display:inline-block">
+        ${m?m.emoji:'?'} ${have}/${n}
+      </span>`;
+    }).join('');
+    materialHtml = `<div style="margin-top:8px;font-size:10.5px;color:rgba(255,255,255,.7)">재료: ${matChips}</div>`;
+  }
   return `
     <div class="modal-overlay" data-a="lm_closePreview" style="z-index:10001">
       <div class="preview-modal" onclick="event.stopPropagation()">
         <div class="preview-modal-header">
-          <div class="preview-modal-title">${title}</div>
+          <div class="preview-modal-title">${title}${fromCraft?'<span style="font-size:10px;color:#FFD700;margin-left:6px">⚒️ 제작</span>':''}</div>
           <button class="preview-modal-close" data-a="lm_closePreview">✕</button>
         </div>
         <div class="preview-canvas-wrap" id="preview-canvas-wrap">
@@ -16068,15 +17042,17 @@ function rPreviewModal(){
                 <span class="grade-chip ${grade}" style="font-size:9.5px;padding:2px 8px">${_gradeLabel(grade)}</span>
                 ${cost>0?`<span style="font-size:11px;color:#FFD700;font-weight:700">💰 ${cost.toLocaleString()}P</span>`:'<span style="font-size:11px;color:#90EE90">무료</span>'}
                 ${!canAfford && cost>0 ? '<span class="preview-locked-badge">포인트 부족</span>' : ''}
+                ${fromCraft && !materialsOk ? '<span class="preview-locked-badge">재료 부족</span>' : ''}
               </div>
             </div>
           </div>
           ${statsHtml}
+          ${materialHtml}
         </div>
         <div class="preview-actions">
           <button class="preview-btn-close" data-a="lm_closePreview">닫기</button>
-          <button class="preview-btn-buy" data-a="lm_previewBuy" ${!canAfford && cost>0?'disabled':''}>
-            ${cost===0?'적용':'구매'} ${cost>0?'· '+cost.toLocaleString()+'P':''}
+          <button class="preview-btn-buy" data-a="lm_previewBuy" ${(!canAfford && cost>0) || (fromCraft && !materialsOk)?'disabled':''}>
+            ${fromCraft ? '⚒️ 제작' : (cost===0?'적용':'구매')} ${cost>0?'· '+cost.toLocaleString()+'P':''}
           </button>
         </div>
       </div>
@@ -16231,22 +17207,47 @@ function _buildPreviewFurniture(group, item){
     lighten: HouseRenderer3D.prototype.lighten,
     emojiTexture: HouseRenderer3D.prototype.emojiTexture,
     gradeToColor: HouseRenderer3D.prototype.gradeToColor,
-    animated: []
+    woodFloorTexture: HouseRenderer3D.prototype.woodFloorTexture,
+    animated: [],
+    scene: { add:()=>{} }
   };
-  
+
   const buildFurn = HouseRenderer3D.prototype.buildFurniture.bind(fakeThis);
   const inferType = HouseRenderer3D.prototype.inferType || function(){ return item.type || 'sofa'; };
   const type = inferType(item);
   const color = fakeThis.gradeToColor(item.grade || 'normal');
-  
+
   try {
     const mesh = buildFurn(type, item.emoji, color);
-    if(mesh){
-      const wScale = Math.min(1.3 / Math.max(item.w||1, item.h||1), 1.2);
-      mesh.scale.set(wScale, wScale, wScale);
-      mesh.position.y = -0.2;
-      group.add(mesh);
-    }
+    if(!mesh) return;
+
+    /* 🆕 자동 스케일 + 바닥 정렬
+       1) 메시 그대로 추가 후 실제 경계 박스(BoundingBox)를 측정
+       2) 가장 긴 축 ≤ 2.6m 이 되도록 균일 스케일
+       3) y의 최저점을 0(스테이지 위)에 맞춤 — 가구가 무대 아래로 가라앉지 않게 */
+    group.add(mesh);
+
+    /* 바운딩 박스 계산 — 자식 트리 전체 */
+    const box = new THREE.Box3().setFromObject(mesh);
+    const size = new THREE.Vector3();
+    box.getSize(size);
+    const maxAxis = Math.max(size.x, size.y, size.z) || 1;
+
+    /* 적당한 무대 크기 (반지름 1.6) 안에 들어가게 */
+    const targetSize = 2.4;
+    const s = Math.min(targetSize / maxAxis, 1.4);  // 너무 작은 가구는 1.4배까지만 확대
+    mesh.scale.set(s, s, s);
+
+    /* 다시 바운딩 박스 재측정 후 바닥 보정 */
+    const box2 = new THREE.Box3().setFromObject(mesh);
+    /* mesh.position.y -= box2.min.y  →  최저점을 y=0으로 맞춤 (스테이지 위) */
+    mesh.position.y = -box2.min.y;
+
+    /* 좌우 중앙 정렬도 함께 (xz 중심을 0,0 으로) */
+    const center = new THREE.Vector3();
+    box2.getCenter(center);
+    mesh.position.x -= center.x;
+    mesh.position.z -= center.z;
   } catch(e) {
     console.error('Furn Preview Error', e);
   }
@@ -16466,7 +17467,7 @@ async function applyAvatar(){
   if(__owRenderer && __owRenderer.human){
     const oldHuman = __owRenderer.human;
     const pos = oldHuman.position.clone();
-    const rot = oldHuman.rotation.y;
+    const rot = oldHuman.rotation.y;  
     __owRenderer.scene.remove(oldHuman);
     // 메모리 정리
     oldHuman.traverse(o=>{
@@ -16539,6 +17540,7 @@ function initAvatarPreview(){
 );
 
 let human = builder(S.ow.avatarDraft || getMyAvatar(), getMyHeightCm());
+ 
   group.add(human);
 
   // 자동 회전 + 드래그
@@ -17559,39 +18561,545 @@ const FISH_TABLE = [
   { id:'fish_kelp',    name:'질긴 수초',       emoji:'🌿', weight:18, value:300 },
   { id:'fish_bone',    name:'물고기 뼈',       emoji:'🦴', weight:14, value:500 },
   { id:'fish_rare',    name:'희귀 물고기',     emoji:'🐠', weight:8,  value:1200 },
-  { id:'fish_pearl',   name:'진주 조개',       emoji:'🫧', weight:3.5,value:5000 },
+  { id:'fish_pearl',   name:'진주 조개',       emoji:'🦪', weight:3.5,value:5000 },
   { id:'fish_fairy',   name:'마법의 요정석',   emoji:'💠', weight:1.4,value:18000 },
   { id:'fish_legend',  name:'전설의 물고기',   emoji:'🦈', weight:0.1,value:90000 },
 ];
 
 /* ─── 제작 레시피 ─── */
+/* ═══════════════════════════════════════
+   CRAFT_RECIPES - 낚시 교환 Myth 포함 통합본
+   - 가구 10
+   - 장비 10
+   - 기존 4 + 새 교환 20
+═══════════════════════════════════════ */
+
 const CRAFT_RECIPES = [
-  /* 가구 */
-  { id:'rc_furn_picnic', kind:'furn', name:'미니 피크닉 매트',
-    materials:{fish_kelp:5, fish_common:3}, costP:2000,
-    result:{ id:'craft_picnic', name:'벚꽃 피크닉 매트', emoji:'🌸', grade:'rare', cost:0, type:'picnic_mat', w:2, h:2 } },
-  { id:'rc_furn_lake', kind:'furn', name:'호수의 분수',
-    materials:{fish_rare:3, fish_kelp:4}, costP:8000,
-    result:{ id:'craft_lake_fountain', name:'호수의 분수', emoji:'⛲', grade:'epic', cost:0, type:'fountain', w:2, h:2 } },
-  { id:'rc_furn_pearl', kind:'furn', name:'진주 조개 침대',
-    materials:{fish_pearl:2, fish_rare:2}, costP:25000,
-    result:{ id:'craft_pearl_bed', name:'진주 조개 침대', emoji:'🛏️', grade:'unique', cost:0, type:'bed', w:2, h:2 } },
-  { id:'rc_furn_fairy', kind:'furn', name:'요정 정원 분수대',
-    materials:{fish_fairy:1, fish_pearl:2, fish_rare:3}, costP:80000,
-    result:{ id:'craft_fairy_fountain', name:'요정 정원 분수대', emoji:'⛲', grade:'legend', cost:0, type:'fountain', w:3, h:2 } },
-  /* 장비 */
-  { id:'rc_eq_rod_basic', kind:'equip', name:'낚시꾼 모자',
-    materials:{fish_common:8, fish_kelp:3}, costP:3000,
-    result:{ id:'craft_angler_hat', slot:'head', name:'낚시꾼 모자', emoji:'🎣', grade:'rare', cost:0, stats:{eva:5, hp:30} } },
-  { id:'rc_eq_bone', kind:'equip', name:'어골 단검',
-    materials:{fish_bone:5, fish_rare:2}, costP:12000,
-    result:{ id:'craft_bone_dagger', slot:'weapon', name:'어골 단검', emoji:'🗡️', grade:'epic', cost:0, stats:{atk:35, eva:6} } },
-  { id:'rc_eq_pearl', kind:'equip', name:'진주 펜던트',
-    materials:{fish_pearl:3, fish_kelp:5}, costP:40000,
-    result:{ id:'craft_pearl_pendant', slot:'accessory', name:'진주 펜던트', emoji:'💎', grade:'unique', cost:0, stats:{atk:15, def:15, hp:80, mp:80} } },
-  { id:'rc_eq_fairy', kind:'equip', name:'요정의 날개',
-    materials:{fish_fairy:2, fish_pearl:3, fish_rare:5}, costP:120000,
-    result:{ id:'craft_fairy_wing', slot:'wing', name:'요정의 날개', emoji:'🧚', grade:'legend', cost:0, stats:{atk:25, def:18, hp:120, mp:80, eva:25} } },
+  /* ───────── 기존 가구 4 ───────── */
+  {
+    id:'rc_furn_picnic',
+    kind:'furn',
+    source:'core',
+    name:'미니 피크닉 매트',
+    materials:{fish_kelp:5, fish_common:3},
+    costP:2000,
+    result:{
+      id:'craft_sakura_picnic',
+      name:'벚꽃 피크닉 매트',
+      emoji:'🌸',
+      grade:'rare',
+      cost:0,
+      type:'sakura_picnic',
+      w:2, h:2,
+      stats:{hp:20, mp:10, eva:2},
+      desc:'벚꽃잎이 수놓인 봄 정취의 피크닉 매트'
+    }
+  },
+  {
+    id:'rc_furn_lake',
+    kind:'furn',
+    source:'core',
+    name:'호수의 분수',
+    materials:{fish_rare:3, fish_kelp:4},
+    costP:8000,
+    result:{
+      id:'craft_lake_fountain',
+      name:'호수의 분수',
+      emoji:'⛲',
+      grade:'epic',
+      cost:0,
+      type:'moon_fountain',
+      w:2, h:2,
+      stats:{hp:40, mp:40, def:8},
+      desc:'맑은 물결이 달빛처럼 번지는 분수'
+    }
+  },
+  {
+    id:'rc_furn_pearl',
+    kind:'furn',
+    source:'core',
+    name:'진주 조개 침대',
+    materials:{fish_pearl:2, fish_rare:2},
+    costP:25000,
+    result:{
+      id:'craft_pearl_shell_bed',
+      name:'진주 조개 침대',
+      emoji:'🛏️',
+      grade:'unique',
+      cost:0,
+      type:'pearl_shell_bed',
+      w:2, h:2,
+      stats:{hp:80, mp:30, def:10, eva:4},
+      desc:'진주 안감과 조개 곡선이 살아있는 몽환형 침대'
+    }
+  },
+  {
+    id:'rc_furn_fairy',
+    kind:'furn',
+    source:'core',
+    name:'요정 정원 분수대',
+    materials:{fish_fairy:1, fish_pearl:2, fish_rare:3},
+    costP:80000,
+    result:{
+      id:'craft_fairy_moon_fountain',
+      name:'요정 정원 분수대',
+      emoji:'⛲',
+      grade:'legend',
+      cost:0,
+      type:'fairy_moon_fountain',
+      w:3, h:2,
+      stats:{hp:120, mp:80, def:18, eva:8},
+      desc:'요정빛이 물방울마다 맺히는 고급 분수대'
+    }
+  },
+
+  /* ───────── 기존 장비 4 ───────── */
+  {
+    id:'rc_eq_rod_basic',
+    kind:'equip',
+    source:'core',
+    name:'낚시꾼 모자',
+    materials:{fish_common:8, fish_kelp:3},
+    costP:3000,
+    result:{
+      id:'craft_angler_hat',
+      slot:'head',
+      name:'낚시꾼 모자',
+      emoji:'🎣',
+      grade:'rare',
+      cost:0,
+      stats:{eva:5, hp:30},
+      desc:'바다 바람을 견디는 실용형 모자'
+    }
+  },
+  {
+    id:'rc_eq_bone',
+    kind:'equip',
+    source:'core',
+    name:'어골 단검',
+    materials:{fish_bone:5, fish_rare:2},
+    costP:12000,
+    result:{
+      id:'craft_bone_dagger',
+      slot:'weapon',
+      name:'어골 단검',
+      emoji:'🗡️',
+      grade:'epic',
+      cost:0,
+      stats:{atk:35, eva:6},
+      desc:'뼈의 결을 살린 경량 전투용 단검'
+    }
+  },
+  {
+    id:'rc_eq_pearl',
+    kind:'equip',
+    source:'core',
+    name:'진주 펜던트',
+    materials:{fish_pearl:3, fish_kelp:5},
+    costP:40000,
+    result:{
+      id:'craft_pearl_pendant',
+      slot:'accessory',
+      name:'진주 펜던트',
+      emoji:'💎',
+      grade:'unique',
+      cost:0,
+      stats:{atk:15, def:15, hp:80, mp:80},
+      desc:'진주 광택이 기운을 정돈해주는 목걸이'
+    }
+  },
+  {
+    id:'rc_eq_fairy',
+    kind:'equip',
+    source:'core',
+    name:'요정의 날개',
+    materials:{fish_fairy:2, fish_pearl:3, fish_rare:5},
+    costP:120000,
+    result:{
+      id:'craft_fairy_wing',
+      slot:'wing',
+      name:'요정의 날개',
+      emoji:'🧚',
+      grade:'legend',
+      cost:0,
+      stats:{atk:25, def:18, hp:120, mp:80, eva:25},
+      desc:'빛이 스미는 반투명 비행형 장비'
+    }
+  },
+
+  /* ───────── Myth 가구 10 ───────── */
+  {
+    id:'fx_furn_01',
+    kind:'furn',
+    source:'fish_exchange',
+    name:'진주 비늘 로열 소파',
+    materials:{fish_pearl:6, fish_kelp:10, fish_rare:4},
+    costP:18000,
+    result:{
+      id:'fx_royal_sofa',
+      name:'진주 비늘 로열 소파',
+      emoji:'🛋️',
+      grade:'myth',
+      cost:0,
+      type:'royal_sofa',
+      w:3, h:2,
+      stats:{hp:90, def:18, eva:8},
+      desc:'왕실 살롱용 진주 비늘 소파'
+    }
+  },
+  {
+    id:'fx_furn_02',
+    kind:'furn',
+    source:'fish_exchange',
+    name:'요정 조개 침대',
+    materials:{fish_pearl:8, fish_fairy:2, fish_common:12},
+    costP:24000,
+    result:{
+      id:'fx_fairy_shell_bed',
+      name:'요정 조개 침대',
+      emoji:'🛏️',
+      grade:'myth',
+      cost:0,
+      type:'fairy_shell_bed',
+      w:3, h:2,
+      stats:{hp:120, mp:60, eva:10},
+      desc:'조개 껍질 안쪽에 별가루 쿠션이 깔린 침대'
+    }
+  },
+  {
+    id:'fx_furn_03',
+    kind:'furn',
+    source:'fish_exchange',
+    name:'오로라 거울 화장대',
+    materials:{fish_fairy:3, fish_pearl:4, fish_rare:5},
+    costP:26000,
+    result:{
+      id:'fx_aurora_vanity',
+      name:'오로라 거울 화장대',
+      emoji:'💄',
+      grade:'myth',
+      cost:0,
+      type:'aurora_vanity',
+      w:2, h:2,
+      stats:{mp:90, eva:10, def:12},
+      desc:'거울 가장자리에 오로라가 흐르는 화장대'
+    }
+  },
+  {
+    id:'fx_furn_04',
+    kind:'furn',
+    source:'fish_exchange',
+    name:'심해 별빛 샹들리에',
+    materials:{fish_fairy:2, fish_legend:1, fish_pearl:6},
+    costP:30000,
+    result:{
+      id:'fx_deepsea_chandelier',
+      name:'심해 별빛 샹들리에',
+      emoji:'✨',
+      grade:'myth',
+      cost:0,
+      type:'deepsea_chandelier',
+      w:2, h:2,
+      stats:{mp:110, def:14, eva:6},
+      desc:'유리 방울마다 별빛이 흔들리는 샹들리에'
+    }
+  },
+  {
+    id:'fx_furn_05',
+    kind:'furn',
+    source:'fish_exchange',
+    name:'용비늘 대형 아쿠아룸',
+    materials:{fish_legend:2, fish_pearl:4, fish_rare:8},
+    costP:28000,
+    result:{
+      id:'fx_dragon_aquarium',
+      name:'용비늘 대형 아쿠아룸',
+      emoji:'🐠',
+      grade:'myth',
+      cost:0,
+      type:'dragon_aquarium',
+      w:3, h:2,
+      stats:{hp:70, mp:70, def:20},
+      desc:'용비늘 프레임과 푸른 수조가 결합된 대형 수족관'
+    }
+  },
+  {
+    id:'fx_furn_06',
+    kind:'furn',
+    source:'fish_exchange',
+    name:'달빛 분수 정원',
+    materials:{fish_fairy:3, fish_rare:10, fish_kelp:12},
+    costP:22000,
+    result:{
+      id:'fx_moon_fountain',
+      name:'달빛 분수 정원',
+      emoji:'⛲',
+      grade:'myth',
+      cost:0,
+      type:'moon_fountain',
+      w:3, h:2,
+      stats:{hp:60, mp:80, def:16},
+      desc:'달빛이 물결에 반사되어 은은하게 번지는 정원 분수'
+    }
+  },
+  {
+    id:'fx_furn_07',
+    kind:'furn',
+    source:'fish_exchange',
+    name:'황금 오페라 피아노',
+    materials:{fish_legend:2, fish_pearl:6, fish_fairy:2},
+    costP:35000,
+    result:{
+      id:'fx_opera_piano',
+      name:'황금 오페라 피아노',
+      emoji:'🎹',
+      grade:'myth',
+      cost:0,
+      type:'opera_piano',
+      w:3, h:2,
+      stats:{mp:120, atk:18, eva:8},
+      desc:'황금 공명판과 흑단 건반이 조화를 이루는 콘서트 피아노'
+    }
+  },
+  {
+    id:'fx_furn_08',
+    kind:'furn',
+    source:'fish_exchange',
+    name:'별가루 북카페 서재',
+    materials:{fish_common:20, fish_pearl:4, fish_fairy:2},
+    costP:21000,
+    result:{
+      id:'fx_stardust_library',
+      name:'별가루 북카페 서재',
+      emoji:'📚',
+      grade:'myth',
+      cost:0,
+      type:'stardust_library',
+      w:3, h:2,
+      stats:{mp:80, def:18, eva:6},
+      desc:'커피 향과 별빛이 함께 번지는 서재형 가구'
+    }
+  },
+  {
+    id:'fx_furn_09',
+    kind:'furn',
+    source:'fish_exchange',
+    name:'크리스탈 트로피 쇼케이스',
+    materials:{fish_legend:1, fish_pearl:5, fish_rare:6},
+    costP:24000,
+    result:{
+      id:'fx_crystal_showcase',
+      name:'크리스탈 트로피 쇼케이스',
+      emoji:'🏆',
+      grade:'myth',
+      cost:0,
+      type:'crystal_showcase',
+      w:2, h:2,
+      stats:{atk:20, def:20, hp:50},
+      desc:'전설의 전리품을 전시하는 크리스탈 쇼케이스'
+    }
+  },
+  {
+    id:'fx_furn_10',
+    kind:'furn',
+    source:'fish_exchange',
+    name:'무지개 오로라 온실',
+    materials:{fish_fairy:4, fish_pearl:6, fish_legend:1},
+    costP:42000,
+    result:{
+      id:'fx_rainbow_greenhouse',
+      name:'무지개 오로라 온실',
+      emoji:'🌈',
+      grade:'myth',
+      cost:0,
+      type:'rainbow_greenhouse',
+      w:3, h:2,
+      stats:{hp:100, mp:100, def:12, eva:10},
+      desc:'오로라와 무지개가 동시에 피어나는 몽환적인 온실'
+    }
+  },
+
+  /* ───────── Myth 장비 10 ───────── */
+  {
+    id:'fx_eq_01',
+    kind:'equip',
+    source:'fish_exchange',
+    name:'진주 왕관',
+    materials:{fish_pearl:5, fish_fairy:2, fish_rare:6},
+    costP:30000,
+    result:{
+      id:'fx_pearl_crown',
+      slot:'head',
+      name:'진주 왕관',
+      emoji:'👑',
+      grade:'myth',
+      cost:0,
+      stats:{atk:34, def:42, hp:180, mp:120, eva:16},
+      desc:'진주와 금실이 층층이 박힌 귀족형 헤드피스'
+    }
+  },
+  {
+    id:'fx_eq_02',
+    kind:'equip',
+    source:'fish_exchange',
+    name:'오로라 레이피어',
+    materials:{fish_fairy:2, fish_pearl:3, fish_legend:1},
+    costP:36000,
+    result:{
+      id:'fx_aurora_rapier',
+      slot:'weapon',
+      name:'오로라 레이피어',
+      emoji:'⚔️',
+      grade:'myth',
+      cost:0,
+      stats:{atk:110, def:16, hp:70, mp:50, eva:18},
+      desc:'칼날에 빛의 궤적이 남는 초경량 결전 무기'
+    }
+  },
+  {
+    id:'fx_eq_03',
+    kind:'equip',
+    source:'fish_exchange',
+    name:'심해 갑주',
+    materials:{fish_legend:2, fish_pearl:4, fish_bone:8},
+    costP:38000,
+    result:{
+      id:'fx_deepsea_armor',
+      slot:'armor',
+      name:'심해 갑주',
+      emoji:'🛡️',
+      grade:'myth',
+      cost:0,
+      stats:{atk:26, def:128, hp:420, mp:90, eva:12},
+      desc:'심해 압력을 버티는 두꺼운 갑주'
+    }
+  },
+  {
+    id:'fx_eq_04',
+    kind:'equip',
+    source:'fish_exchange',
+    name:'달조개 펜던트',
+    materials:{fish_pearl:5, fish_fairy:2, fish_common:10},
+    costP:22000,
+    result:{
+      id:'fx_moon_shell_pendant',
+      slot:'accessory',
+      name:'달조개 펜던트',
+      emoji:'💎',
+      grade:'myth',
+      cost:0,
+      stats:{atk:22, def:22, hp:140, mp:140, eva:12},
+      desc:'달빛을 품은 조개 보석이 박힌 목걸이'
+    }
+  },
+  {
+    id:'fx_eq_05',
+    kind:'equip',
+    source:'fish_exchange',
+    name:'페가수스 윙클로크',
+    materials:{fish_fairy:3, fish_pearl:4, fish_legend:1},
+    costP:40000,
+    result:{
+      id:'fx_pegasus_cloak',
+      slot:'wing',
+      name:'페가수스 윙클로크',
+      emoji:'👼',
+      grade:'myth',
+      cost:0,
+      stats:{atk:42, def:28, hp:120, mp:90, eva:46},
+      desc:'날개와 망토가 하나로 이어진 하늘 질주형 장비'
+    }
+  },
+  {
+    id:'fx_eq_06',
+    kind:'equip',
+    source:'fish_exchange',
+    name:'별빛 코어 링',
+    materials:{fish_fairy:4, fish_pearl:4, fish_rare:6},
+    costP:28000,
+    result:{
+      id:'fx_starlight_core_ring',
+      slot:'special',
+      name:'별빛 코어 링',
+      emoji:'🌀',
+      grade:'myth',
+      cost:0,
+      stats:{atk:52, def:52, hp:260, mp:260, eva:24},
+      desc:'전투 중 능력치를 끌어올리는 코어형 장비'
+    }
+  },
+  {
+    id:'fx_eq_07',
+    kind:'equip',
+    source:'fish_exchange',
+    name:'진주 검집',
+    materials:{fish_pearl:4, fish_bone:6, fish_common:8},
+    costP:18000,
+    result:{
+      id:'fx_pearl_scabbard',
+      slot:'weapon',
+      name:'진주 검집',
+      emoji:'🗡️',
+      grade:'myth',
+      cost:0,
+      stats:{atk:102, def:24, hp:90, mp:40, eva:20},
+      desc:'뽑는 순간 조개빛 잔상이 뒤따르는 검집형 무기'
+    }
+  },
+  {
+    id:'fx_eq_08',
+    kind:'equip',
+    source:'fish_exchange',
+    name:'오로라 방벽 투구',
+    materials:{fish_fairy:2, fish_legend:1, fish_bone:5},
+    costP:26000,
+    result:{
+      id:'fx_aurora_bastion_helm',
+      slot:'head',
+      name:'오로라 방벽 투구',
+      emoji:'⛨',
+      grade:'myth',
+      cost:0,
+      stats:{atk:30, def:96, hp:260, mp:90, eva:14},
+      desc:'표면을 오로라 띠가 감싸는 방어형 투구'
+    }
+  },
+  {
+    id:'fx_eq_09',
+    kind:'equip',
+    source:'fish_exchange',
+    name:'진주 심장 흉갑',
+    materials:{fish_pearl:7, fish_fairy:2, fish_legend:1},
+    costP:42000,
+    result:{
+      id:'fx_pearl_heart_cuirass',
+      slot:'armor',
+      name:'진주 심장 흉갑',
+      emoji:'❤️‍🔥',
+      grade:'myth',
+      cost:0,
+      stats:{atk:34, def:118, hp:380, mp:120, eva:18},
+      desc:'가슴 중앙의 진주 심장이 뛰는 듯 빛나는 궁극 흉갑'
+    }
+  },
+  {
+    id:'fx_eq_10',
+    kind:'equip',
+    source:'fish_exchange',
+    name:'심연의 별 장신구',
+    materials:{fish_legend:2, fish_pearl:5, fish_fairy:3},
+    costP:50000,
+    result:{
+      id:'fx_abyss_star_charm',
+      slot:'accessory',
+      name:'심연의 별 장신구',
+      emoji:'🌌',
+      grade:'myth',
+      cost:0,
+      stats:{atk:48, def:40, hp:220, mp:180, eva:28},
+      desc:'심연 속 별자리가 움직이며 전투 보정을 주는 궁극 장신구'
+    }
+  }
 ];
 
 /* ─── 오픈월드 렌더러 ─── */
@@ -19093,11 +20601,64 @@ if(S.ow.inCar && S.ow.cameraMode === 'first'){
         this.petTarget = this.humanTarget;
       }
     };
-    this.canvas.addEventListener('click', e=>onTap(e.clientX, e.clientY));
+
+    /* ★ 드래그 회전 + 탭 이동 구분 */
+    let dragStartX = 0, dragStartY = 0, dragStartTime = 0, isDragging = false;
+    const DRAG_THRESHOLD = 10; // px
+    const TAP_TIME = 200; // ms
+
+    this.canvas.addEventListener('mousedown', e=>{
+      dragStartX = e.clientX; dragStartY = e.clientY;
+      dragStartTime = Date.now(); isDragging = false;
+    });
+    this.canvas.addEventListener('mousemove', e=>{
+      if(dragStartTime === 0) return;
+      const dx = e.clientX - dragStartX, dy = e.clientY - dragStartY;
+      if(!isDragging && Math.hypot(dx, dy) > DRAG_THRESHOLD){
+        isDragging = true;
+      }
+      if(isDragging && !S.ow.inCar){
+        this.human.rotation.y -= (e.clientX - dragStartX) * 0.006;
+        this.humanRotY = this.human.rotation.y;
+        dragStartX = e.clientX;
+      }
+    });
+    this.canvas.addEventListener('mouseup', e=>{
+      const elapsed = Date.now() - dragStartTime;
+      const dist = Math.hypot(e.clientX - dragStartX, e.clientY - dragStartY);
+      if(!isDragging && elapsed < TAP_TIME){
+        onTap(e.clientX, e.clientY);
+      }
+      dragStartTime = 0; isDragging = false;
+    });
+
+    /* 터치 이벤트 */
+    let touchStartX = 0, touchStartY = 0, touchStartTime = 0, touchDragging = false;
+    this.canvas.addEventListener('touchstart', e=>{
+      if(e.touches[0]){
+        touchStartX = e.touches[0].clientX; touchStartY = e.touches[0].clientY;
+        touchStartTime = Date.now(); touchDragging = false;
+      }
+    }, { passive: true });
+    this.canvas.addEventListener('touchmove', e=>{
+      if(touchStartTime === 0 || !e.touches[0]) return;
+      const cx = e.touches[0].clientX;
+      const dx = cx - touchStartX;
+      if(!touchDragging && Math.abs(dx) > DRAG_THRESHOLD){
+        touchDragging = true;
+      }
+      if(touchDragging && !S.ow.inCar){
+        this.human.rotation.y -= dx * 0.006;
+        this.humanRotY = this.human.rotation.y;
+        touchStartX = cx;
+      }
+    }, { passive: true });
     this.canvas.addEventListener('touchend', e=>{
-      if(e.changedTouches[0]){
+      const elapsed = Date.now() - touchStartTime;
+      if(!touchDragging && elapsed < TAP_TIME && e.changedTouches[0]){
         onTap(e.changedTouches[0].clientX, e.changedTouches[0].clientY);
       }
+      touchStartTime = 0; touchDragging = false;
     }, { passive: true });
   }
 
@@ -19116,7 +20677,7 @@ if(S.ow.inCar && S.ow.cameraMode === 'first'){
       }
     }
     human.rotation.z = 0;
-    human.position.y = 0;
+    human.position.y = 0; 
   }
 
   /* ★ 사람 앉기 포즈 — 다리를 앞으로 굽히고 몸을 살짝 낮춤 */
@@ -19426,6 +20987,55 @@ if(S.ow.isDriver && this.companion){
 
     /* === 다른 유저 사람 보간 + 동반 펫 따라가기 === */
     this.otherPetsByNick.forEach((p, nick)=>{
+      /* ★ 승객 처리: inCar 상태인 다른 유저는 차 좌석에 배치 */
+      const state = p.userData.state || 'idle';
+      if(state === 'riding' || state === 'driving'){
+        const carSync = S.ow.carSync;
+        const passengers = (carSync && carSync.passengers) || [];
+        /* 차 위치 결정: 로컬 플레이어가 운전자면 로컬 car, 아니면 carSync 위치 */
+        let carX, carZ, carRotY;
+        if(S.ow.inCar && S.ow.isDriver){
+          carX = this.car.position.x;
+          carZ = this.car.position.z;
+          carRotY = this.car.rotation.y;
+        } else if(carSync && typeof carSync.x === 'number'){
+          carX = carSync.x;
+          carZ = carSync.z;
+          carRotY = carSync.rotY || 0;
+        } else {
+          /* 차 위치를 모르면 일반 이동 처리 */
+          carX = null;
+        }
+        if(carX !== null){
+          const passengerSeats = [
+            {x:-0.3, z:-0.1},
+            {x: 0.3, z:-0.7},
+            {x:-0.3, z:-0.7},
+          ];
+          const driverSeat = {x:0.3, z:0.3};
+          let seat;
+          if(state === 'driving'){
+            seat = driverSeat;
+          } else {
+            const idx = Math.max(0, passengers.indexOf(nick));
+            seat = passengerSeats[idx] || passengerSeats[0];
+          }
+          /* 로컬 좌석 → 월드 좌표 계산 */
+          const cosR = Math.cos(carRotY), sinR = Math.sin(carRotY);
+          const wx = carX + (seat.x * cosR - seat.z * sinR);
+          const wz = carZ + (seat.x * sinR + seat.z * cosR);
+          p.position.set(wx, 0.55, wz);
+          p.rotation.y = carRotY + Math.PI;
+          if(p.userData.legs){ for(const leg of p.userData.legs){ leg.rotation.x = 0; } }
+          if(p.userData.arms){ for(const arm of p.userData.arms){ arm.rotation.x = 0; arm.rotation.z = 0; } }
+          /* 승객 펫 숨김 */
+          if(p.userData.companion) p.userData.companion.visible = false;
+          return;
+        }
+      }
+      /* 일반 상태: 펫 보이게 */
+      if(p.userData.companion) p.userData.companion.visible = true;
+
       const tx = p.userData.targetX ?? p.position.x;
       const tz = p.userData.targetZ ?? p.position.z;
       const trotY = p.userData.targetRotY ?? 0;
@@ -19533,7 +21143,7 @@ if(S.ow.isDriver && this.companion){
     this._updateDayNight();
 
     /* === 카메라 === */
-    this._followCamera(S.ow.inCar ? this.car : this.pet, 0.18);
+    this._followCamera(S.ow.inCar ? this.car : this.human, 0.18);
 
     /* === 렌더 === */
     this.renderer.render(this.scene, this.camera);
@@ -20230,6 +21840,49 @@ async function owBuyBait(amount){
 
 /* ─── 제작 ─── */
 function owOpenCraft(){ S.ow.showCraft = true; render(); }
+function owPreviewCraft(recipeId){
+
+  const rec = CRAFT_RECIPES.find(r => r.id === recipeId);
+
+  if(!rec){
+    alert('제작 정보를 찾을 수 없습니다');
+    return;
+  }
+
+  /* ✅ FIX: rec.result는 이미 아이템 객체 자체임 (id로 lookup하면 안 됨) */
+  const item = rec.result;
+
+  if(!item){
+    alert('아이템 데이터가 없습니다');
+    return;
+  }
+
+  /* 공용 미리보기 모달 — id 포함 (구매/적용 액션용) */
+  S.preview = {
+    kind: rec.kind,
+    item,
+    id: item.id,
+    fromCraft: true,       // 미리보기 액션을 "제작"으로 분기하기 위한 플래그
+    recipeId: rec.id       // 제작 실행에 필요한 레시피 ID
+  };
+
+  render();
+
+  /* canvas 렌더 대기 — render() 후 두 단계의 RAF + setTimeout 으로 안정성↑ */
+  requestAnimationFrame(()=>{
+    requestAnimationFrame(()=>{
+      setTimeout(()=>{
+        try{
+          initPreview3D();
+        }catch(e){
+          console.error('Preview init failed:', e);
+        }
+      },50);
+    });
+  });
+}
+
+
 function owCloseCraft(){ S.ow.showCraft = false; render(); }
 async function owDoCraft(recipeId){
   const rec = CRAFT_RECIPES.find(r=>r.id === recipeId);
@@ -20733,22 +22386,51 @@ function rOWCraftModal(){
       </div>
       <div class="ow-modal-body">
         ${CRAFT_RECIPES.map(rec=>{
-          const ok = Object.entries(rec.materials).every(([id,n])=>(mats[id]||0)>=n) && (S.myPet?.points||0)>=rec.costP;
+          const ok = Object.entries(rec.materials).every(([id,n]) => (mats[id] || 0) >= n) &&
+                     (S.myPet?.points || 0) >= rec.costP;
+
           const matList = Object.entries(rec.materials).map(([id,n])=>{
-            const m = FISH_TABLE.find(f=>f.id===id);
-            const have = mats[id]||0;
-            const okC = have>=n;
-            return `<span style="font-size:10.5px;padding:2px 7px;border-radius:99px;background:${okC?'rgba(67,160,71,.18)':'rgba(244,67,54,.16)'};color:${okC?'#A5D6A7':'#FFAB91'};margin-right:4px">${m?m.emoji:'?'} ${have}/${n}</span>`;
+            const m = FISH_TABLE.find(f => f.id === id);
+            const have = mats[id] || 0;
+            const okC = have >= n;
+            return `<span style="font-size:10.5px;padding:2px 7px;border-radius:99px;
+              background:${okC ? 'rgba(67,160,71,.18)' : 'rgba(244,67,54,.16)'};
+              color:${okC ? '#A5D6A7' : '#FFAB91'};margin-right:4px">
+              ${m ? m.emoji : '?'} ${have}/${n}
+            </span>`;
           }).join('');
+
+          /* 🆕 아이템 스탯 — 장비/가구 모두 표시 */
+          const itemStats = rec.result?.stats || {};
+          const statTxt = Object.entries(itemStats).map(([k,v])=>
+            `${k.toUpperCase()}+${v}${k==='eva'?'%':''}`
+          ).join(' · ');
+          const statHtml = statTxt ? `
+            <div style="width:100%;display:flex;align-items:center;gap:6px;
+                        background:rgba(255,215,0,.08);border:1px solid rgba(255,215,0,.25);
+                        border-radius:8px;padding:5px 9px;font-size:10.5px">
+              <span style="color:#FFD700;font-weight:700">
+                ${rec.kind==='furn'?'🏠 배치 시':'⚔️ 장착 시'}
+              </span>
+              <span style="color:#FFE082;font-weight:600">${statTxt}</span>
+            </div>` : '';
+
           return `<div class="ow-shop-item" style="align-items:flex-start;flex-direction:column;gap:6px;padding:12px">
             <div style="display:flex;align-items:center;gap:8px;width:100%">
               <span class="e">${rec.result.emoji}</span>
               <div style="flex:1">
-                <div class="nm" class="grade-${rec.result.grade}">${esc(rec.name)} <span style="font-size:10px;color:#FFD700">[${rec.result.grade}]</span></div>
-                <div class="ds">${rec.kind==='equip'?'⚔️ 장비':'🛋️ 가구'} · 비용 ${rec.costP.toLocaleString()}P</div>
+                <div class="nm">
+                  ${esc(rec.name)} <span style="font-size:10px;color:#FFD700">[${rec.result.grade}]</span>
+                </div>
+                <div class="ds">${rec.kind === 'equip' ? '⚔️ 장비' : '🛋️ 가구'} · 비용 ${rec.costP.toLocaleString()}P</div>
               </div>
-              <button data-a="ow_craft" data-id="${rec.id}" ${ok?'':'disabled'}>제작</button>
+              <button class="preview-btn-close" style="margin-right:6px"
+                data-a="ow_previewCraft" data-id="${rec.id}">
+                미리보기
+              </button>
+              <button data-a="ow_craft" data-id="${rec.id}" ${ok ? '' : 'disabled'}>제작</button>
             </div>
+            ${statHtml}
             <div style="width:100%">${matList}</div>
           </div>`;
         }).join('')}
