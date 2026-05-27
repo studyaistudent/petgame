@@ -1745,7 +1745,7 @@ let S={
 (()=>{
   try{
     const u=JSON.parse(localStorage.getItem("lmg_user")||"null");
-    if(u){S.myEntry=u;S.nick=u.nick||"";S.area=u.area||"";S.pin=u.pin||"";S.gender=u.gender||"";S.height=u.height||"";S.freeTime=u.freeTime||"";S.idealType=u.idealType||"";S.appeal=u.appeal||"";S.giDol=u.giDol||"";}
+    if(u){S.myEntry=u;S.nick=u.nick||"";S.pin=u.pin||"";S.gender=u.gender||"";}
     const b=JSON.parse(localStorage.getItem("lmg_bal")||"null");if(b)S.myBalEntry=b;
     const d=JSON.parse(localStorage.getItem("lmg_dat")||"null");if(d)S.myDatEntry=d;
     const p=JSON.parse(localStorage.getItem("lmg_pet")||"null");if(p)S.myPet=p;
@@ -2297,8 +2297,7 @@ if(S.qIdx<QS.length-1){S.qIdx++;render();}
   else{
     const mbti=calcMBTI(S.answers);
     const entry={
-      nick:S.nick.trim(), area:S.area.trim(), pin:S.pin.trim(), gender:S.gender, height:S.height.trim(),
-      freeTime:S.freeTime.trim(), idealType:S.idealType.trim(), appeal:S.appeal.trim(), giDol:S.giDol.trim(), mbti,
+      nick:S.nick.trim(), pin:S.pin.trim(), gender:S.gender, mbti,
       time:new Date().toLocaleString("ko-KR",{month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"}),
     };
 S.myEntry=entry; S.screen="result"; render(); addMBTI(entry);
@@ -4496,6 +4495,27 @@ function checkEva(eva){ return Math.random()*100 < eva; }
 function dungeonAction(actionType, skillId){
   const ds=S.dungeonState;
   if(!ds||ds.won||ds.lost)return;
+ds.isProcessing = true;
+  
+  /* ... (기존 변수 선언 부분) ... */
+  // 중간에 return 하는 곳(MP 부족, 물약 부족 등)이 있다면 그 직전에 ds.isProcessing = false; 를 넣어주세요.
+  
+  /* ... (기존 공격/방어 등 연산 로직) ... */
+  
+  // 함수 맨 마지막 줄 render() 직전에 락 해제
+  ds.isProcessing = false;
+  __pendingDungeonViz = visualEvents;
+  render();
+}
+/* 2. 파이널라이즈 함수 안전 장치 추가 */
+async function finalizeDungeon(won){
+  const ds=S.dungeonState;
+  // ★ 진행 중 도망치거나 에러로 인해 상태가 이미 null이면 안전하게 리턴
+  if(!ds) return; 
+  
+  const myNick=S.myEntry?.nick;
+  if(!myNick||!S.myPet)return;
+
   const myPet=S.myPet;
   const scaled=getScaledStats(myPet);
   let log=[];
@@ -5406,39 +5426,53 @@ await houseCol.doc(myNick).update({inventory:inv});
     render();
   }catch(e){console.error(e);}
 }
+/* 1. 가구 배치 함수 수정 (uid 추가) */
 async function placeFurnitureItem(itemId){
   const myNick=S.myEntry?.nick;if(!myNick||!S.myHouse)return;
   const tier=HOUSE_TIERS.find(t=>t.id===S.myHouse.tier)||HOUSE_TIERS[0];
   const placed=S.myHouse.furniture||[];
-if(placed.length>=tier.maxSlots){alert(`현재 집에 최대 ${tier.maxSlots}개까지 배치 가능해요!`);return;}
+  if(placed.length>=tier.maxSlots){alert(`현재 집에 최대 ${tier.maxSlots}개까지 배치 가능해요!`);return;}
+  
   const inv=[...(S.myHouse.inventory||[])];
   const idx=inv.findIndex(i=>i.id===itemId);if(idx===-1)return;
   const item=inv.splice(idx,1)[0];
-  const furniture=[...placed,{...item,placedAt:Date.now()}];
+  
+  // ★ 고유 식별자(uid) 추가
+  const uniqueId = Date.now().toString(36) + Math.random().toString(36).substr(2, 5);
+  const furniture=[...placed,{...item, placedAt:Date.now(), uid: uniqueId }];
+  
   await houseCol.doc(myNick).update({furniture,inventory:inv});
-  S.myHouse.furniture=furniture;S.myHouse.inventory=inv;render();
+  S.myHouse.furniture=furniture; S.myHouse.inventory=inv; render();
 }
-async function removeFurnitureFromHouse(itemId){
+
+/* 2. 가구 제거 함수 수정 (uid 기반 처리) */
+async function removeFurnitureFromHouse(uidOrId){
   const myNick=S.myEntry?.nick;
   if(!myNick||!S.myHouse)return;
-  if(S.editingFurniture?.id === itemId){
+  
+  // 편집 중인 가구를 보관하는 경우
+  if(S.editingFurniture?.uid === uidOrId || S.editingFurniture?.id === uidOrId){
     S.editingFurniture = null;
     if(window.__houseR) window.__houseR.setEditingItem(null);
   }
-  const furniture=(S.myHouse.furniture||[]).filter(f=>f.id!==itemId);
-  const removed=(S.myHouse.furniture||[]).find(f=>f.id===itemId);
+  
+  const placed = S.myHouse.furniture||[];
+  // uid가 있으면 uid로, 과거 데이터라 없으면 id로 찾음
+  const removedIdx = placed.findIndex(f => f.uid ? f.uid === uidOrId : f.id === uidOrId);
+  if(removedIdx === -1) return;
+  
+  const removed = placed[removedIdx];
+  const furniture = [...placed];
+  furniture.splice(removedIdx, 1); // 정확히 1개만 제거
+  
   const inv=[...(S.myHouse.inventory||[])];
-  if(removed){
-    const cleanItem={...removed};
-    delete cleanItem.position;
-    delete cleanItem.rotation;
-    delete cleanItem.placedAt;
-    inv.push(cleanItem);
-  }
+  const cleanItem={...removed};
+  delete cleanItem.position; delete cleanItem.rotation; delete cleanItem.placedAt; delete cleanItem.uid;
+  inv.push(cleanItem);
+  
   try{
     await houseCol.doc(myNick).update({furniture,inventory:inv});
-    S.myHouse.furniture=furniture;
-    S.myHouse.inventory=inv;
+    S.myHouse.furniture=furniture; S.myHouse.inventory=inv;
     if(window.__houseR){window.__houseR.destroy();window.__houseR=null;}
     render();
   }catch(e){console.error(e);alert("저장 오류");}
@@ -9914,10 +9948,12 @@ wallTexture(baseColor, pattern) {
   destroy() {
     this.isAlive = false;
     if (this.resizeObserver) this.resizeObserver.disconnect();
-    if (this.renderer) {
-      this.renderer.dispose();
-      if (this.container) this.container.innerHTML = '';
-    }
+   if (this.renderer) {
+    this.renderer.dispose();
+    this.renderer.forceContextLoss(); // ★ 필수 메모리 반환
+    const dom = this.renderer.domElement;
+    if (dom && dom.parentNode) dom.parentNode.removeChild(dom);
+}
   }
 }
 function initHouse3D(containerId, houseData, petEmoji, petData, petPosition, extraPets, myNick) {
@@ -18523,7 +18559,7 @@ const OW_LAKE_CENTER = { x: -28, z: 22, r: 14 };  // 호수 중심
 const OW_SHOP_POS    = { x: -36, z: 12 };         // 낚시 상점 NPC
 const OW_CAR_HOME    = { x: 4, z: -4 };           // 차 주차 위치
 const OW_ROAD_RADIUS = 35;       // 도로 반경 (원형)
-const OW_SYNC_MS = 250;
+const OW_SYNC_MS = 1000;
 const OW_ROD_COST = 50000;
 const OW_BAIT_COST = 500;
 const OW_FISH_WAIT_MIN = 2500;
@@ -19088,6 +19124,8 @@ let __owRenderer = null;
 let __owRaf = null;
 let __owUnsub = null;
 let __owSyncInt = null;
+let __lastSyncedPos = null; // 마지막 동기화 위치 저장용
+
 /* ✅ 오픈월드 캔버스 실제 크기 보정 */
 function _owGetCanvasSize(canvas){
   const w = Math.max(
@@ -21499,26 +21537,33 @@ async function saveOWInventory(){
 /* ─── 멀티플레이어 동기화 ─── */
 function startOWPositionSync(){
   if(__owSyncInt) clearInterval(__owSyncInt);
+  
   __owSyncInt = setInterval(()=>{
     if(!__owRenderer || !S.myEntry?.nick) return;
+    
     const pos = __owRenderer.human.position;
     const rot = __owRenderer.human.rotation.y;
+    
+    // ★ 최적화: 위치나 회전이 이전과 거의 같으면 서버 통신 생략
+    if(__lastSyncedPos) {
+      const dist = Math.hypot(pos.x - __lastSyncedPos.x, pos.z - __lastSyncedPos.z);
+      const rotDiff = Math.abs(rot - __lastSyncedPos.rotY);
+      // 움직임이 0.1 미만이고 채팅도 새로 치지 않았다면 동기화 안 함
+      if(dist < 0.1 && rotDiff < 0.1 && !S.ow.chatMsg) return;
+    }
+    
+    __lastSyncedPos = { x: pos.x, z: pos.z, rotY: rot };
+    
     const data = {
       nick: S.myEntry.nick,
       emoji: S.myPet?.petEmoji || '🐾',
-      gender: S.myEntry?.gender || '',
-      avatar: getMyAvatar(),
-      heightCm: getMyHeightCm(),
+      /* ... 기존 필드들 유지 ... */
       x: +pos.x.toFixed(2),
       z: +pos.z.toFixed(2),
       rotY: +rot.toFixed(2),
-      state: S.ow.inCar ? (S.ow.isDriver ? 'driving' : 'riding') : (S.ow.fishingPhase ? 'fishing' : (S.ow.onMat ? 'picnic' : 'idle')),
-      inCar: !!S.ow.inCar,
-      isDriver: !!S.ow.isDriver,
-      chatMsg: (Date.now() < S.ow.chatExpire) ? S.ow.chatMsg : '',
-      chatExpire: (Date.now() < S.ow.chatExpire) ? S.ow.chatExpire : 0,
       ts: Date.now(),
     };
+    
     owCol.doc(S.myEntry.nick).set(data, { merge: true }).catch(()=>{});
   }, OW_SYNC_MS);
 }
