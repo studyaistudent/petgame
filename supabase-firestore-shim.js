@@ -389,11 +389,37 @@
   let __sbRestClient = null;
   const __baseFetch = global.fetch.bind(global);
 
-  function lmAuthHeaders() {
+  /** HTTP 헤더는 Latin-1만 허용 — 한글 닉은 Base64(UTF-8)만 전송 */
+  function lmB64Utf8(s) {
+    if (s == null || s === '') return '';
     try {
-      if (typeof global.lmGetAuthHeaders === 'function') return global.lmGetAuthHeaders() || {};
+      if (typeof TextEncoder !== 'undefined') {
+        const bytes = new TextEncoder().encode(String(s));
+        let bin = '';
+        bytes.forEach((b) => {
+          bin += String.fromCharCode(b);
+        });
+        return btoa(bin);
+      }
+      return btoa(unescape(encodeURIComponent(String(s))));
+    } catch (_) {
+      return '';
+    }
+  }
+
+  function lmAuthHeaders() {
+    const out = {};
+    let raw = {};
+    try {
+      if (typeof global.lmGetAuthHeaders === 'function') raw = global.lmGetAuthHeaders() || {};
     } catch (_) {}
-    return {};
+    let nickB64 = raw['x-lm-nick-b64'] ? String(raw['x-lm-nick-b64']) : '';
+    if (!nickB64 && raw['x-lm-nick']) nickB64 = lmB64Utf8(String(raw['x-lm-nick']).trim());
+    let pinB64 = raw['x-lm-pin-b64'] ? String(raw['x-lm-pin-b64']) : '';
+    if (!pinB64 && raw['x-lm-pin']) pinB64 = lmB64Utf8(String(raw['x-lm-pin']).trim());
+    if (nickB64) out['x-lm-nick-b64'] = nickB64;
+    if (pinB64) out['x-lm-pin-b64'] = pinB64;
+    return out;
   }
 
   function getRestClient() {
@@ -412,7 +438,11 @@
           const extra = lmAuthHeaders();
           const headers = new Headers(init.headers || {});
           Object.entries(extra).forEach(([k, v]) => {
-            if (v != null && String(v) !== '') headers.set(k, String(v));
+            if (v == null || String(v) === '') return;
+            const val = String(v);
+            /* Latin-1 밖 문자는 set() 전에 차단 (구버전 index.html 폴백) */
+            if (!/^[\u0000-\u00FF]*$/.test(val)) return;
+            headers.set(k, val);
           });
           return __baseFetch(input, { ...init, headers });
         },
