@@ -3972,7 +3972,7 @@ body.ow-mode{ overscroll-behavior:none; overflow:hidden; }
 <!-- CDN 대신 로컬 vendor (Tracking Prevention / file:// 대응) -->
 <script src="vendor/three.min.js"></script>
 <script src="vendor/supabase.js"></script>
-<script src="supabase-firestore-shim.js"></script>
+<script src="supabase-firestore-shim.js?v=4"></script>
 <script>
 (function bootCheck(){
   const msgs=[];
@@ -3984,7 +3984,7 @@ body.ow-mode{ overscroll-behavior:none; overflow:hidden; }
   const html='<div style="padding:24px;max-width:560px;font-family:Malgun Gothic,sans-serif;line-height:1.6">'+
     '<h2 style="margin:0 0 12px">⚠️ 게임 로드 오류</h2><ul style="margin:0 0 16px;padding-left:20px">'+
     msgs.map(m=>'<li>'+m+'</li>').join('')+'</ul>'+
-    '<p style="margin:0;font-size:14px;color:#555">① <b>start-server.bat</b> 실행<br>② 브라우저 주소창이 <code>http://localhost:5500/index.html</code> 인지 확인<br>③ Supabase SQL Editor에서 <code>supabase_schema.sql</code> 실행</p></div>';
+    '<p style="margin:0;font-size:14px;color:#555">① GitHub에 <code>supabase-firestore-shim.js?v=4</code> 최신 업로드<br>② F12 콘솔에 <code>__lmShimVersion</code> → <b>"4"</b> 인지 확인<br>③ <b>Ctrl+Shift+R</b> 강력 새로고침</p></div>';
   function show(){const el=document.getElementById('app');if(el)el.innerHTML=html;}
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',show);
   else show();
@@ -8807,17 +8807,20 @@ async function finalizeDungeon(won){
         inventory:ds.inventory,
         dungeonBattleCount:triggerCooldown?0:newBattleCount,
       };
-      S.myPet.dungeonBattleCount=triggerCooldown?0:newBattleCount;
       if(triggerCooldown){
         dbUpdate.dungeonCooldownStart=now;
-        S.myPet.dungeonCooldownStart=now;
       }
-      S.myPet.dungeonKills=kills;
-      S.myPet.dungeonCooldownStart=now;
+      const nextBattleCount=triggerCooldown?0:newBattleCount;
+      dbUpdate.dungeonKills=kills;
       await petCol.doc(myNick).update(dbUpdate);
       S.myPet={...S.myPet,xp:newXp,level:newLv,
         points:(S.myPet.points||0)+ds.totalPts,
-        currentHp:ds.playerHp,currentMp:ds.playerMp,currentSp:ds.playerSp,inventory:ds.inventory};
+        currentHp:ds.playerHp,currentMp:ds.playerMp,currentSp:ds.playerSp,
+        inventory:ds.inventory,
+        dungeonKills:kills,
+        dungeonBattleCount:nextBattleCount,
+        dungeonCooldownStart:triggerCooldown?now:(S.myPet.dungeonCooldownStart||0)};
+      lmgSetItem("lmg_pet",JSON.stringify(S.myPet));
       const battleCount=S.myPet.dungeonBattleCount||0;
       const remainBattles=triggerCooldown?0:(10-battleCount);
       alert(`🏆 전투 승리!\n획득: XP +${ds.totalXp} · 포인트 +${ds.totalPts}${leveled?`\n🎉 레벨업! Lv.${newLv} 달성!`:''}${triggerCooldown?'\n\n⏳ 10전 완료! 3시간 쿨타임 시작!':`\n\n⚔️ 이번 라운드 ${battleCount}전/${10}전 (${remainBattles}전 더 하면 쿨타임)`}`);
