@@ -211,13 +211,18 @@ window.LM_GLB_CATALOG = [
       side: 'right',
       gripMode: 'handle',
       gripEnd: 'auto',
-      gripInset: 0.05,
+      gripInset: 0.06,
       bladeUp: true,
-      position: [0, 0, 0],
-      rotation: [0, 0, 0],
-      targetLen: 0.52
+      position: [0, 0.02, 0.05],
+      rotation: [-1.5708, 0.2, 0],
+      targetLen: 0.48,
+      meshyOw: {
+        position: [0.01, 0.16, -0.01],
+        rotation: [0.55, 1.5708, 1.1],
+        gripInset: 0.03
+      }
     },
-    owShop: { key: 'blue', gender: '남성', cost: 42000, emoji: '⚔️' }
+    owShop: { key: 'blue', gender: '남성', cost: 42000, emoji: '⚔️', atkBonus: 30 }
   },
   {
     id: 'prop_sword_pink_f',
@@ -234,15 +239,19 @@ window.LM_GLB_CATALOG = [
     handAttach: {
       side: 'right',
       gripMode: 'handle',
-      gripEnd: 'min',
+      gripEnd: 'auto',
       gripInset: 0.06,
       bladeUp: true,
-      /* mixamorigRightHand 로컬 — 손잡이 중심, 칼날 위(+Y 월드) */
-      position: [0.02, -0.02, 0.04],
-      rotation: [1.5708, 0, 0],
-      targetLen: 0.5
+      position: [0, 0.02, 0.05],
+      rotation: [-1.5708, 0.2, 0],
+      targetLen: 0.48,
+      meshyOw: {
+        position: [0.01, 0.16, -0.01],
+        rotation: [0.55, 1.5708, 1.1],
+        gripInset: 0.03
+      }
     },
-    owShop: { key: 'pink', gender: '여성', cost: 42000, emoji: '🗡️' }
+    owShop: { key: 'pink', gender: '여성', cost: 42000, emoji: '🗡️', atkBonus: 30 }
   },
   /* ── NPC (컨셉: 상인·약초·경비·방랑자) ── */
   {
@@ -287,3 +296,4 @@ window.LM_GLB_STYLE_TAGS = {
   custom: '직접 추가',
   builtin: '기본'
 };
+ㅊ
