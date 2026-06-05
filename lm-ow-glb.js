@@ -47,46 +47,59 @@
     '🐾': 'dog'
   };
 
+  /** Meshy 앉기 포즈 — 안장면에 엉덩이 맞추기 (탈것별 미세 조정) */
+  const MOUNT_AVATAR_SIT_BASE = 0.64;
+
   const MOUNT = {
     horse: {
       glb: '탈것/Meshy_AI_Mount_Horse_0603041715_image-to-3d-texture.glb',
       glb2: '2인용 탈것/Meshy_AI_Open_World_Horse_Moun_0603042850_image-to-3d-texture.glb',
       h: 2.1,
-      seatY: 1.52,
+      seatY: 1.08,
       seatZ: 0.22,
-      pass: [[-0.42, 1.02, -0.38]]
+      wrapperDrop: 0,
+      avatarSitDrop: 0,
+      pass: [[-0.42, 0.88, -0.38]]
     },
     wolf: {
       glb: '탈것/Meshy_AI_Mount_Wolf_0603041727_image-to-3d-texture.glb',
       glb2: '2인용 탈것/Meshy_AI_Open_World_Wolf_Mount_0603042857_image-to-3d-texture.glb',
       h: 1.95,
-      seatY: 1.38,
+      seatY: 1.02,
       seatZ: 0.18,
-      pass: [[-0.38, 0.98, -0.42]]
+      wrapperDrop: 0.05,
+      avatarSitDrop: 0.1,
+      pass: [[-0.38, 0.84, -0.42]]
     },
     car_ow: {
       glb: '탈것/Meshy_AI_Mount_Car_0603041734_image-to-3d-texture.glb',
       glb2: '2인용 탈것/Meshy_AI_Open_World_Car_Mount_0603042902_image-to-3d-texture.glb',
       h: 1.85,
-      seatY: 1.02,
+      seatY: 0.82,
       seatZ: 0.08,
-      pass: [[-0.55, 0.88, -0.15], [0.55, 0.88, -0.15]]
+      wrapperDrop: 0.06,
+      avatarSitDrop: 0.12,
+      pass: [[-0.55, 0.74, -0.15], [0.55, 0.74, -0.15]]
     },
     airship: {
       glb: '탈것/Meshy_AI_Mount_Airplane_0603041741_image-to-3d-texture.glb',
       glb2: '2인용 탈것/Meshy_AI_Open_World_Airplane_M_0603042905_image-to-3d-texture.glb',
       h: 2.8,
-      seatY: 1.18,
+      seatY: 0.92,
       seatZ: 0.12,
-      pass: [[-0.45, 1.0, 0.35]]
+      wrapperDrop: 0.04,
+      avatarSitDrop: 0.08,
+      pass: [[-0.45, 0.86, 0.35]]
     },
     dragon: {
       glb: '탈것/Meshy_AI_Mount_Dragon_0603041744_image-to-3d-texture.glb',
       glb2: '2인용 탈것/Meshy_AI_Open_World_Dragon_Mou_0603042909_image-to-3d-texture.glb',
       h: 2.6,
-      seatY: 1.62,
+      seatY: 1.12,
       seatZ: 0.28,
-      pass: [[-0.5, 1.28, -0.55]]
+      wrapperDrop: 0.03,
+      avatarSitDrop: 0.06,
+      pass: [[-0.5, 1.05, -0.55]]
     }
   };
 
@@ -284,12 +297,19 @@
     const box = new THREE.Box3().setFromObject(model);
     if (box.isEmpty()) return;
     const h = box.max.y - box.min.y;
-    const backY = box.min.y + h * 0.54;
+    const saddleY = box.min.y + h * 0.38;
     const centerZ = (box.min.z + box.max.z) * 0.5;
     const hintY = def && def.seatY != null ? def.seatY : 1.0;
-    group.userData.mountSeatY = Math.max(backY, hintY * 0.82);
+    group.userData.mountSeatY = Math.min(saddleY, hintY * 0.92);
     group.userData.seatForward = def && def.seatZ != null ? def.seatZ : centerZ;
     group.userData.mountSeatComputed = true;
+  }
+
+  function applyMountRideMeta(group, def) {
+    if (!group || !def) return;
+    group.userData.mountAvatarSitDrop = def.avatarSitDrop != null ? def.avatarSitDrop : 0;
+    group.userData.mountWrapperDrop = def.wrapperDrop != null ? def.wrapperDrop : 0;
+    group.userData.mountAvatarSitBase = MOUNT_AVATAR_SIT_BASE;
   }
 
   /** 러브몬·하우스·미니 캔버스용 GLB 펫 그룹 */
@@ -315,8 +335,10 @@
     group.userData.seatForward = def.seatZ != null ? def.seatZ : 0.18;
     group.userData.mountPassSeats = def.pass;
     group.userData.mountDual = dual;
+    applyMountRideMeta(group, def);
     return attachModel(group, url, def.h, 'ow_glb_model').then((model) => {
       refineMountSeat(group, model, def);
+      applyMountRideMeta(group, def);
       return model;
     });
   }
@@ -402,11 +424,23 @@
     cache.clear();
   }
 
+  function resolveMountSitYOffset(wrapper) {
+    let drop = MOUNT_AVATAR_SIT_BASE;
+    const parent = wrapper && wrapper.parent;
+    if (parent && parent.userData) {
+      if (parent.userData.mountAvatarSitBase != null) drop = parent.userData.mountAvatarSitBase;
+      if (parent.userData.mountAvatarSitDrop != null) drop += parent.userData.mountAvatarSitDrop;
+    }
+    return -drop;
+  }
+
   global.LMOwGlb = {
     PET,
     PET_EMOJI,
     PET_TARGET_H,
     MOUNT,
+    MOUNT_AVATAR_SIT_BASE,
+    resolveMountSitYOffset,
     WORLD,
     NPC,
     NPC_TARGET_H,
@@ -417,6 +451,7 @@
     loadGlb,
     attachPet,
     createPetGroup,
+    applyMountRideMeta,
     attachMount,
     attachNpc,
     HOUSE_DEFAULT_H,
