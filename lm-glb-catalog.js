@@ -296,4 +296,3 @@ window.LM_GLB_STYLE_TAGS = {
   custom: '직접 추가',
   builtin: '기본'
 };
-ㅊ
