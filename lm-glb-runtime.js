@@ -3039,7 +3039,13 @@
 
     const role = pickLocomotionAnimRole(root, entry, moving, state);
     if (role === 'sit' || role === 'sitMat') {
-      if (state.riding) root.userData._lmMountSitYOffset = -0.34;
+      if (state.riding) {
+        const drop =
+          global.LMOwGlb && typeof global.LMOwGlb.resolveMountSitYOffset === 'function'
+            ? global.LMOwGlb.resolveMountSitYOffset(root)
+            : -0.64;
+        root.userData._lmMountSitYOffset = drop;
+      }
       else if (state.inCar) root.userData._lmMountSitYOffset = -0.12;
       else root.userData._lmMountSitYOffset = 0;
       const entrySitProc =
@@ -3654,6 +3660,19 @@
     return score;
   }
 
+  const LM_HAND_ATTACH_VER = 4;
+  const ORBIT_WEAPON_COUNT = 2;
+  const ORBIT_WEAPON_RADIUS = 0.56;
+  const ORBIT_WEAPON_SPEED = 2.35;
+
+  function resolveHandAttachConfig(wrapper, entry) {
+    const base = Object.assign({}, (entry && entry.handAttach) || {});
+    if (wrapper && wrapper.userData && wrapper.userData.owUsesOwAvatar && base.meshyOw) {
+      Object.assign(base, base.meshyOw);
+    }
+    return base;
+  }
+
   /** Meshy/Mixamo — 스켈레톤에서 손 본 이름으로 직접 조회 */
   function resolveHandBone(model, side) {
     side = side || 'right';
@@ -3662,17 +3681,17 @@
       const tryNames =
         side === 'right'
           ? [
+              'RightHand',
               'mixamorigRightHand',
               'MixamorigRightHand',
-              'RightHand',
               'right_hand',
               'hand.R',
               'Hand_R'
             ]
           : [
+              'LeftHand',
               'mixamorigLeftHand',
               'MixamorigLeftHand',
-              'LeftHand',
               'left_hand',
               'hand.L',
               'Hand_L'
@@ -3908,16 +3927,83 @@
 
   function detachHandWeapon(wrapper) {
     if (!wrapper) return Promise.resolve();
+    const orbit = wrapper.userData.lmOrbitWeapon;
     const n = wrapper.userData.lmHandWeaponNode;
-    if (n && n.parent) n.parent.remove(n);
-    if (n) disposeTree(n);
+    const root = orbit || n;
+    if (root && root.parent) root.parent.remove(root);
+    if (root) disposeTree(root);
     wrapper.userData.lmHandWeaponNode = null;
     wrapper.userData.lmHandWeaponId = null;
     wrapper.userData.lmHandWeaponBone = null;
+    wrapper.userData.lmHandWeaponSide = null;
     wrapper.userData.lmHandWeaponOnBone = false;
     wrapper.userData.lmHandWeaponModel = null;
+    wrapper.userData.lmOrbitWeapon = null;
+    wrapper.userData.lmOrbitPhase = null;
+    wrapper.userData._lmHandAttachVer = null;
     wrapper.userData._lmWeaponAttaching = false;
     return Promise.resolve();
+  }
+
+  function buildOrbitSwordMesh(gltf, entry) {
+    const prop = gltf.scene.clone(true);
+    prop.name = 'lm_orbit_weapon_mesh';
+    brightenHandWeaponMaterials(prop);
+    const ha = Object.assign({}, (entry && entry.handAttach) || {});
+    const orbitEntry = Object.assign({}, entry, {
+      handAttach: Object.assign({}, ha, {
+        targetLen: (ha.targetLen || entry.targetHeight || 0.48) * 0.82
+      })
+    });
+    prepareHandProp(prop, orbitEntry);
+    prop.rotation.set(Math.PI * 0.5, 0, Math.PI * 0.5);
+    return prop;
+  }
+
+  function attachOrbitWeapon(wrapper, propId, gltf, entry) {
+    const orbit = new THREE.Group();
+    orbit.name = 'lm_orbit_weapon';
+    orbit.frustumCulled = false;
+    const bodyH =
+      wrapper.userData.lmBodyHeight || wrapper.userData.lmTargetHeight || 1.72;
+    orbit.position.y = bodyH * 0.5;
+    const radius = ORBIT_WEAPON_RADIUS;
+    const count = ORBIT_WEAPON_COUNT;
+    for (let i = 0; i < count; i++) {
+      const slot = new THREE.Group();
+      const ang = (i / count) * Math.PI * 2;
+      slot.position.set(Math.cos(ang) * radius, 0, Math.sin(ang) * radius);
+      slot.rotation.y = -ang + Math.PI * 0.5;
+      slot.add(buildOrbitSwordMesh(gltf, entry));
+      orbit.add(slot);
+    }
+    wrapper.add(orbit);
+    wrapper.userData.lmOrbitWeapon = orbit;
+    wrapper.userData.lmOrbitPhase = 0;
+    wrapper.userData.lmOrbitSpeed = ORBIT_WEAPON_SPEED;
+    wrapper.userData.lmHandWeaponNode = orbit;
+    wrapper.userData.lmHandWeaponId = propId;
+    wrapper.userData.lmHandWeaponOnBone = false;
+    wrapper.userData.lmHandWeaponBone = null;
+    wrapper.userData.lmHandWeaponModel = null;
+    wrapper.userData._lmHandAttachVer = LM_HAND_ATTACH_VER;
+    console.info('[LMGlb] 무기 궤도:', entry.localUrl || propId);
+  }
+
+  /** 장착 검 — 아바타 주위 회전 */
+  function syncOrbitWeapon(wrapper, dt) {
+    if (!wrapper) return;
+    const orbit = wrapper.userData.lmOrbitWeapon;
+    if (!orbit) return;
+    const step = dt != null && dt > 0 ? dt : 0.016;
+    const speed = wrapper.userData.lmOrbitSpeed || ORBIT_WEAPON_SPEED;
+    wrapper.userData.lmOrbitPhase =
+      (wrapper.userData.lmOrbitPhase || 0) + speed * step;
+    orbit.rotation.y = wrapper.userData.lmOrbitPhase;
+    const bodyH =
+      wrapper.userData.lmBodyHeight || wrapper.userData.lmTargetHeight || 1.72;
+    orbit.position.y =
+      bodyH * 0.5 + Math.sin(wrapper.userData.lmOrbitPhase * 2.2) * 0.035;
   }
 
   function brightenHandWeaponMaterials(root) {
@@ -3944,68 +4030,21 @@
     if (!wrapper || !propId) return detachHandWeapon(wrapper);
     const entry = entryById(propId);
     if (!entry) return Promise.resolve();
-    const existing = wrapper.userData.lmHandWeaponNode;
+    const existing = wrapper.userData.lmOrbitWeapon || wrapper.userData.lmHandWeaponNode;
     if (
       wrapper.userData.lmHandWeaponId === propId &&
+      wrapper.userData._lmHandAttachVer === LM_HAND_ATTACH_VER &&
       existing &&
-      existing.parent &&
-      existing.getObjectByName('lm_hand_weapon_mesh')
+      existing.parent
     ) {
       return Promise.resolve();
     }
     if (wrapper.userData._lmWeaponAttaching) return Promise.resolve();
     wrapper.userData._lmWeaponAttaching = true;
-    const reuse =
-      wrapper.userData.lmHandWeaponId === propId &&
-      existing &&
-      existing.parent &&
-      existing.getObjectByName('lm_hand_weapon_mesh');
-    if (reuse) {
-      wrapper.userData._lmWeaponAttaching = false;
-      syncHandWeaponFollow(wrapper);
-      return Promise.resolve();
-    }
     return detachHandWeapon(wrapper)
       .then(() =>
         loadEntry(propId).then((gltf) => {
-          const model =
-            wrapper.getObjectByName('ow_avatar_model') || wrapper.getObjectByName('glb_model');
-          if (!model) {
-            console.warn('[LMGlb] 무기 부착 — 아바타 모델 없음:', propId);
-            return;
-          }
-          const ha = entry.handAttach || {};
-          const side = ha.side || 'right';
-          flushSkinnedBoneWorldMatrices(model);
-          const animBone = resolveHandBone(model, side);
-          const holder = ensureHandWeaponHolder(wrapper, model, side);
-          holder.frustumCulled = false;
-          const prop = gltf.scene;
-          prop.name = 'lm_hand_weapon_mesh';
-          brightenHandWeaponMaterials(prop);
-          prepareHandProp(prop, entry);
-          const pivot = new THREE.Group();
-          pivot.name = 'lm_hand_weapon';
-          pivot.frustumCulled = false;
-          pivot.visible = true;
-          pivot.add(prop);
-          const pos = ha.position || [0, 0, 0];
-          const rot = ha.rotation || [0, 0, 0];
-          pivot.position.set(pos[0], pos[1], pos[2]);
-          pivot.rotation.set(rot[0], rot[1], rot[2]);
-          holder.add(pivot);
-          pivot.updateMatrixWorld(true);
-          wrapper.userData.lmHandWeaponNode = pivot;
-          wrapper.userData.lmHandWeaponId = propId;
-          wrapper.userData.lmHandWeaponBone = animBone || null;
-          wrapper.userData.lmHandWeaponOnBone = false;
-          wrapper.userData.lmHandWeaponModel = model;
-          syncHandWeaponFollow(wrapper);
-          console.info(
-            '[LMGlb] 무기 부착:',
-            entry.localUrl || propId,
-            animBone ? animBone.name + ' (손 추적)' : holder.name
-          );
+          attachOrbitWeapon(wrapper, propId, gltf, entry);
         })
       )
       .finally(() => {
@@ -4025,12 +4064,11 @@
     });
   }
 
-  /** 손 본 → 모델 좌표계 홀더 (본 직접 부착이 아닐 때) */
+  /** 손 본 월드 좌표 → 모델 좌표계 홀더 (매 프레임 손 추적) */
   function syncHandWeaponFollow(wrapper) {
-    if (!wrapper || wrapper.userData.lmHandWeaponOnBone) return;
-    const bone = wrapper.userData.lmHandWeaponBone;
+    if (!wrapper) return;
     const prop = wrapper.userData.lmHandWeaponNode;
-    if (!prop || !bone) return;
+    if (!prop) return;
     const holder = prop.parent;
     if (!holder || holder.name.indexOf('lm_hand_weapon_holder') !== 0) return;
     const model =
@@ -4038,6 +4076,13 @@
       wrapper.getObjectByName('ow_avatar_model') ||
       wrapper.getObjectByName('glb_model');
     if (!model) return;
+    let bone = wrapper.userData.lmHandWeaponBone;
+    if (!bone) {
+      const side = wrapper.userData.lmHandWeaponSide || 'right';
+      bone = resolveHandBone(model, side);
+      wrapper.userData.lmHandWeaponBone = bone || null;
+    }
+    if (!bone) return;
     flushSkinnedBoneWorldMatrices(model);
     model.updateMatrixWorld(true);
     const wp = new THREE.Vector3();
@@ -4584,8 +4629,10 @@
     preloadOpenWorldAvatars,
     wrapCharacter,
     attachGlbToWrapper,
+    handAttachVersion: LM_HAND_ATTACH_VER,
     attachHandWeapon,
     detachHandWeapon,
+    syncOrbitWeapon,
     syncHandWeaponFollow,
     loadNpcIntoGroup,
     disposeTree,
