@@ -280,7 +280,7 @@
     const walk = wrapper.userData.owWalkAction;
 
     return ensureRideClips(wrapper).then((anims) => {
-      const clip = pickClip(anims, /sit|chair|ride|idle/i);
+      const clip = pickClip(anims, /chair|ride/i) || pickClip(anims, /sit/i);
       if (!clip) return;
       if (!wrapper.userData.owRideAction) {
         const act = mixer.clipAction(clip, root);
@@ -367,6 +367,11 @@
     }
     setupMixer(wrapper, model, animations);
     wrapper.userData.owReady = true;
+    if (wrapper.userData._pendingEmoteRole) {
+      const pending = wrapper.userData._pendingEmoteRole;
+      wrapper.userData._pendingEmoteRole = null;
+      triggerEmote(wrapper, pending);
+    }
     wrapper.userData.owUsesOwAvatar = true;
     wrapper.userData.owMode = wrapper.userData.owMode || 'idle';
     wrapper.userData.owLocoAnim = wrapper.userData.owLocoAnim || 'idle';
@@ -437,17 +442,22 @@
     const model = wrapper.getObjectByName('ow_avatar_model');
     if (!model) return;
 
+    if (isCombatAnimPlaying(wrapper)) {
+      if (mixer) mixer.update(dt || 0.016);
+      model.traverse((o) => {
+        if (o.isSkinnedMesh && o.skeleton) o.skeleton.update();
+      });
+      return;
+    }
+
     if (state.sitting || state.onMat) {
       wrapper.position.y = 0;
       if (mixer) mixer.update(dt || 0.016);
       return;
     }
 
-    /* 탈것(말·보트 등) — 의자 앉기 포즈 */
+    /* 탈것(말·늑대 등) — 안장 Y는 _updateMountMesh가 설정, 여기서 덮어쓰지 않음 */
     if (state.riding) {
-      const onMountMesh =
-        wrapper.parent && wrapper.parent.userData && wrapper.parent.userData.mountId;
-      if (!onMountMesh) wrapper.position.y = 0;
       wrapper.rotation.z = 0;
       applyMountSitModelY(wrapper);
       if (wrapper.userData.owLocoAnim !== 'ride' && !wrapper.userData.owLocoLoading) {
@@ -521,11 +531,15 @@
   }
 
   function triggerCombatAnim(wrapper, role) {
-    if (!wrapper || !wrapper.userData.owReady || isCombatAnimPlaying(wrapper)) return false;
+    if (!wrapper || isCombatAnimPlaying(wrapper)) return false;
     if (wrapper.userData._owEmoteLoading) return false;
     const paths = pathsFor(wrapper.userData.owGender);
     const url = paths[role];
     if (!url) return false;
+    if (!wrapper.userData.owReady) {
+      if (role === 'greet' || role === 'dance') wrapper.userData._pendingEmoteRole = role;
+      return false;
+    }
     const model = wrapper.getObjectByName('ow_avatar_model');
     const mixer = wrapper.userData.owMixer;
     if (!model || !mixer) return false;

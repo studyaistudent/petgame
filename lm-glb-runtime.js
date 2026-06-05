@@ -4356,14 +4356,18 @@
     S.ow.glbPickerDraft = cur || 'builtin';
   }
 
-  function closePicker() {
-    if (!window.S || !S.ow) return;
-    S.ow.showGlbPicker = false;
-    S.ow.glbPickerDraft = null;
+  function disposePickerPreview() {
     if (__glbPreview) {
       try { __glbPreview.dispose(); } catch (e) { /* */ }
       __glbPreview = null;
     }
+  }
+
+  function closePicker() {
+    if (!window.S || !S.ow) return;
+    S.ow.showGlbPicker = false;
+    S.ow.glbPickerDraft = null;
+    disposePickerPreview();
   }
 
   function setPickerDraft(id) {
@@ -4557,7 +4561,10 @@
       dispose() {
         killed = true;
         if (raf) cancelAnimationFrame(raf);
-        try { renderer.dispose(); } catch (e) { /* */ }
+        try {
+          renderer.dispose();
+          if (renderer.forceContextLoss) renderer.forceContextLoss();
+        } catch (e) { /* */ }
         disposeTree(group);
       }
     };
@@ -4649,6 +4656,7 @@
     setAvatarCombatDefeat,
     openPicker,
     closePicker,
+    disposePickerPreview,
     setPickerDraft,
     applyPicker,
     initPickerPreview,

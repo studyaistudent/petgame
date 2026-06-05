@@ -65,10 +65,11 @@
       glb: '탈것/Meshy_AI_Mount_Wolf_0603041727_image-to-3d-texture.glb',
       glb2: '2인용 탈것/Meshy_AI_Open_World_Wolf_Mount_0603042857_image-to-3d-texture.glb',
       h: 1.95,
-      seatY: 1.02,
-      seatZ: 0.18,
-      wrapperDrop: 0.05,
-      avatarSitDrop: 0.1,
+      seatY: 1.08,
+      seatZ: 0.12,
+      saddleRatio: 0.62,
+      wrapperDrop: 0.02,
+      avatarSitDrop: 0.04,
       pass: [[-0.38, 0.84, -0.42]]
     },
     car_ow: {
@@ -238,6 +239,17 @@
     });
   }
 
+  /** 캐시된 GLB는 scene 공유 — 인스턴스마다 복제 (테이밍 펫 다수 표시) */
+  function cloneGltfScene(gltf) {
+    const model = gltf.scene.clone(true);
+    model.traverse((o) => {
+      if ((o.isMesh || o.isSkinnedMesh) && o.geometry) {
+        o.geometry = o.geometry.clone();
+      }
+    });
+    return model;
+  }
+
   function attachModel(parent, url, targetH, name, opts) {
     opts = opts || {};
     const loader = Array.isArray(url) ? loadGlbUrls(url) : loadGlb(url);
@@ -247,7 +259,7 @@
         parent.remove(prev);
         disposeTree(prev);
       }
-      const model = gltf.scene;
+      const model = cloneGltfScene(gltf);
       model.name = name || 'ow_glb_model';
       const saved = parent.userData.owFitSaved;
       const sy = applyFit(model, targetH, saved);
@@ -288,15 +300,458 @@
     }
   }
 
-  function attachPet(wrapper, emoji) {
+  /** 펫 종별 체형 — 장비 소켓 오프셋 미세 조정 */
+  const PET_BODY_KIND = {
+    bear: 'quad', bird: 'bird', cat: 'quad', devil: 'biped', dog: 'quad', fox: 'quad',
+    frog: 'low', hamster: 'small', hedgehog: 'small', koala: 'quad', lion: 'quad',
+    mouse: 'small', owl: 'bird', panda: 'quad', rabbit: 'quad', raccoon: 'quad',
+    tiger: 'quad', turtle: 'low',
+  };
+
+  const PET_EQUIP_BONE_PATTERNS = {
+    head: [/mixamorighead/i, /^head$/i, /^head_/i, /skull/i, /cranium/i, /\.head$/i],
+    neck: [/mixamorigneck/i, /^neck/i, /\.neck$/i],
+    spine: [/mixamorigspine2/i, /mixamorigspine1/i, /^chest/i, /^torso/i, /^spine2/i, /^spine1/i,
+      /mixamorigspine/i, /^spine/i],
+    handR: [/mixamorigrighthand/i, /righthand/i, /right_hand/i, /hand_r/i, /hand\.r/i,
+      /right.*front/i, /front.*right/i, /right.*paw/i, /right.*leg/i, /leg.*r/i, /arm.*r/i],
+    handL: [/mixamoriglefthand/i, /lefthand/i, /left_hand/i, /hand_l/i, /hand\.l/i,
+      /left.*front/i, /front.*left/i, /left.*paw/i, /left.*leg/i, /leg.*l/i],
+    back: [/mixamorigspine2/i, /upper.*back/i, /^back/i, /spine2/i],
+  };
+
+  const PET_EQUIP_SOCKET_KEY = {
+    head: 'head', weapon: 'handR', armor: 'spine', wing: 'back', accessory: 'neck', special: 'head',
+  };
+
+  /** 슬롯별 기본 회전·피벗 (스케일·위치는 bbox로 자동 산출) */
+  const PET_EQUIP_SLOT_CFG = {
+    head:      { socket: 'head',  bone: 'head',  rot: [0, 0, 0], meshPivot: { y: 0, z: 0 } },
+    weapon:    { socket: 'handR', bone: 'handR', rot: [0.15, 0.2, -0.75], meshPivot: { y: 0, z: 0 } },
+    armor:     { socket: 'spine', bone: 'spine', rot: [0, 0, 0], meshPivot: { y: 0, z: 0 } },
+    wing:      { socket: 'back',  bone: 'back',  rot: [0, 0, 0], meshPivot: { y: 0, z: 0 } },
+    accessory: { socket: 'neck',  bone: 'neck',  rot: [0, 0, 0], meshPivot: { y: 0, z: 0 } },
+    special:   { socket: 'head',  bone: 'head',  rot: [0, 0, 0], meshPivot: { y: 0.06, z: 0 } },
+  };
+
+  const PET_SLOT_IDEAL_HEIGHT = {
+    head: 0.8, handR: 0.17, handL: 0.17, spine: 0.44, neck: 0.6, back: 0.48,
+  };
+
+  const PET_KIND_SOCKET_RATIOS = {
+    small: { headY: 0.76, spineY: 0.42, handY: 0.13, handX: 0.17, handZ: 0.02 },
+    quad:  { headY: 0.8, spineY: 0.46, handY: 0.18, handX: 0.22, handZ: 0.05 },
+    bird:  { headY: 0.78, spineY: 0.45, handY: 0.35, handX: 0.28, handZ: 0.1 },
+    low:   { headY: 0.8, spineY: 0.42, handY: 0.14, handX: 0.22, handZ: 0.05 },
+    biped: { headY: 0.86, spineY: 0.52, handY: 0.38, handX: 0.3, handZ: 0.08 },
+  };
+
+  function findSkinnedRoot(model) {
+    let skinned = null;
+    model.traverse((o) => {
+      if (!skinned && o.isSkinnedMesh && o.skeleton) skinned = o;
+    });
+    return skinned;
+  }
+
+  function collectPetBones(model) {
+    const seen = new Set();
+    const list = [];
+    const add = (b) => {
+      if (!b || seen.has(b)) return;
+      seen.add(b);
+      list.push(b);
+    };
+    model.traverse((o) => { if (o.isBone) add(o); });
+    const skinned = findSkinnedRoot(model);
+    if (skinned && skinned.skeleton && skinned.skeleton.bones) {
+      skinned.skeleton.bones.forEach(add);
+    }
+    return list;
+  }
+
+  function boneHeightRatio(local, box) {
+    if (!box || box.isEmpty()) return 0.5;
+    const h = box.max.y - box.min.y;
+    if (h < 0.05) return 0.5;
+    return (local.y - box.min.y) / h;
+  }
+
+  function scoreBoneForSlot(model, bone, box, slotKey, patternIdx) {
+    const local = boneToModelLocal(model, bone);
+    if (!isBoneValidForSlot(local, box, slotKey)) return -1;
+    const ideal = PET_SLOT_IDEAL_HEIGHT[slotKey] != null ? PET_SLOT_IDEAL_HEIGHT[slotKey] : 0.5;
+    const ratio = boneHeightRatio(local, box);
+    const heightFit = 60 - Math.abs(ratio - ideal) * 140;
+    return (100 - patternIdx) + heightFit;
+  }
+
+  function findPetBone(model, slotKey, box) {
+    const pats = PET_EQUIP_BONE_PATTERNS[slotKey];
+    if (!pats) return null;
+    const bones = collectPetBones(model);
+    let best = null;
+    let bestScore = -1;
+    bones.forEach((b) => {
+      const nl = b.name.toLowerCase();
+      pats.forEach((re, idx) => {
+        if (!re.test(b.name) && !re.test(nl)) return;
+        const score = box && !box.isEmpty()
+          ? scoreBoneForSlot(model, b, box, slotKey, idx)
+          : (100 - idx);
+        if (score > bestScore) { bestScore = score; best = b; }
+      });
+    });
+    return best;
+  }
+
+  /** 장비 메쉬 bbox → 소켓에 맞는 피벗 (왕관 밑단·검 손잡이·흉갑 가슴) */
+  function computeEquipMeshAlign(mesh, slot) {
+    const THREE = global.THREE;
+    if (!mesh || !THREE) return { x: 0, y: 0, z: 0 };
+    const box = new THREE.Box3().setFromObject(mesh);
+    if (box.isEmpty()) return { x: 0, y: 0, z: 0 };
+    const cx = (box.min.x + box.max.x) * 0.5;
+    const cy = (box.min.y + box.max.y) * 0.5;
+    const cz = (box.min.z + box.max.z) * 0.5;
+    const h = box.max.y - box.min.y;
+    const d = box.max.z - box.min.z;
+    if (slot === 'head' || slot === 'special') {
+      return { x: -cx, y: -box.min.y + 0.02, z: -cz + Math.max(d * 0.2, 0.1) };
+    }
+    if (slot === 'weapon') {
+      return { x: -cx, y: -box.min.y - 0.02, z: -cz + d * 0.08 };
+    }
+    if (slot === 'armor') {
+      return { x: -cx, y: -cy + h * 0.08, z: -cz + Math.max(d * 0.38, 0.12) };
+    }
+    if (slot === 'accessory') {
+      return { x: -cx, y: -cy, z: -cz + d * 0.22 };
+    }
+    if (slot === 'wing') {
+      return { x: -cx, y: -cy, z: -cz - d * 0.15 };
+    }
+    return { x: -cx, y: -cy, z: -cz };
+  }
+
+  /** 펫 GLB 메쉬만 — model 로컬 좌표 bbox (월드 좌표 혼입 방지) */
+  function measurePetLocalBox(model) {
+    const THREE = global.THREE;
+    const box = new THREE.Box3();
+    const corner = new THREE.Vector3();
+    const inv = new THREE.Matrix4();
+    if (!model) return box;
+    model.updateMatrixWorld(true);
+    inv.copy(model.matrixWorld).invert();
+    model.traverse((o) => {
+      if (!o.isMesh && !o.isSkinnedMesh) return;
+      if (o.name && o.name.indexOf('pet_equip') === 0) return;
+      let p = o.parent;
+      while (p && p !== model) {
+        if (p.name && p.name.indexOf('pet_equip') === 0) return;
+        p = p.parent;
+      }
+      const geom = o.geometry;
+      if (!geom) return;
+      if (!geom.boundingBox) geom.computeBoundingBox();
+      if (!geom.boundingBox) return;
+      const bb = geom.boundingBox;
+      const pts = [
+        [bb.min.x, bb.min.y, bb.min.z], [bb.max.x, bb.min.y, bb.min.z],
+        [bb.min.x, bb.max.y, bb.min.z], [bb.max.x, bb.max.y, bb.min.z],
+        [bb.min.x, bb.min.y, bb.max.z], [bb.max.x, bb.min.y, bb.max.z],
+        [bb.min.x, bb.max.y, bb.max.z], [bb.max.x, bb.max.y, bb.max.z],
+      ];
+      pts.forEach((pt) => {
+        corner.set(pt[0], pt[1], pt[2]);
+        corner.applyMatrix4(o.matrixWorld);
+        corner.applyMatrix4(inv);
+        box.expandByPoint(corner);
+      });
+    });
+    return box;
+  }
+
+  function boneToModelLocal(model, bone) {
+    const THREE = global.THREE;
+    const v = new THREE.Vector3();
+    if (!bone || !model) return v;
+    model.updateMatrixWorld(true);
+    bone.getWorldPosition(v);
+    v.applyMatrix4(new THREE.Matrix4().copy(model.matrixWorld).invert());
+    return v;
+  }
+
+  function isBoneValidForSlot(local, box, boneKey) {
+    if (!box || box.isEmpty()) return false;
+    const h = box.max.y - box.min.y;
+    if (h < 0.05) return false;
+    const footY = box.min.y;
+    const ratio = (local.y - footY) / h;
+    if (boneKey === 'head') return ratio > 0.62 && ratio < 0.94;
+    if (boneKey === 'handR' || boneKey === 'handL') return ratio > 0.07 && ratio < 0.3;
+    if (boneKey === 'spine') return ratio > 0.32 && ratio < 0.56;
+    if (boneKey === 'neck') return ratio > 0.45 && ratio < 0.78;
+    if (boneKey === 'back') return ratio > 0.32 && ratio < 0.65;
+    return false;
+  }
+
+  function getPetModelSockets(model, petKey) {
+    const box = measurePetLocalBox(model);
+    if (box.isEmpty()) {
+      return {
+        head: { x: 0, y: 1.15, z: 0.08 }, neck: { x: 0, y: 0.95, z: 0.1 },
+        spine: { x: 0, y: 0.65, z: 0.1 }, handR: { x: 0.28, y: 0.28, z: 0.12 },
+        back: { x: 0, y: 0.68, z: -0.12 },
+      };
+    }
+    const kind = PET_BODY_KIND[petKey] || 'quad';
+    const r = PET_KIND_SOCKET_RATIOS[kind] || PET_KIND_SOCKET_RATIOS.quad;
+    const h = box.max.y - box.min.y;
+    const w = Math.max(box.max.x - box.min.x, 0.01);
+    const d = Math.max(box.max.z - box.min.z, 0.01);
+    const cx = (box.min.x + box.max.x) * 0.5;
+    const cz = (box.min.z + box.max.z) * 0.5;
+    const footY = box.min.y;
+    const frontZ = box.max.z;
+    const backZ = box.min.z;
+    const headTopY = box.max.y + h * 0.03;
+    return {
+      head: { x: cx, y: headTopY, z: cz + d * 0.14 },
+      neck: { x: cx, y: footY + h * (r.headY - 0.12), z: cz + d * 0.06 },
+      spine: { x: cx, y: footY + h * r.spineY, z: cz + d * 0.07 },
+      orbit: { x: cx, y: footY + h * 0.4, z: cz },
+      handR: {
+        x: cx + w * r.handX,
+        y: footY + h * r.handY,
+        z: frontZ - d * r.handZ,
+      },
+      back: { x: cx, y: footY + h * (r.spineY + 0.04), z: backZ + d * 0.1 },
+    };
+  }
+
+  function resolvePetEquipCfg(slot, petKey, box) {
+    const base = Object.assign({ pos: [0, 0, 0], scale: 0.4 }, PET_EQUIP_SLOT_CFG[slot] || {});
+    const kind = PET_BODY_KIND[petKey] || 'quad';
+    if (box && !box.isEmpty()) {
+      const h = box.max.y - box.min.y;
+      const w = box.max.x - box.min.x;
+      if (slot === 'head') {
+        base.scale = Math.max(0.24, Math.min(0.58, (w * 0.58) / 0.72));
+        base.pos = [0, 0.02, 0.02];
+      } else if (slot === 'armor') {
+        base.scale = Math.max(0.28, Math.min(0.62, (w * 0.82) / 0.92));
+      } else if (slot === 'weapon') {
+        base.scale = Math.max(0.2, Math.min(0.42, (h * 0.28) / 1.0));
+      } else if (slot === 'wing') {
+        base.scale = Math.max(0.28, Math.min(0.55, (w * 0.9) / 1.2));
+      } else if (slot === 'accessory') {
+        base.scale = Math.max(0.2, Math.min(0.42, (w * 0.35) / 0.5));
+      } else if (slot === 'special') {
+        base.scale = Math.max(0.22, Math.min(0.48, (w * 0.4) / 0.6));
+      }
+      if (kind === 'small') {
+        if (slot === 'head') {
+          base.scale *= 1.08;
+          base.pos = [0, 0.03, 0.05];
+        } else {
+          base.scale *= 0.9;
+        }
+        if (slot === 'armor') base.scale *= 0.88;
+        if (slot === 'armor') base.pos = [0, -0.02, 0.05];
+      }
+      if (kind === 'bird') base.scale *= 0.88;
+    }
+    return base;
+  }
+
+  function buildPetEquipMesh(slot, item) {
+    if (typeof global.buildEquipMesh3DNew === 'function') {
+      return global.buildEquipMesh3DNew(slot, item);
+    }
+    return null;
+  }
+
+  function detachPetEquipment(wrapper) {
+    if (!wrapper) return;
+    const model = wrapper.getObjectByName && wrapper.getObjectByName('ow_glb_model');
+    if (model) {
+      const stale = [];
+      model.traverse((o) => {
+        if (!o.name) return;
+        if (o.name === 'pet_equip_rig' || o.name.indexOf('pet_equip_socket_') === 0) stale.push(o);
+      });
+      stale.forEach((o) => {
+        if (o.parent) o.parent.remove(o);
+        disposeTree(o);
+      });
+    }
+    wrapper.userData.wing = null;
+    wrapper.userData.special = null;
+    wrapper.userData.weaponOrbit = null;
+    wrapper.userData.equipOrbits = null;
+    wrapper.userData.petEquipNodes = null;
+  }
+
+  const PET_ORBIT_SLOTS = { weapon: 0, accessory: 1, special: 2 };
+  const PET_ORBIT_PHASE = { weapon: 0, accessory: Math.PI * 0.67, special: Math.PI * 1.34 };
+  const PET_ORBIT_RADIUS_MUL = { weapon: 1.0, accessory: 0.78, special: 0.92 };
+  const PET_ORBIT_Y_OFFSET = { weapon: 0, accessory: -0.05, special: 0.07 };
+  const PET_ORBIT_SPEED = { weapon: 1.75, accessory: 1.55, special: 1.35 };
+
+  /** 무기·장신구·특수 — 펫 중심 공전 오비트 */
+  function attachEquipOrbit(rig, box, mesh, cfg, slot) {
+    if (!mesh || !rig || !box || box.isEmpty()) return { mesh, orbit: null };
+    const h = box.max.y - box.min.y;
+    const w = box.max.x - box.min.x;
+    const cx = (box.min.x + box.max.x) * 0.5;
+    const cz = (box.min.z + box.max.z) * 0.5;
+    const footY = box.min.y;
+    const orbit = new THREE.Group();
+    orbit.name = 'pet_equip_socket_' + slot + '_orbit';
+    orbit.position.set(cx, footY + h * 0.4, cz);
+    rig.add(orbit);
+    const baseRadius = Math.max(w * 0.5, h * 0.3);
+    const radius = baseRadius * (PET_ORBIT_RADIUS_MUL[slot] || 1);
+    const autoPivot = computeEquipMeshAlign(mesh, slot);
+    const sc = cfg.scale != null ? cfg.scale : 0.34;
+    mesh.position.set(
+      radius + autoPivot.x,
+      h * 0.1 + autoPivot.y + (PET_ORBIT_Y_OFFSET[slot] || 0),
+      autoPivot.z
+    );
+    if (slot === 'weapon') {
+      mesh.rotation.set(-0.35, Math.PI * 0.5, -0.5);
+    } else if (slot === 'accessory') {
+      mesh.rotation.set(0.15, Math.PI * 0.35, 0.2);
+    } else {
+      mesh.rotation.set(-0.12, Math.PI * 0.2, 0.15);
+    }
+    mesh.scale.setScalar(sc);
+    orbit.add(mesh);
+    orbit.rotation.y = PET_ORBIT_PHASE[slot] || 0;
+    orbit.userData._orbitBaseY = orbit.position.y;
+    orbit.userData._orbitRadius = radius;
+    orbit.userData._orbitSlot = slot;
+    orbit.userData._orbitSpeed = PET_ORBIT_SPEED[slot] || 1.6;
+    return { mesh, orbit };
+  }
+
+  function attachEquipToModelSocket(rig, model, box, sockets, mesh, slot, cfg) {
+    if (!mesh || !rig || !sockets) return mesh;
+    const boneKey = cfg.bone || PET_EQUIP_SOCKET_KEY[slot] || 'spine';
+    const skKey = cfg.socket || boneKey;
+    const sk = sockets[skKey] || sockets.spine;
+    const pos = cfg.pos || [0, 0, 0];
+    const rot = cfg.rot || [0, 0, 0];
+    const sc = cfg.scale != null ? cfg.scale : 0.38;
+    const manualPivot = cfg.meshPivot || { x: 0, y: 0, z: 0 };
+    const autoPivot = computeEquipMeshAlign(mesh, slot);
+    const anchor = new THREE.Group();
+    anchor.name = 'pet_equip_socket_' + slot;
+
+    const bone = model ? findPetBone(model, boneKey, box) : null;
+    const skipBone = slot === 'head' || slot === 'special' || slot === 'weapon' || slot === 'accessory';
+    const useBone = !skipBone && bone && box && isBoneValidForSlot(boneToModelLocal(model, bone), box, boneKey);
+    if (useBone) {
+      bone.add(anchor);
+      anchor.position.set(pos[0], pos[1], pos[2]);
+    } else {
+      anchor.position.set(
+        (sk.x || 0) + pos[0],
+        (sk.y || 0) + pos[1],
+        (sk.z || 0) + pos[2]
+      );
+      rig.add(anchor);
+    }
+
+    mesh.position.set(
+      (manualPivot.x || 0) + autoPivot.x,
+      (manualPivot.y || 0) + autoPivot.y,
+      (manualPivot.z || 0) + autoPivot.z
+    );
+    mesh.rotation.set(rot[0], rot[1], rot[2]);
+    mesh.scale.setScalar(sc);
+    anchor.add(mesh);
+    if (slot === 'head' || slot === 'special') {
+      mesh.traverse((c) => {
+        if (c.isMesh) c.renderOrder = 12;
+      });
+    }
+    return mesh;
+  }
+
+  function attachPetEquipment(wrapper, equipment) {
+    if (!wrapper) return Promise.resolve();
+    equipment = equipment || {};
+    const hasEq = ['head', 'weapon', 'armor', 'wing', 'accessory', 'special']
+      .some((s) => equipment[s]);
+    detachPetEquipment(wrapper);
+    if (!hasEq) return Promise.resolve();
+
+    const model = wrapper.getObjectByName('ow_glb_model');
+    if (!model || !wrapper.userData.glbLoaded) {
+      wrapper.userData._pendingPetEquipment = equipment;
+      return Promise.resolve();
+    }
+    wrapper.userData._pendingPetEquipment = null;
+
+    const petKey = wrapper.userData.petGlbKey || 'dog';
+    const THREE = global.THREE;
+    const rig = new THREE.Group();
+    rig.name = 'pet_equip_rig';
+    model.add(rig);
+    const box = measurePetLocalBox(model);
+    const sockets = getPetModelSockets(model, petKey);
+
+    const nodes = {};
+    const orbits = [];
+    const slots = ['head', 'weapon', 'armor', 'wing', 'accessory', 'special'];
+
+    slots.forEach((slot) => {
+      const item = equipment[slot];
+      if (!item) return;
+      const mesh = buildPetEquipMesh(slot, item);
+      if (!mesh) return;
+      const cfg = resolvePetEquipCfg(slot, petKey, box);
+      let attached;
+      if (PET_ORBIT_SLOTS[slot] != null) {
+        const wo = attachEquipOrbit(rig, box, mesh, cfg, slot);
+        attached = wo.mesh;
+        if (wo.orbit) {
+          orbits.push(wo.orbit);
+          if (slot === 'weapon') wrapper.userData.weaponOrbit = wo.orbit;
+        }
+      } else {
+        attached = attachEquipToModelSocket(rig, model, box, sockets, mesh, slot, cfg);
+      }
+      attached.name = 'pet_equip_' + slot;
+      nodes[slot] = attached;
+      if (slot === 'wing') {
+        attached.userData._baseScaleX = attached.scale.x;
+        wrapper.userData.wing = attached;
+      }
+    });
+
+    wrapper.userData.equipOrbits = orbits.length ? orbits : null;
+    wrapper.userData.petEquipNodes = nodes;
+    return Promise.resolve();
+  }
+
+  function attachPet(wrapper, emoji, equipment) {
     const key = resolvePetKey(emoji);
     const url = PET[key];
     wrapper.userData.petGlbKey = key;
     wrapper.userData.legs = null;
     wrapper.userData.armL = null;
     wrapper.userData.armR = null;
+    if (equipment) wrapper.userData._pendingPetEquipment = equipment;
     return attachModel(wrapper, url, PET_TARGET_H, 'ow_glb_model').then((model) => {
       removePetProceduralLimbs(model);
+      const eq = wrapper.userData._pendingPetEquipment;
+      if (eq && Object.keys(eq).some((k) => eq[k])) {
+        return attachPetEquipment(wrapper, eq).then(() => model);
+      }
       return model;
     });
   }
@@ -309,10 +764,11 @@
     const box = new THREE.Box3().setFromObject(model);
     if (box.isEmpty()) return;
     const h = box.max.y - box.min.y;
-    const saddleY = box.min.y + h * 0.38;
+    const ratio = def && def.saddleRatio != null ? def.saddleRatio : 0.58;
+    const saddleY = box.min.y + h * ratio;
     const centerZ = (box.min.z + box.max.z) * 0.5;
     const hintY = def && def.seatY != null ? def.seatY : 1.0;
-    group.userData.mountSeatY = Math.min(saddleY, hintY * 0.92);
+    group.userData.mountSeatY = Math.max(saddleY, Math.min(hintY, hintY * 0.98));
     group.userData.seatForward = def && def.seatZ != null ? def.seatZ : centerZ;
     group.userData.mountSeatComputed = true;
   }
@@ -325,7 +781,7 @@
   }
 
   /** 러브몬·하우스·미니 캔버스용 GLB 펫 그룹 */
-  function createPetGroup(emoji) {
+  function createPetGroup(emoji, equipment) {
     const wrapper = new THREE.Group();
     wrapper.name = 'lm_character_wrap';
     wrapper.userData.walkPhase = 0;
@@ -333,8 +789,12 @@
     wrapper.userData.glbUsesAnim = true;
     wrapper.userData.glbPet = true;
     wrapper.userData.lmTargetHeight = PET_TARGET_H;
-    attachPet(wrapper, emoji);
+    attachPet(wrapper, emoji, equipment);
     return wrapper;
+  }
+
+  function refreshPetEquipment(wrapper, equipment) {
+    return attachPetEquipment(wrapper, equipment || {});
   }
 
   function attachMount(group, mountId, opts) {
@@ -421,6 +881,31 @@
       mixer.timeScale += ((moving ? 1.08 : 1.0) - mixer.timeScale) * 0.1;
       mixer.update(step);
     }
+    const t = performance.now() * 0.001;
+    if (wrapper.userData.wing) {
+      const w = wrapper.userData.wing;
+      w.rotation.y = Math.sin(t * 3) * 0.28;
+      w.scale.x = (w.userData._baseScaleX || 1) * (1 + Math.sin(t * 3) * 0.08);
+    }
+    const orbits = wrapper.userData.equipOrbits;
+    if (orbits && orbits.length) {
+      orbits.forEach((orbit, i) => {
+        const spd = orbit.userData._orbitSpeed || (1.6 - i * 0.12);
+        orbit.rotation.y += step * spd;
+        const baseY = orbit.userData._orbitBaseY;
+        if (baseY != null) {
+          const bob = orbit.userData._orbitSlot === 'special' ? 0.045 : 0.035;
+          orbit.position.y = baseY + Math.sin(t * 2.2 + i * 0.9) * bob;
+        }
+      });
+    } else if (wrapper.userData.weaponOrbit) {
+      const orbit = wrapper.userData.weaponOrbit;
+      orbit.rotation.y += step * 1.75;
+      const baseY = orbit.userData._orbitBaseY;
+      if (baseY != null) {
+        orbit.position.y = baseY + Math.sin(t * 2.2) * 0.035;
+      }
+    }
     if (moving) {
       wrapper.userData.walkPhase = (wrapper.userData.walkPhase || 0) + step * 11;
       const phase = wrapper.userData.walkPhase;
@@ -462,6 +947,9 @@
     resolvePetKey,
     loadGlb,
     attachPet,
+    attachPetEquipment,
+    refreshPetEquipment,
+    detachPetEquipment,
     createPetGroup,
     applyMountRideMeta,
     attachMount,

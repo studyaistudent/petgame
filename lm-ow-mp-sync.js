@@ -17,9 +17,14 @@
     if (!S || !renderer?.human) return {};
     const ex = typeof global._owGetExpandedState === 'function' ? global._owGetExpandedState() : {};
     const race = ex.race || {};
-    const pos = (race.active && S.ow.inCar && renderer.car)
-      ? renderer.car.position
-      : renderer.human.position;
+    const worldPos = typeof global.owGetLocalSyncWorldPos === 'function'
+      ? global.owGetLocalSyncWorldPos(renderer)
+      : null;
+    const pos = worldPos
+      ? { x: worldPos.x, z: worldPos.z }
+      : ((race.active && S.ow.inCar && renderer.car)
+        ? renderer.car.position
+        : renderer.human.position);
     const mw = global.OWMMODataStore ? global.OWMMODataStore.get() : {};
     const tamed = (mw.tamedPets || []).filter(p => p.companionOn && !p.dead).slice(0, 4)
       .map(p => ({ emoji: p.emoji || '🐾', name: p.name || '펫' }));
@@ -93,6 +98,20 @@
     }
   }
 
+  function owMpSyncApplyRemoteEmote(human, data) {
+    if (!human || !data || !data.emoteKind || !data.emoteAt) return;
+    if (data.emoteAt <= (human.userData.lastEmoteAt || 0)) return;
+    human.userData.lastEmoteAt = data.emoteAt;
+    if (typeof global.owEmoteDef === 'function' && typeof global.owApplyEmoteOnHuman === 'function') {
+      global.owApplyEmoteOnHuman(human, data.emoteKind);
+      const ed = global.owEmoteDef(data.emoteKind);
+      human.userData.emoteFloat = {
+        emoji: ed.emoji,
+        until: data.emoteUntil || (Date.now() + 2800),
+      };
+    }
+  }
+
   function owMpSyncRebuildRemoteHuman(renderer, nick, data) {
     const p = renderer.otherPetsByNick.get(nick);
     if (!p) return;
@@ -126,8 +145,10 @@
     const mm = p.userData._owMountMesh;
     const tx = data.x ?? p.position.x;
     const tz = data.z ?? p.position.z;
-    mm.position.x += (tx - mm.position.x) * 0.18;
-    mm.position.z += (tz - mm.position.z) * 0.18;
+    const md = Math.hypot(tx - mm.position.x, tz - mm.position.z);
+    const ml = md > 12 ? 1 : Math.min(0.55, 0.22 + md * 0.1);
+    mm.position.x += (tx - mm.position.x) * ml;
+    mm.position.z += (tz - mm.position.z) * ml;
     mm.rotation.y = p.rotation.y;
     const seatY = mm.userData.seatY != null ? mm.userData.seatY : 1.05;
     const seatF = mm.userData.seatForward != null ? mm.userData.seatForward : 0.2;
@@ -163,26 +184,224 @@
     car.rotation.y = data.rotY || p.rotation.y;
   }
 
-  function owMpSyncEnsureFishingRod(renderer, p, data) {
-    const on = !!data.fishingDetail;
-    if (!on) {
-      if (p.userData._owFishRod) {
-        p.remove(p.userData._owFishRod);
-        p.userData._owFishRod = null;
+  const _fishVecA = { v: null, v2: null, v3: null };
+  function owMpSyncFishVec() {
+    const THREE = global.THREE;
+    if (!_fishVecA.v) {
+      _fishVecA.v = new THREE.Vector3();
+      _fishVecA.v2 = new THREE.Vector3();
+      _fishVecA.v3 = new THREE.Vector3();
+    }
+    return _fishVecA;
+  }
+
+  function owMpSyncDisposeGroup(g) {
+    if (!g) return;
+    g.traverse((o) => {
+      if (o.geometry) o.geometry.dispose();
+      if (o.material) {
+        const ms = Array.isArray(o.material) ? o.material : [o.material];
+        ms.forEach((m) => m && m.dispose && m.dispose());
       }
+    });
+  }
+
+  function owMpSyncBuildWormMesh(THREE) {
+    const worm = new THREE.Group();
+    worm.name = 'ow_fish_bait_worm';
+    const body = new THREE.MeshLambertMaterial({ color: 0xd32f2f });
+    const band = new THREE.MeshLambertMaterial({ color: 0xff8a80 });
+    const segs = [
+      { x: -0.1, y: 0, z: 0, rx: 0.55, ry: 0.42 },
+      { x: 0, y: 0.02, z: 0.08, rx: 0.5, ry: 0.38 },
+      { x: 0.1, y: 0, z: 0.16, rx: 0.48, ry: 0.36 },
+      { x: 0.18, y: -0.02, z: 0.24, rx: 0.42, ry: 0.32 },
+      { x: 0.24, y: 0, z: 0.3, rx: 0.34, ry: 0.28 },
+    ];
+    segs.forEach((s, i) => {
+      const m = new THREE.Mesh(new THREE.SphereGeometry(1, 8, 8), i % 2 ? band : body);
+      m.scale.set(s.rx, s.ry, s.rx * 0.85);
+      m.position.set(s.x, s.y, s.z);
+      worm.add(m);
+    });
+    const eye = new THREE.Mesh(
+      new THREE.SphereGeometry(0.045, 6, 6),
+      new THREE.MeshBasicMaterial({ color: 0x263238 })
+    );
+    eye.position.set(0.27, 0.04, 0.31);
+    worm.add(eye);
+    worm.rotation.x = Math.PI / 2;
+    return worm;
+  }
+
+  function owMpSyncBuildRodGroup(THREE) {
+    const rod = new THREE.Group();
+    rod.name = 'ow_fish_rod';
+    const wood = new THREE.MeshLambertMaterial({ color: 0x8d6e63 });
+    const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.034, 0.32, 6), wood);
+    handle.position.y = 0.16;
+    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.01, 0.016, 1.35, 6), wood);
+    pole.position.set(0, 0.92, 0.08);
+    pole.rotation.x = 0.42;
+    const tip = new THREE.Mesh(new THREE.SphereGeometry(0.018, 6, 6), wood);
+    tip.position.set(0, 1.48, 0.42);
+    rod.add(handle, pole, tip);
+    rod.position.set(0.34, 0.62, 0.18);
+    rod.rotation.set(0.1, -0.55, -0.15);
+    return rod;
+  }
+
+  function owMpSyncBuildFishScene(THREE) {
+    const scene = new THREE.Group();
+    scene.name = 'ow_fish_scene';
+    const line = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.003, 0.003, 1, 4),
+      new THREE.MeshBasicMaterial({ color: 0xf5f5f5, transparent: true, opacity: 0.9 })
+    );
+    line.geometry.translate(0, 0.5, 0);
+    scene.userData.line = line;
+    scene.add(line);
+    const bait = owMpSyncBuildWormMesh(THREE);
+    scene.userData.bait = bait;
+    scene.add(bait);
+    return scene;
+  }
+
+  function owMpSyncLakeCenter() {
+    return global.OW_LAKE_CENTER || { x: -28, z: 22, r: 14 };
+  }
+
+  function owMpSyncCastProgress(phase) {
+    if (phase !== 'casting') return 1;
+    const until = global.S?.ow?.fishingCastUntil || 0;
+    if (!until) return 0.35;
+    return Math.max(0.08, Math.min(1, 1 - (until - Date.now()) / 900));
+  }
+
+  function owMpSyncCalcBaitPos(actor, phase, t) {
+    const lake = owMpSyncLakeCenter();
+    const pos = actor.position;
+    const dx = lake.x - pos.x;
+    const dz = lake.z - pos.z;
+    const dist = Math.max(0.01, Math.hypot(dx, dz));
+    const dirX = dx / dist;
+    const dirZ = dz / dist;
+    const cast = Math.min(7.5, Math.max(3.2, dist - lake.r * 0.35));
+    const prog = owMpSyncCastProgress(phase);
+    const bob = (phase === 'waiting' || phase === 'fighting' || phase === 'bite')
+      ? Math.sin(t * 3.2) * 0.07 : 0;
+    const wiggle = (phase === 'fighting' || phase === 'bite') ? Math.sin(t * 8) * 0.12 : 0;
+    return {
+      x: pos.x + dirX * cast * prog + wiggle * dirZ,
+      y: 0.14 + bob,
+      z: pos.z + dirZ * cast * prog - wiggle * dirX,
+    };
+  }
+
+  function owMpSyncRodTipWorld(actor, out) {
+    const { v } = owMpSyncFishVec();
+    const o = out || v;
+    if (actor.userData._owFishRod) {
+      o.set(0, 1.48, 0.42);
+      actor.userData._owFishRod.localToWorld(o);
+    } else {
+      o.set(0.3, 1.25, 0.55);
+      actor.localToWorld(o);
+    }
+    return o;
+  }
+
+  function owMpSyncPlaceLine(lineMesh, from, to) {
+    const { v, v2, v3 } = owMpSyncFishVec();
+    v.copy(from);
+    v2.copy(to);
+    v3.subVectors(v2, v).multiplyScalar(0.5).add(v);
+    const len = v.distanceTo(v2);
+    lineMesh.position.copy(v3);
+    lineMesh.scale.set(1, Math.max(0.05, len), 1);
+    if (len > 0.02) {
+      lineMesh.quaternion.setFromUnitVectors(
+        new global.THREE.Vector3(0, 1, 0),
+        v2.sub(v).normalize()
+      );
+    }
+  }
+
+  function owMpSyncClearFishingOnActor(renderer, actor) {
+    if (!actor) return;
+    if (actor.userData._owFishRod) {
+      actor.remove(actor.userData._owFishRod);
+      owMpSyncDisposeGroup(actor.userData._owFishRod);
+      actor.userData._owFishRod = null;
+    }
+    if (actor.userData._owFishScene && renderer) {
+      renderer.scene.remove(actor.userData._owFishScene);
+      owMpSyncDisposeGroup(actor.userData._owFishScene);
+      actor.userData._owFishScene = null;
+    }
+    actor.userData.fishingDetail = '';
+  }
+
+  function owMpSyncEnsureFishingVisuals(renderer, actor, phase) {
+    const THREE = global.THREE;
+    if (!THREE || !renderer || !actor) return;
+    const on = !!phase;
+    if (!on) {
+      owMpSyncClearFishingOnActor(renderer, actor);
       return;
     }
-    if (!p.userData._owFishRod) {
-      const rod = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.03, 0.04, 1.6, 6),
-        new THREE.MeshLambertMaterial({ color: 0x8d6e63 })
-      );
-      rod.rotation.z = -0.7;
-      rod.position.set(0.35, 0.9, 0.25);
-      p.add(rod);
-      p.userData._owFishRod = rod;
+    if (!actor.userData._owFishRod) {
+      actor.userData._owFishRod = owMpSyncBuildRodGroup(THREE);
+      actor.add(actor.userData._owFishRod);
     }
-    p.userData.fishingDetail = data.fishingDetail;
+    if (!actor.userData._owFishScene) {
+      actor.userData._owFishScene = owMpSyncBuildFishScene(THREE);
+      renderer.scene.add(actor.userData._owFishScene);
+    }
+    actor.userData.fishingDetail = phase;
+  }
+
+  function owMpSyncTickFishingVisuals(renderer, actor, phase, t) {
+    if (!phase || !actor) return;
+    owMpSyncEnsureFishingVisuals(renderer, actor, phase);
+    const scene = actor.userData._owFishScene;
+    if (!scene) return;
+    const baitPos = owMpSyncCalcBaitPos(actor, phase, t);
+    const tip = owMpSyncRodTipWorld(actor);
+    const { v2 } = owMpSyncFishVec();
+    v2.set(baitPos.x, baitPos.y, baitPos.z);
+    owMpSyncPlaceLine(scene.userData.line, tip, v2);
+    if (scene.userData.bait) {
+      scene.userData.bait.position.copy(v2);
+      scene.userData.bait.rotation.y = actor.rotation.y + Math.sin(t * 2.5) * 0.25;
+      scene.userData.bait.rotation.z = Math.sin(t * 4 + 0.5) * 0.35;
+    }
+  }
+
+  function owMpSyncEnsureFishingRod(renderer, p, data) {
+    const phase = data.fishingDetail || '';
+    if (!phase) {
+      owMpSyncClearFishingOnActor(renderer, p);
+      return;
+    }
+    owMpSyncEnsureFishingVisuals(renderer, p, phase);
+  }
+
+  function owMpSyncTickLocalFishing(renderer, t) {
+    const S = global.S;
+    if (!S || S.screen !== 'openworld' || !renderer?.human) return;
+    const phase = S.ow.fishingPhase;
+    if (!phase) {
+      owMpSyncClearFishingOnActor(renderer, renderer.human);
+      return;
+    }
+    owMpSyncTickFishingVisuals(renderer, renderer.human, phase, t);
+  }
+
+  function owMpSyncTickRemoteFishing(renderer, p, t) {
+    const phase = p.userData.fishingDetail;
+    if (!phase) return;
+    owMpSyncTickFishingVisuals(renderer, p, phase, t);
   }
 
   function owMpSyncSyncTamedFollowers(renderer, p, nick, data) {
@@ -257,6 +476,7 @@
     }
 
     owMpSyncRefreshRemoteWeapon(p, data.equippedWeapon);
+    owMpSyncApplyRemoteEmote(p, data);
 
     if (data.combatAnimAt && data.combatAnim && data.combatAnimAt > (p.userData._lastCombatAnimAt || 0)) {
       p.userData._lastCombatAnimAt = data.combatAnimAt;
@@ -280,22 +500,28 @@
   }
 
   function owMpSyncTickRemotePlayers(renderer, dt) {
+    const t = Date.now() * 0.001;
     renderer.otherPetsByNick.forEach((p) => {
       owMpSyncTickTamedFollowers(renderer, p, dt);
+      owMpSyncTickRemoteFishing(renderer, p, t);
       const tx = p.userData.targetX ?? p.position.x;
       const tz = p.userData.targetZ ?? p.position.z;
       const rot = p.userData.targetRotY ?? p.rotation.y;
       if (p.userData._owRaceCar) {
         const car = p.userData._owRaceCar;
-        car.position.x += (tx - car.position.x) * 0.18;
-        car.position.z += (tz - car.position.z) * 0.18;
+        const cd = Math.hypot(tx - car.position.x, tz - car.position.z);
+        const cl = cd > 12 ? 1 : Math.min(0.55, 0.22 + cd * 0.1);
+        car.position.x += (tx - car.position.x) * cl;
+        car.position.z += (tz - car.position.z) * cl;
         car.rotation.y = rot;
         return;
       }
       if (p.userData._owMountMesh && p.parent === p.userData._owMountMesh) {
         const mm = p.userData._owMountMesh;
-        mm.position.x += (tx - mm.position.x) * 0.18;
-        mm.position.z += (tz - mm.position.z) * 0.18;
+        const md = Math.hypot(tx - mm.position.x, tz - mm.position.z);
+        const ml = md > 12 ? 1 : Math.min(0.55, 0.22 + md * 0.1);
+        mm.position.x += (tx - mm.position.x) * ml;
+        mm.position.z += (tz - mm.position.z) * ml;
         mm.rotation.y = rot;
       }
     });
@@ -325,6 +551,7 @@
   function owMpSyncCleanupRemote(renderer, nick) {
     const p = renderer.otherPetsByNick.get(nick);
     if (!p) return;
+    owMpSyncClearFishingOnActor(renderer, p);
     if (p.userData._owMountMesh) {
       renderer.scene.remove(p.userData._owMountMesh);
       renderer._disposeTree(p.userData._owMountMesh);
@@ -406,14 +633,14 @@
     if (__owWorldStateUnsub) { try { __owWorldStateUnsub(); } catch (e) {} }
     if (!global.owEventsCol) return;
     __owWorldStateUnsub = global.owEventsCol.doc(OW_WORLD_STATE_DOC).onSnapshot(doc => {
-      global.S.ow.worldStateSync = doc.exists ? doc.data() : null;
+      if (global.S?.ow) global.S.ow.worldStateSync = doc.exists ? doc.data() : null;
       owMpSyncApplyWorldState();
     });
   }
 
   function owMpSyncLeaveCleanup() {
     if (__owWorldStateUnsub) { try { __owWorldStateUnsub(); } catch (e) {} __owWorldStateUnsub = null; }
-    global.S.ow.worldStateSync = null;
+    if (global.S?.ow) global.S.ow.worldStateSync = null;
   }
 
   /* ── 공유 몹 스폰 헬퍼 ── */
@@ -428,6 +655,7 @@
     publishCombatAnim: owMpSyncPublishCombatAnim,
     applyRemotePlayer: owMpSyncApplyRemotePlayer,
     tickRemotePlayers: owMpSyncTickRemotePlayers,
+    tickLocalFishing: owMpSyncTickLocalFishing,
     cleanupRemote: owMpSyncCleanupRemote,
     subscribeWorldState: owMpSyncSubscribeWorldState,
     leaveCleanup: owMpSyncLeaveCleanup,

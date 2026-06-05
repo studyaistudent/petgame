@@ -286,6 +286,15 @@
     doc = unalias(doc, m.alias);
     /* Supabase 컬럼명(snake) 폴백 — 예전 데이터 호환 */
     if (table === 'lm_pets') {
+      /* cardSkins / titles / gachaHistory 등은 data JSON overflow — 최상위로 펼침 */
+      if (doc.data && typeof doc.data === 'object' && !Array.isArray(doc.data)) {
+        const blob = doc.data;
+        delete doc.data;
+        for (const [bk, bv] of Object.entries(blob)) {
+          if (bv === null || bv === undefined) continue;
+          if (doc[bk] === undefined) doc[bk] = bv;
+        }
+      }
       if (!doc.petEmoji && doc.pet_emoji) doc.petEmoji = doc.pet_emoji;
       if (!doc.petName && doc.pet_name) doc.petName = doc.pet_name;
       if (!doc.petDesc && doc.pet_desc) doc.petDesc = doc.pet_desc;
@@ -647,6 +656,7 @@
         if (defCol) q = q.order(defCol, { ascending: false, nullsFirst: false });
       }
       if (this._limitN) q = q.limit(this._limitN);
+      else if (this._table === 'lm_openworld_players') q = q.limit(64);
       const { data, error } = await q;
       if (error) throw error;
       let rows = data || [];
@@ -669,17 +679,51 @@
     }
 
     onSnapshot(cb, errCb) {
-      const run = async () => {
+      const table = this._table;
+      const debounceMs =
+        table === 'lm_openworld_players' ? 400
+        : table === 'lm_mafia_rooms' ? 250
+        : 0;
+      let inflight = false;
+      let queued = false;
+      let timer = null;
+      let failDelay = 0;
+
+      const exec = async () => {
+        if (inflight) {
+          queued = true;
+          return;
+        }
+        inflight = true;
         try {
           const rows = await this._fetchRows();
+          failDelay = 0;
           cb(new QuerySnapshot(this._db, this._table, rows));
         } catch (e) {
           if (errCb) errCb(e);
-          console.error('[supabase]', this._table, e);
+          if (failDelay === 0) console.error('[supabase]', table, e);
+          failDelay = Math.min(12000, Math.max(800, (failDelay || 400) * 2));
+        } finally {
+          inflight = false;
+          if (queued) {
+            queued = false;
+            schedule();
+          } else if (failDelay) {
+            clearTimeout(timer);
+            timer = setTimeout(exec, failDelay);
+          }
         }
       };
-      run();
-      return subscribeRealtime(this._db._client, this._table, null, run);
+
+      const schedule = () => {
+        clearTimeout(timer);
+        const wait = debounceMs || failDelay;
+        if (wait > 0) timer = setTimeout(exec, wait);
+        else exec();
+      };
+
+      schedule();
+      return subscribeRealtime(this._db._client, this._table, null, schedule);
     }
   }
 
@@ -763,6 +807,19 @@
       row = sanitizeRow(row);
       if (!Object.keys(row).length) return;
 
+      if (row.extra && typeof row.extra === 'object') {
+        const cur = await this.get();
+        if (cur.exists && cur._row?.extra && typeof cur._row.extra === 'object') {
+          row.extra = { ...cur._row.extra, ...row.extra };
+        }
+      }
+      if (row.data && typeof row.data === 'object') {
+        const cur = await this.get();
+        if (cur.exists && cur._row?.data && typeof cur._row.data === 'object') {
+          row.data = { ...cur._row.data, ...row.data };
+        }
+      }
+
       const { error } = await this._db._client.from(this._table).update(row).eq(m.pk, this.id);
       if (error) {
         console.error('[supabase] update failed', this._table, this.id, row, error);
@@ -778,17 +835,46 @@
 
     onSnapshot(cb, errCb) {
       const m = meta(this._table);
-      const run = async () => {
+      let inflight = false;
+      let queued = false;
+      let timer = null;
+      let failDelay = 0;
+      const debounceMs = this._table === 'lm_openworld_players' ? 200 : 0;
+
+      const exec = async () => {
+        if (inflight) {
+          queued = true;
+          return;
+        }
+        inflight = true;
         try {
           cb(await this.get());
+          failDelay = 0;
         } catch (e) {
           if (errCb) errCb(e);
-          console.error('[supabase doc]', this._table, this.id, e);
+          failDelay = Math.min(12000, Math.max(800, (failDelay || 400) * 2));
+        } finally {
+          inflight = false;
+          if (queued) {
+            queued = false;
+            schedule();
+          } else if (failDelay) {
+            clearTimeout(timer);
+            timer = setTimeout(exec, failDelay);
+          }
         }
       };
-      run();
+
+      const schedule = () => {
+        clearTimeout(timer);
+        const wait = debounceMs || failDelay;
+        if (wait > 0) timer = setTimeout(exec, wait);
+        else exec();
+      };
+
+      schedule();
       const filter = `${m.pk}=eq.${this.id}`;
-      return subscribeRealtime(this._db._client, this._table, filter, run);
+      return subscribeRealtime(this._db._client, this._table, filter, schedule);
     }
   }
 
@@ -926,5 +1012,5 @@
     return ref.update(patch);
   };
 
-  global.__lmShimVersion = '7';
+  global.__lmShimVersion = '10';
 })(typeof window !== 'undefined' ? window : globalThis);
