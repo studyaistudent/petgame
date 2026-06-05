@@ -1064,6 +1064,25 @@ body.ow-mode .ow-modal-card{
   box-shadow:0 2px 8px rgba(255,140,0,.35);
 }
 .ow-shop-item button:disabled{opacity:.4;cursor:not-allowed;background:#555;}
+.ow-shop-weapon-info{
+  margin:14px 0 10px;padding:10px 12px;border-radius:11px;
+  background:linear-gradient(135deg,rgba(255,87,34,.18),rgba(255,23,68,.12));
+  border:1px solid rgba(255,87,34,.4);
+  font-size:11.5px;color:#FFCCBC;line-height:1.6;
+}
+.ow-shop-atk-badge{
+  display:inline-flex;align-items:center;gap:3px;
+  background:linear-gradient(135deg,#ff6b35,#ff1744);
+  color:#fff;font-size:10px;font-weight:800;
+  padding:3px 9px;border-radius:20px;
+  box-shadow:0 2px 8px rgba(255,23,68,.35);
+  white-space:nowrap;vertical-align:middle;
+}
+.ow-shop-atk-badge.on{
+  background:linear-gradient(135deg,#43a047,#2e7d32);
+  box-shadow:0 2px 8px rgba(67,160,71,.4);
+}
+.ow-shop-item.ow-shop-weapon{border-color:rgba(255,87,34,.22);}
 .ow-mat-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;}
 .ow-mat{
   background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);
@@ -4032,12 +4051,13 @@ body.ow-mode{ overscroll-behavior:none; overflow:hidden; }
 <script src="vendor/GLTFLoader.js?v=1"></script>
 <script src="vendor/FBXLoader.js"></script>
 <script src="lm-fbx-texture-manifest.js?v=3"></script>
-<script src="lm-glb-catalog.js?v=77"></script>
-<script src="lm-ow-glb.js?v=11"></script>
-<script src="lm-ow-avatar.js?v=8"></script>
-<script src="lm-glb-runtime.js?v=108"></script>
+<script src="lm-glb-catalog.js?v=80"></script>
+<script src="lm-ow-glb.js?v=13"></script>
+<script src="lm-golem-manifest.js?v=3"></script>
+<script src="lm-ow-avatar.js?v=12"></script>
+<script src="lm-glb-runtime.js?v=112"></script>
 <script src="vendor/supabase.js"></script>
-<script src="supabase-firestore-shim.js?v=6"></script>
+<script src="supabase-firestore-shim.js?v=7"></script>
 <script>
 (function bootCheck(){
   const msgs=[];
@@ -4055,7 +4075,7 @@ body.ow-mode{ overscroll-behavior:none; overflow:hidden; }
   const html='<div style="padding:24px;max-width:560px;font-family:Malgun Gothic,sans-serif;line-height:1.6">'+
     '<h2 style="margin:0 0 12px">⚠️ 게임 로드 오류</h2><ul style="margin:0 0 16px;padding-left:20px">'+
     msgs.map(m=>'<li>'+m+'</li>').join('')+'</ul>'+
-    '<p style="margin:0;font-size:14px;color:#555">① GitHub에 <code>supabase-firestore-shim.js?v=6</code> 최신 업로드<br>② F12 콘솔에 <code>__lmShimVersion</code> → <b>"6"</b> 인지 확인<br>③ <b>Ctrl+Shift+R</b> 강력 새로고침</p></div>';
+    '<p style="margin:0;font-size:14px;color:#555">① GitHub에 <code>supabase-firestore-shim.js?v=7</code> 최신 업로드<br>② F12 콘솔에 <code>__lmShimVersion</code> → <b>"7"</b> 인지 확인<br>③ <b>Ctrl+Shift+R</b> 강력 새로고침</p></div>';
   function show(){const el=document.getElementById('app');if(el)el.innerHTML=html;}
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',show);
   else show();
@@ -5920,6 +5940,8 @@ window.lmGetAuthHeaders=function(){
     const n=document.getElementById("nickI"),p=document.getElementById("pinI");
     if(n&&n.value.trim()){nick=n.value.trim();pin=p?String(p.value||"").trim():"";}
   }
+  if(!nick&&S.myEntry?.nick){nick=String(S.myEntry.nick).trim();pin=String(S.myEntry.pin||S.pin||"").trim();}
+  else if(!nick&&S.nick){nick=String(S.nick).trim();pin=String(S.pin||"").trim();}
   if(!nick)return{};
   const nb=lmB64Utf8(nick),pb=lmB64Utf8(pin);
   const h={};
@@ -6534,7 +6556,9 @@ if(S.qIdx<QS.length-1){S.qIdx++;render();}
       nick:S.nick.trim(), pin:S.pin.trim(), gender:S.gender,mbti,
       time:new Date().toLocaleString("ko-KR",{month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"}),
     };
-S.myEntry=entry; S.screen="result"; render(); addMBTI(entry);
+S.myEntry=entry; S.screen="result"; render();
+    lmgSetItem("lmg_user",JSON.stringify(entry));
+    addMBTI(entry);
     attachGiftsListener(); /* ★ 선물함 리스너 부착 */
     initOrLoadPet(entry.nick, entry.gender, entry.mbti, S.myBalEntry?.answers);
   }
@@ -8703,13 +8727,14 @@ const cooldownEnd=cooldownStart+DUNGEON_COOLDOWN_MS;
     alert(`⏳ 던전 쿨타임 중!\n10번 모두 사용해서 발동된 쿨타임이에요.\n${Math.ceil(rem/60000)}분 ${Math.ceil((rem%60000)/1000)}초 후 다시 입장 가능합니다.`);
 return;
   }
+  const floor=DUNGEON_FLOORS[floorIdx];
+  if(!floor){ alert('던전 정보를 찾을 수 없어요.'); return; }
   /* ★ 해당 층 이미 클리어했는지 체크 */
   const kills=myPet.dungeonKills||{};
   const floorNum=floorIdx+1;
 if(kills[floorNum]){
     if(!confirm(`${floor.emoji} ${floorNum}층은 이번 라운드에 이미 클리어했어요!\n\n🏆 클리어 현황: ${DUNGEON_ALL_FLOORS.map(f=>`${f}층 ${kills[f]?'✅':'❌'}`).join(' ')}\n\n다시 입장하겠습니까? (기록에는 반영되지 않아요)`))return;
 }
-  const floor=DUNGEON_FLOORS[floorIdx];
   const mob={...floor.mobs[mobIdx]};
   /* ★ 장착 아이템 포함 스탯 */
   const scaled=getEquippedStats(myPet);
@@ -16916,7 +16941,7 @@ function rResult(){
       <div style="margin:8px 0">${renderPetCharacter(myPet,{size:'medium'})}</div>
       <div style="font-size:17px;font-weight:700;color:var(--rose2)">${esc(myPet.petName)}</div>
       <div style="font-size:12px;color:var(--text3);margin-top:4px">${esc(myPet.petDesc||'')}</div>
-      <div style="font-size:11px;color:var(--gold);margin-top:8px;font-weight:600">💰 신규 보너스 1,000,000P 지급 완료!</div>
+      <div style="font-size:11px;color:var(--gold);margin-top:8px;font-weight:600">💰 신규 보너스 100,000P 지급 완료!</div>
     </div>`:`<div class="card" style="margin-bottom:12px;text-align:center;padding:1.2rem">
       <div style="font-size:40px;margin-bottom:8px">🥚</div>
       <p style="font-size:13px;color:var(--text2)">러브몬 펫 생성 중...</p>
@@ -17422,7 +17447,7 @@ function rLovemonTab(){
     return `<div class="card" style="text-align:center;padding:2rem;margin-bottom:10px">
       <div style="font-size:56px;margin-bottom:12px" class="float">🥚</div>
       <p style="font-size:17px;font-weight:700;color:var(--text1);margin-bottom:8px">아직 러브몬이 없어요!</p>
-      <p style="font-size:13px;color:var(--text3);line-height:1.7;margin-bottom:16px">MBTI 검사를 완료하면<br>나만의 러브몬이 탄생해요 🐾<br><span style="color:var(--gold);font-size:12px">신규 가입 보너스 💰 1,000,000P 지급! ✨</span></p>
+      <p style="font-size:13px;color:var(--text3);line-height:1.7;margin-bottom:16px">MBTI 검사를 완료하면<br>나만의 러브몬이 탄생해요 🐾<br><span style="color:var(--gold);font-size:12px">신규 가입 보너스 💰 100,000P 지급! ✨</span></p>
       <button class="btn btn-primary" style="padding:12px 28px;font-size:14px" data-a="goHome">🧠 MBTI 검사 시작하기</button>
     </div>`;
   }
@@ -23254,8 +23279,8 @@ const OW_SYNC_MS = 250;
 const OW_ROD_COST = 50000;
 const OW_BAIT_COST = 500;
 const OW_WEAPON_SHOP = {
-  blue: { glbId:'prop_sword_blue_m', label:'블루 검', gender:'남성', cost:42000, emoji:'⚔️' },
-  pink: { glbId:'prop_sword_pink_f', label:'핑크 검', gender:'여성', cost:42000, emoji:'🗡️' }
+  blue: { glbId:'prop_sword_blue_m', label:'블루 검', gender:'남성', cost:42000, emoji:'⚔️', atkBonus:30 },
+  pink: { glbId:'prop_sword_pink_f', label:'핑크 검', gender:'여성', cost:42000, emoji:'🗡️', atkBonus:30 }
 };
 const OW_FISH_WAIT_MIN = 2500;
 const OW_FISH_WAIT_MAX = 6500;
@@ -24916,10 +24941,13 @@ upsertOtherPet(nick, data){
     });
     if(box.isEmpty()) return 1;
     let h = box.max.y - box.min.y;
-    if(h > 50) h *= 0.01;
-    else if(h > 2.5) h *= 0.01;
+    if(!isFinite(h) || h <= 0) return 1;
+    /* Meshy dragon/golem 등 — 원본 단위가 매우 클 때 반복 축소 후 목표 키에 맞춤 */
+    let guard = 0;
+    while(h > 30 && guard++ < 12) h *= 0.1;
     const th = targetH > 0 ? targetH : OW_BOSS_GLB_HEIGHT;
-    const sy = Math.max(0.02, Math.min(6, th / Math.max(h, 0.05)));
+    let sy = th / Math.max(h, 1e-5);
+    sy = Math.max(1e-5, Math.min(sy, 40));
     model.scale.setScalar(sy);
     model.updateMatrixWorld(true);
     const box2 = new THREE.Box3();
@@ -24932,6 +24960,108 @@ upsertOtherPet(nick, data){
     model.traverse(o=>{ if(o.isMesh||o.isSkinnedMesh){ o.castShadow=true; o.frustumCulled=false; } });
     return sy;
   }
+  _snapOwGlbGroupToGround(g){
+    if(!g) return;
+    const model = g.userData.glbModel;
+    g.position.y = 0;
+    if(!model) return;
+    model.updateMatrixWorld(true);
+    const box = new THREE.Box3();
+    model.traverse((o)=>{
+      if(!o.isMesh && !o.isSkinnedMesh) return;
+      try{ box.expandByObject(o, true); }catch(e){ box.expandByObject(o); }
+    });
+    if(!box.isEmpty()) model.position.y = -box.min.y;
+    model.updateMatrixWorld(true);
+  }
+  _tintGolemModel(model, colorHex){
+    if(!model || colorHex == null) return;
+    const tint = new THREE.Color(colorHex);
+    model.traverse((o)=>{
+      if((!o.isMesh && !o.isSkinnedMesh) || !o.material) return;
+      const mats = Array.isArray(o.material) ? o.material : [o.material];
+      mats.forEach((m)=>{
+        if(!m) return;
+        m.color.copy(tint);
+        if(!m.emissive) m.emissive = new THREE.Color();
+        m.emissive.copy(tint).multiplyScalar(0.14);
+        m.needsUpdate = true;
+      });
+    });
+  }
+  _applyGolemGlbToGroup(g, gltf, targetH, tintColor, scaleMul){
+    while(g.children.length) g.remove(g.children[0]);
+    const model = gltf.scene;
+    model.name = 'ow_golem_glb';
+    this._fitOwGlbModel(model, targetH);
+    if(window.LMGlb && LMGlb.polishOwGlbModel) LMGlb.polishOwGlbModel(model);
+    this._tintGolemModel(model, tintColor);
+    g.add(model);
+    g.userData.glbModel = model;
+    g.userData.owGlbFeetOnGround = true;
+    g.scale.setScalar(scaleMul != null ? scaleMul : 1);
+    this._snapOwGlbGroupToGround(g);
+    return model;
+  }
+  _setGolemAnimState(holder, animKey, holdMs, returnAnim){
+    if(!holder) return;
+    holder.golemAnim = animKey;
+    holder.golemLoading = null;
+    if(holdMs > 0){
+      holder.golemAnimUntil = Date.now() + holdMs;
+      holder.golemReturnAnim = returnAnim;
+    } else {
+      holder.golemAnimUntil = 0;
+    }
+  }
+  _loadGolemAnim(holder, animKey, holdMs, opts){
+    const manifest = window.OW_GOLEM_MANIFEST;
+    if(!holder || !holder.group || !manifest || !manifest.urls[animKey] || !window.LMOwGlb || !LMOwGlb.loadGlb) return false;
+    opts = opts || {};
+    const g = holder.group;
+    const url = manifest.urls[animKey];
+    const targetH = opts.targetH != null ? opts.targetH
+      : (holder.def && holder.def.glbHeight != null ? holder.def.glbHeight
+      : (holder.cfg && holder.cfg.glbHeight != null ? holder.cfg.glbHeight : OW_GOLEM_BOSS_HEIGHT));
+    const tint = opts.tintColor != null ? opts.tintColor
+      : (holder.def && holder.def.color != null ? holder.def.color
+      : (holder.cfg && holder.cfg.color != null ? holder.cfg.color : manifest.bossTints.default));
+    const scaleMul = opts.scaleMul != null ? opts.scaleMul : (holder.scale != null ? holder.scale : 1);
+    holder.golemLoading = animKey;
+    LMOwGlb.loadGlb(url).then((gltf)=>{
+      if(!holder.group || holder.golemLoading !== animKey) return;
+      this._applyGolemGlbToGroup(g, gltf, targetH, tint, scaleMul);
+      const ret = opts.returnAnim != null ? opts.returnAnim
+        : (holder.dead ? null : this._golemMoveAnim(holder));
+      this._setGolemAnimState(holder, animKey, holdMs, ret);
+    }).catch((err)=>{
+      holder.golemLoading = null;
+      console.warn('[OW] Golem GLB 로드 실패:', url, err);
+    });
+    return true;
+  }
+  _isGolemWorldBoss(holder){
+    return !!(holder && (holder.cfg || holder.leviathanBoss || (holder.golemMob && holder.tier==='boss')));
+  }
+  _golemMoveAnim(holder){
+    const m = window.OW_GOLEM_MANIFEST;
+    if(this._isGolemWorldBoss(holder)) return (m && m.bossMoveAnim) || 'walk';
+    return (holder && (holder.state==='chase'||holder.state==='attack'||holder.state==='retreat')) ? 'run' : 'walk';
+  }
+  _pickGolemAttackAnim(holder, pat){
+    const m = window.OW_GOLEM_MANIFEST;
+    if(!m) return 'attack';
+    if(this._isGolemWorldBoss(holder)) return m.pickBossAttack ? m.pickBossAttack() : 'skill01';
+    return m.pickAttack ? m.pickAttack(pat) : 'attack';
+  }
+  _loadGolemMobAnim(mob, animKey, holdMs){
+    return this._loadGolemAnim(mob, animKey, holdMs);
+  }
+  _loadGolemBossAnim(boss, animKey, holdMs){
+    const m = window.OW_GOLEM_MANIFEST;
+    const ret = boss.dead ? null : ((m && m.bossMoveAnim) || 'walk');
+    return this._loadGolemAnim(boss, animKey, holdMs, { returnAnim: ret });
+  }
   _loadGlbIntoGroup(g, url, targetH, onFail){
     if(!url || !window.LMOwGlb || !LMOwGlb.loadGlb) return false;
     LMOwGlb.loadGlb(url).then(gltf=>{
@@ -24943,8 +25073,8 @@ upsertOtherPet(nick, data){
       g.add(model);
       g.userData.glbModel = model;
       g.scale.set(1,1,1);
-      if(g.userData.owGlbFeetOnGround && g.userData.owMobSpawnState !== 'spawn'){
-        g.position.y = 0;
+      if(g.userData.owGlbFeetOnGround){
+        this._snapOwGlbGroupToGround(g);
       }
     }).catch(err=>{
       console.warn('[OW] GLB 로드 실패:', url, err);
@@ -24976,12 +25106,18 @@ upsertOtherPet(nick, data){
         for(const s of [-1,1]){ const horn=new THREE.Mesh(new THREE.ConeGeometry(0.13,0.5,6),dark); horn.position.set(s*0.32,1.28,0); horn.rotation.z=s*0.3; g.add(horn); }
       }
     };
-    const glbUrl = def.glb || (def.leviathanBoss ? OW_LEVIATHAN_GLB : null);
-    const useGlb = !!glbUrl;
+    const useGolem = !!(def.golemPack || def.leviathanBoss);
+    const glbUrl = useGolem ? null : (def.glb || null);
+    const useGlb = !!glbUrl || useGolem;
     const glbH = def.glbHeight != null ? def.glbHeight : (useGlb ? OW_BOSS_GLB_HEIGHT : (tier==='boss' ? 3.4 : 1.6));
     const mobScale = useGlb ? 1 : scale;
     g.userData.owMobSpawnState = 'spawn';
-    if(!useGlb || !this._loadGlbIntoGroup(g, glbUrl, glbH, addProcBody)) addProcBody();
+    if(useGolem){
+      g.userData.owGlbFeetOnGround = true;
+      g.userData.golemMob = true;
+    } else if(!useGlb || !this._loadGlbIntoGroup(g, glbUrl, glbH, addProcBody)){
+      addProcBody();
+    }
     g.scale.setScalar(mobScale);
     const hp=this.human.position, a=Math.random()*Math.PI*2, r=11+Math.random()*9;
     const mx=hp.x+Math.cos(a)*r, mz=hp.z+Math.sin(a)*r;
@@ -24989,11 +25125,13 @@ upsertOtherPet(nick, data){
     this.scene.add(g);
     const id='mob_'+(this._mobSeq=(this._mobSeq||0)+1);
     const mob={ id, group:g, def, tier, color, hp:def.hp, maxHp:def.hp, atk:def.atk,
-      sight:def.sight||12, speed:def.speed||0.045, scale:mobScale, usesGlb:useGlb, state:'spawn', spawnStart:Date.now(),
+      sight:def.sight||12, speed:def.speed||0.045, scale:mobScale, usesGlb:useGlb, golemMob:useGolem,
+      leviathanBoss:!!def.leviathanBoss, state:'spawn', spawnStart:Date.now(),
       homeX:mx, homeZ:mz, patrolTarget:null, idleUntil:0, atkCd:Date.now()+800, hitUntil:0,
       walkPhase:0, dead:false, deadT:0, telegraph:null,
       spawnRing:this._mkRing(mx,mz,color,1.2,0.85) };
     this.mobs.push(mob);
+    if(useGolem) this._loadGolemMobAnim(mob, 'walk', 0);
     return mob;
   }
   _mkRing(x,z,color,radius,opacity){
@@ -25010,7 +25148,8 @@ upsertOtherPet(nick, data){
     const i=this.mobs.indexOf(mob); if(i>=0) this.mobs.splice(i,1);
   }
   removeAllMobs(){
-    (this.mobs||[]).slice().forEach(m=>this.removeMob(m)); this.mobs=[];
+    (this.mobs||[]).slice().forEach(m=>{ if(m) this.removeMob(m); });
+    this.mobs=[];
     (this._projectiles||[]).forEach(p=>this.scene.remove(p.mesh)); this._projectiles=[];
     (this._pProj||[]).forEach(p=>this.scene.remove(p.mesh)); this._pProj=[];
     (this._bursts||[]).forEach(b=>this.scene.remove(b.mesh)); this._bursts=[];
@@ -25018,7 +25157,13 @@ upsertOtherPet(nick, data){
     const layer=document.getElementById('ow-mob-layer'); if(layer) layer.innerHTML='';
     this._nextWaveAt=0;
   }
-  mobHit(mob){ mob.hitUntil=Date.now()+150; }
+  mobHit(mob){
+    mob.hitUntil=Date.now()+150;
+    if(mob.golemMob && !mob.dead && !this._isGolemWorldBoss(mob)){
+      const hold = (window.OW_GOLEM_MANIFEST && OW_GOLEM_MANIFEST.animHoldMs && OW_GOLEM_MANIFEST.animHoldMs.hit) || 520;
+      this._loadGolemMobAnim(mob, 'hit', hold);
+    }
+  }
   spawnMobDmg(mob, value, crit){
     const c=document.createElement('canvas'); c.width=200;c.height=100; const ctx=c.getContext('2d');
     ctx.font='bold 64px sans-serif'; ctx.textAlign='center';ctx.textBaseline='middle';ctx.lineWidth=8;ctx.strokeStyle='rgba(0,0,0,.7)';
@@ -25081,7 +25226,7 @@ upsertOtherPet(nick, data){
     if(this._mobDmg) for(let i=this._mobDmg.length-1;i>=0;i--){ const d=this._mobDmg[i],age=now-d.born; d.sprite.position.y+=0.045; d.sprite.material.opacity=Math.max(0,1-age/800); if(age>800){ this.scene.remove(d.sprite); d.sprite.material.map&&d.sprite.material.map.dispose(); d.sprite.material.dispose(); this._mobDmg.splice(i,1);} }
     if(this._bursts) for(let i=this._bursts.length-1;i>=0;i--){ const b=this._bursts[i],age=now-b.born; b.mesh.scale.setScalar(1+age/110); b.mesh.material.opacity=Math.max(0,0.75-age/400); if(age>400){ this.scene.remove(b.mesh); this._bursts.splice(i,1);} }
     if(this._projectiles) for(let i=this._projectiles.length-1;i>=0;i--){ const pr=this._projectiles[i]; pr.mesh.position.x+=pr.vx; pr.mesh.position.z+=pr.vz; const p=this.human.position; if(Math.hypot(pr.mesh.position.x-p.x,pr.mesh.position.z-p.z)<1.0){ typeof owCombatPlayerHit==='function'&&owCombatPlayerHit(pr.dmg,pr.mob); this.scene.remove(pr.mesh); this._projectiles.splice(i,1); continue;} if(now-pr.born>3200){ this.scene.remove(pr.mesh); this._projectiles.splice(i,1);} }
-    if(this._pProj) for(let i=this._pProj.length-1;i>=0;i--){ const pr=this._pProj[i]; pr.mesh.position.x+=pr.vx; pr.mesh.position.z+=pr.vz; let hit=false; (this.mobs||[]).forEach(m=>{ if(m.dead||m.state==='spawn'||hit)return; if(Math.hypot(pr.mesh.position.x-m.group.position.x,pr.mesh.position.z-m.group.position.z)<1.1){ typeof owCombatDamageMob==='function'&&owCombatDamageMob(m,pr.dmg,{crit:true,knock:0.8}); hit=true; } }); if(hit||now-pr.born>2600){ this.scene.remove(pr.mesh); this._pProj.splice(i,1);} }
+    if(this._pProj) for(let i=this._pProj.length-1;i>=0;i--){ const pr=this._pProj[i]; pr.mesh.position.x+=pr.vx; pr.mesh.position.z+=pr.vz; let hit=false; (this.mobs||[]).forEach(m=>{ if(!m||!m.group||m.dead||m.state==='spawn'||hit)return; if(Math.hypot(pr.mesh.position.x-m.group.position.x,pr.mesh.position.z-m.group.position.z)<1.1){ typeof owCombatDamageMob==='function'&&owCombatDamageMob(m,pr.dmg,{crit:true,knock:0.8}); hit=true; } }); if(hit||now-pr.born>2600){ this.scene.remove(pr.mesh); this._pProj.splice(i,1);} }
   }
   _mobAI(mob, dist, dx, dz, now){
     const g=mob.group;
@@ -25115,14 +25260,24 @@ upsertOtherPet(nick, data){
     const patterns = mob.def.patterns||[];
     let pat='melee';
     if(patterns.length && Math.random()<0.65) pat = patterns[Math.floor(Math.random()*patterns.length)];
+    if(mob.golemMob && window.OW_GOLEM_MANIFEST){
+      const ak = this._pickGolemAttackAnim(mob, pat);
+      const hold = (OW_GOLEM_MANIFEST.animHoldMs && OW_GOLEM_MANIFEST.animHoldMs[ak]) || 900;
+      this._loadGolemMobAnim(mob, ak, hold);
+    }
     const p=this.human.position;
-    if(pat==='slam'){ this._startTelegraph(mob,'circle',p.x,p.z, mob.tier==='boss'?4:3, 620, mob.atk*(mob.tier==='boss'?1.75:1.4)); mob.group.position.y=0.6; }
+    if(pat==='slam'){ this._startTelegraph(mob,'circle',p.x,p.z, mob.tier==='boss'?4:3, 620, mob.atk*(mob.tier==='boss'?1.75:1.4)); if(!mob.golemMob) mob.group.position.y=0.6; }
     else if(pat==='charge'){ this._startTelegraph(mob,'line',mob.group.position.x,mob.group.position.z,6,700,mob.atk*(mob.tier==='boss'?1.55:1.2)); }
     else if(pat==='projectile'){ this._spawnMobProjectile(mob); }
     else { this._slashFx(this.human.position,mob.color); if(dist<2.5 && typeof owCombatPlayerHit==='function') owCombatPlayerHit(mob.atk, mob); }
   }
+  _pruneMobs(){
+    if(!this.mobs || !this.mobs.length) return;
+    this.mobs = this.mobs.filter((m)=> m && m.group);
+  }
   _tickMobs(t, dt){
     const now=Date.now();
+    this._pruneMobs();
     this._tickMobFx(now);
     if(!this.mobs || !this.mobs.length){
       this._updateMobPlates();
@@ -25132,14 +25287,22 @@ upsertOtherPet(nick, data){
     this._lodFrame=(this._lodFrame||0)+1;
     const hpPos=this.human.position;
     for(let i=this.mobs.length-1;i>=0;i--){
-      const mob=this.mobs[i], g=mob.group;
+      const mob=this.mobs[i];
+      if(!mob || !mob.group){ this.mobs.splice(i,1); continue; }
+      const g=mob.group;
       const dx=hpPos.x-g.position.x, dz=hpPos.z-g.position.z, dist=Math.hypot(dx,dz);
       if(mob.state==='spawn'){
         const k=Math.min(1,(now-mob.spawnStart)/700);
         g.position.y=-1.6+k*1.6;
-        if(k>=1){ mob.state='patrol'; g.position.y=0; g.userData.owMobSpawnState='ground'; }
+        if(k>=1){ mob.state='patrol'; g.position.y=0; g.userData.owMobSpawnState='ground'; if(mob.golemMob) this._snapOwGlbGroupToGround(g); }
       } else if(mob.dead){
-        mob.deadT++; g.rotation.y+=0.3; g.position.y-=0.06;
+        if(mob.golemMob && !mob.golemDeadSet){
+          mob.golemDeadSet=true;
+          const deadKey = (window.OW_GOLEM_MANIFEST && OW_GOLEM_MANIFEST.bossDeadAnim) || 'dead';
+          this._loadGolemMobAnim(mob, this._isGolemWorldBoss(mob) ? deadKey : 'dead', 0);
+        }
+        mob.deadT++; g.rotation.y+=0.3;
+        if(!mob.golemMob) g.position.y-=0.06;
         const baseSc = mob.usesGlb ? 1 : mob.scale;
         g.scale.setScalar(Math.max(0.01, baseSc*(1-mob.deadT/18)));
         if(mob.deadT>=18){ if(typeof owCombatGrantDrop==='function') owCombatGrantDrop(mob); this.removeMob(mob); continue; }
@@ -25147,7 +25310,22 @@ upsertOtherPet(nick, data){
         const far=dist>40;
         if(!(far && (this._lodFrame%3))) this._mobAI(mob, dist, dx, dz, now);
         mob.walkPhase += (mob.state==='chase'||mob.state==='patrol'||mob.state==='retreat')?0.25:0.06;
-        g.position.y = Math.abs(Math.sin(mob.walkPhase))*0.12;
+        if(mob.golemMob){
+          if(mob.golemAnimUntil && now > mob.golemAnimUntil){
+            mob.golemAnimUntil = 0;
+            const ret = mob.golemReturnAnim || this._golemMoveAnim(mob);
+            if(mob.golemAnim !== ret && !mob.golemLoading) this._loadGolemMobAnim(mob, ret, 0);
+          } else if(!mob.golemAnimUntil && !mob.golemLoading){
+            const want = this._golemMoveAnim(mob);
+            const busyRe = this._isGolemWorldBoss(mob) ? /^(skill|combo)/ : /^(attack|skill|combo)/;
+            if(mob.golemAnim !== want && mob.golemAnim !== 'hit' && !String(mob.golemAnim||'').match(busyRe))
+              this._loadGolemMobAnim(mob, want, 0);
+          }
+          this._snapOwGlbGroupToGround(g);
+          g.position.y = Math.abs(Math.sin(mob.walkPhase))*0.04;
+        } else {
+          g.position.y = Math.abs(Math.sin(mob.walkPhase))*0.12;
+        }
       }
       const hit=now<mob.hitUntil;
       g.traverse(o=>{ if(o.material&&o.material.emissive) o.material.emissive.setHex(hit?0xff5555:0x000000); });
@@ -25164,6 +25342,7 @@ upsertOtherPet(nick, data){
     const cam=this.camera, rect=this.canvas.getBoundingClientRect();
     const _v=this.__plateV || (this.__plateV=new THREE.Vector3());
     (this.mobs||[]).forEach(mob=>{
+      if(!mob||!mob.group){ return; }
       if(mob.state==='spawn'||mob.dead){ if(mob._plate) mob._plate.style.display='none'; return; }
       _v.set(mob.group.position.x, (mob.tier==='boss'?4.6:mob.tier==='elite'?2.4:1.8), mob.group.position.z);
       _v.project(cam);
@@ -25207,8 +25386,15 @@ upsertOtherPet(nick, data){
     const dual = def && def.coop >= 2 && S.ow.mmo && S.ow.mmo.mountPassengers && S.ow.mmo.mountPassengers.length;
     g.userData.seatY = def && def.seatY != null ? def.seatY : 1.05;
     g.userData.seatForward = def && def.seatZ != null ? def.seatZ : 0.2;
-    if(window.LMOwGlb && id !== 'foot'){
-      LMOwGlb.attachMount(g, id, { dual: dual });
+    if(window.LMOwGlb){
+      const md = LMOwGlb.MOUNT && LMOwGlb.MOUNT[id];
+      if(md && typeof LMOwGlb.applyMountRideMeta === 'function') LMOwGlb.applyMountRideMeta(g, md);
+      else if(md){
+        g.userData.mountAvatarSitDrop = md.avatarSitDrop || 0;
+        g.userData.mountWrapperDrop = md.wrapperDrop || 0;
+        g.userData.mountAvatarSitBase = LMOwGlb.MOUNT_AVATAR_SIT_BASE != null ? LMOwGlb.MOUNT_AVATAR_SIT_BASE : 0.64;
+      }
+      if(id !== 'foot') LMOwGlb.attachMount(g, id, { dual: dual });
     }
     return g;
   }
@@ -25484,8 +25670,9 @@ upsertOtherPet(nick, data){
     const seatZ = mm.userData.seatForward != null ? mm.userData.seatForward : 0.2;
     let seatY = mm.userData.mountSeatY != null ? mm.userData.mountSeatY : (mm.userData.seatY || 1.0);
     if(h.userData.glbMultiClip || h.userData.owUsesOwAvatar){
-      const bh = h.userData.lmBodyHeight || 1.75;
-      seatY = seatY + bh * 0.04;
+      const bh = h.userData.lmBodyHeight || 1.72;
+      const wrapDrop = mm.userData.mountWrapperDrop != null ? mm.userData.mountWrapperDrop : 0;
+      seatY = seatY - bh * 0.22 - wrapDrop;
     }
     mm.userData._lastSeatY = seatY;
     if(this.humanRotY != null){
@@ -25512,6 +25699,9 @@ upsertOtherPet(nick, data){
     }
     h.position.set(0, seatY, seatZ);
     h.rotation.set(0, 0, 0);
+    if(owHumanUsesOwAvatar(h) && window.LMOwAvatar && typeof LMOwAvatar.applyMountSitModelY === 'function'){
+      LMOwAvatar.applyMountSitModelY(h);
+    }
     this._applyRidePose(h, dt);
   }
   _updateCombatHud(){
@@ -25525,48 +25715,24 @@ upsertOtherPet(nick, data){
     setCd('ow-cd-s3',c.cdUntil.s3,totals.s3); setCd('ow-cd-dodge',c.cdUntil.dodge,totals.dodge);
   }
 
-  /* 🐉 보스 — GLB(지퍼리드) 또는 프로시저럴 드래곤 */
+  /* 🐉 월드 보스 — golem GLB + 보스별 색상 틴트 */
   spawnBoss(cfg, atPos){
     this.removeBoss();
-    const color = cfg.color || 0x6622aa;
     const g = new THREE.Group();
-    let wings = [];
-    let head = null;
-    const addProcDragon = ()=>{
-      const bodyMat = new THREE.MeshLambertMaterial({ color });
-      const dark = new THREE.MeshLambertMaterial({ color: new THREE.Color(color).multiplyScalar(0.55) });
-      const body = new THREE.Mesh(new THREE.SphereGeometry(1.6, 16, 16), bodyMat);
-      body.scale.set(1.3, 1.1, 1.85); body.position.y = 2.3; body.castShadow = true; g.add(body);
-      const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.85, 2.3, 10), bodyMat);
-      neck.position.set(0, 3.5, 1.4); neck.rotation.x = -0.5; g.add(neck);
-      head = new THREE.Group();
-      const skull = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.9, 1.5), bodyMat); skull.castShadow = true; head.add(skull);
-      const jaw = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.3, 1.15), dark); jaw.position.set(0, -0.45, 0.12); head.add(jaw);
-      for(const s of [-1,1]){ const eye = new THREE.Mesh(new THREE.SphereGeometry(0.15,10,10), new THREE.MeshBasicMaterial({ color:0xffee44 })); eye.position.set(s*0.33, 0.22, 0.62); head.add(eye); }
-      for(const s of [-1,1]){ const horn = new THREE.Mesh(new THREE.ConeGeometry(0.13,0.75,6), dark); horn.position.set(s*0.32, 0.65, -0.3); horn.rotation.x = -0.6; head.add(horn); }
-      head.position.set(0, 4.7, 2.5); g.add(head);
-      for(const s of [-1,1]){
-        const w = new THREE.Mesh(new THREE.BoxGeometry(2.8, 0.12, 1.7), new THREE.MeshLambertMaterial({ color, transparent:true, opacity:0.9 }));
-        w.position.set(s*2.1, 3.1, -0.1); w.rotation.z = s*0.5; w.rotation.y = s*0.3; g.add(w); wings.push(w);
-      }
-      const tail = new THREE.Mesh(new THREE.ConeGeometry(0.6, 3.4, 8), bodyMat);
-      tail.position.set(0, 2.0, -2.4); tail.rotation.x = 1.4; g.add(tail);
-      for(const sx of [-1,1]) for(const sz of [-1,1]){
-        const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.22, 1.5, 8), dark);
-        leg.position.set(sx*0.95, 0.75, sz*0.95); leg.castShadow = true; g.add(leg);
-      }
-    };
-    const glbUrl = cfg.glb || (cfg.id === 'zipfer' ? OW_ZIPFER_GLB : null);
-    const glbH = cfg.glbHeight != null ? cfg.glbHeight : OW_BOSS_GLB_HEIGHT;
-    if(!glbUrl || !this._loadGlbIntoGroup(g, glbUrl, glbH, addProcDragon)) addProcDragon();
     let bx, bz;
     if(atPos){ bx = atPos.x; bz = atPos.z; }
     else { const hp = this.human.position; const ang = this.human.rotation.y || 0; bx = hp.x + Math.sin(ang)*9; bz = hp.z + Math.cos(ang)*9; }
     g.position.set(bx, 0, bz);
     g.userData.owGlbFeetOnGround = true;
+    g.userData.golemMob = true;
     this.scene.add(g);
-    this._boss = { group:g, cfg, wings, head, baseX:bx, baseZ:bz, nextAtk:Date.now()+2600, lungeUntil:0, hitUntil:0, dmgSprites:[], dead:false, deadScale:1, engaged: !atPos, useGlb: !!glbUrl };
-    /* 카메라가 잠깐 보스를 비추도록 살짝 당김 */
+    this._boss = {
+      group:g, cfg, wings:null, head:null, baseX:bx, baseZ:bz,
+      nextAtk:Date.now()+2600, lungeUntil:0, hitUntil:0, dmgSprites:[],
+      dead:false, deadScale:1, engaged:!atPos, useGlb:true, golemMob:true,
+      golemAnim:null, golemLoading:null, golemAnimUntil:0,
+    };
+    this._loadGolemBossAnim(this._boss, 'walk', 0);
     this._camShakeUntil = Date.now()+250;
   }
   removeBoss(){
@@ -25576,7 +25742,10 @@ upsertOtherPet(nick, data){
     this._boss.group.traverse(o=>{ if(o.geometry&&o.geometry.dispose) o.geometry.dispose(); if(o.material){ const ms=Array.isArray(o.material)?o.material:[o.material]; ms.forEach(m=>m&&m.dispose&&m.dispose()); } });
     this._boss = null;
   }
-  bossHit(){ if(this._boss) this._boss.hitUntil = Date.now()+170; }
+  bossHit(){
+    if(!this._boss) return;
+    this._boss.hitUntil = Date.now()+170;
+  }
   spawnBossDmg(value, crit){
     if(!this._boss) return;
     const c = document.createElement('canvas'); c.width=256; c.height=128;
@@ -25589,7 +25758,8 @@ upsertOtherPet(nick, data){
     const sp=new THREE.Sprite(new THREE.SpriteMaterial({ map:new THREE.CanvasTexture(c), transparent:true, depthTest:false }));
     sp.scale.set(crit?3.4:2.6, crit?1.7:1.3, 1); sp.renderOrder=1000;
     const b=this._boss;
-    sp.position.set(b.baseX+(Math.random()-0.5)*2.2, 4.8, b.baseZ+(Math.random()-0.5)*2.2);
+    const dmgY = (b.cfg && b.cfg.glbHeight) ? b.cfg.glbHeight * 0.92 : OW_GOLEM_BOSS_HEIGHT * 0.92;
+    sp.position.set(b.baseX+(Math.random()-0.5)*2.2, dmgY, b.baseZ+(Math.random()-0.5)*2.2);
     this.scene.add(sp);
     b.dmgSprites.push({ sprite:sp, born:Date.now() });
   }
@@ -25603,16 +25773,35 @@ upsertOtherPet(nick, data){
     b.group.position.x = b.baseX + Math.sin(face)*lunge;
     b.group.position.z = b.baseZ + Math.cos(face)*lunge;
     if(!b.dead){
-      const bob = b.useGlb ? 0.06 : 0.16;
-      b.group.position.y = Math.sin(t*1.5)*bob;
+      if(b.useGlb){
+        this._snapOwGlbGroupToGround(b.group);
+        b.group.position.y = Math.sin(t*1.5)*0.04;
+      } else {
+        b.group.position.y = Math.sin(t*1.5)*0.16;
+      }
     }
     if(b.wings && b.wings.length) b.wings.forEach((w,i)=>{ const s=(i===0?-1:1); w.rotation.z = s*(0.5+Math.sin(t*4)*0.4); });
-    if(b.head) b.head.position.y = 4.7 + Math.sin(t*2)*0.1;
+    if(b.head && !b.useGlb) b.head.position.y = 4.7 + Math.sin(t*2)*0.1;
     const hit = Date.now() < b.hitUntil;
     b.group.traverse(o=>{ if(o.material && o.material.emissive){ o.material.emissive.setHex(hit?0xff3333:0x000000); } });
+    if(b.golemMob && !b.dead){
+      const now = Date.now();
+      if(b.golemAnimUntil && now > b.golemAnimUntil){
+        b.golemAnimUntil = 0;
+        const ret = b.golemReturnAnim || 'walk';
+        if(b.golemAnim !== ret && !b.golemLoading) this._loadGolemBossAnim(b, ret, 0);
+      } else if(!b.golemAnimUntil && !b.golemLoading && b.engaged !== false && b.golemAnim !== 'walk'){
+        if(!String(b.golemAnim||'').match(/^(skill|combo|dead)/)) this._loadGolemBossAnim(b, 'walk', 0);
+      }
+    }
     if(!b.dead && b.engaged !== false && Date.now() > b.nextAtk){
       b.nextAtk = Date.now() + 3200 + Math.random()*1600;
       b.lungeUntil = Date.now()+420;
+      if(b.golemMob && window.OW_GOLEM_MANIFEST){
+        const ak = OW_GOLEM_MANIFEST.pickBossAttack ? OW_GOLEM_MANIFEST.pickBossAttack() : 'skill01';
+        const hold = (OW_GOLEM_MANIFEST.animHoldMs && OW_GOLEM_MANIFEST.animHoldMs[ak]) || 900;
+        this._loadGolemBossAnim(b, ak, hold);
+      }
       this._camShakeUntil = Date.now()+430;
       if(typeof owMmoToast==='function') owMmoToast(`${b.cfg.emoji||'🐉'} ${b.cfg.name}의 포효!`);
       const root=document.getElementById('ow-root'); if(root){ root.classList.add('ow-boss-threat'); setTimeout(()=>{ const r=document.getElementById('ow-root'); if(r) r.classList.remove('ow-boss-threat'); }, 430); }
@@ -26430,6 +26619,9 @@ if(S.ow.isDriver && this.companion){
 
     /* === 탈것 위치(안장) — 카메라보다 먼저 동기화 === */
     if(typeof this._updateMountMesh === 'function') this._updateMountMesh(dt);
+    if(this.human && window.LMGlb && typeof LMGlb.syncOrbitWeapon === 'function'){
+      LMGlb.syncOrbitWeapon(this.human, dt);
+    }
 
     /* === 카메라 === */
     const ridingCam = this._isRidingMount && this._isRidingMount() && !S.ow.inCar;
@@ -26562,9 +26754,6 @@ if(S.ow.isDriver && this.companion){
       this.lamps.forEach(l=>{
         if(l.userData.light) l.userData.light.intensity = lampOn ? 1.4 : 0;
       });
-    }
-    if(this.human && window.LMGlb && typeof LMGlb.syncHandWeaponFollow === 'function'){
-      LMGlb.syncHandWeaponFollow(this.human);
     }
     if(window.LMOwGlb && typeof LMOwGlb.tickMixers === 'function'){
       if(this.companion) LMOwGlb.tickMixers(this.companion);
@@ -28060,6 +28249,13 @@ function owWeaponGlbId(key){
   const w = OW_WEAPON_SHOP[key];
   return w ? w.glbId : null;
 }
+/** 검 착용 시 오픈월드 공격력 보너스 */
+function owWeaponAtkBonus(){
+  const key = S.ow && S.ow.equippedWeapon;
+  if(!key || !S.ow.weapons || !S.ow.weapons[key]) return 0;
+  const spec = OW_WEAPON_SHOP[key];
+  return (spec && spec.atkBonus > 0) ? spec.atkBonus : 30;
+}
 
 function owHumanModelReady(h){
   if(!h || !h.userData) return false;
@@ -28089,11 +28285,11 @@ function owRefreshHandWeapon(){
   }
   const glbId = owWeaponGlbId(key);
   if(!glbId) return;
-  const wNode = human.userData.lmHandWeaponNode;
-  const weaponOk = !!(wNode && wNode.parent && wNode.getObjectByName('lm_hand_weapon_mesh'));
+  const orbit = human.userData.lmOrbitWeapon;
+  const weaponOk = !!(orbit && orbit.parent);
   if(human.userData._lmWeaponAttaching) return;
-  if(human.userData.lmHandWeaponId === glbId && weaponOk){
-    if(typeof LMGlb.syncHandWeaponFollow === 'function') LMGlb.syncHandWeaponFollow(human);
+  const attachVer = (LMGlb.handAttachVersion != null) ? LMGlb.handAttachVersion : 0;
+  if(human.userData.lmHandWeaponId === glbId && weaponOk && human.userData._lmHandAttachVer === attachVer){
     return;
   }
   const now = Date.now();
@@ -28104,9 +28300,6 @@ function owRefreshHandWeapon(){
   LMGlb.attachHandWeapon(human, glbId)
     .then(()=>{
       if(human.userData._lmWeaponAttachGen !== gen) return;
-      if(S.ow.equippedWeapon === key && typeof LMGlb.syncHandWeaponFollow === 'function'){
-        LMGlb.syncHandWeaponFollow(human);
-      }
     })
     .catch((e)=>console.warn('[OW weapon]', glbId, e && e.message ? e.message : e));
 }
@@ -28138,7 +28331,7 @@ async function owBuyWeapon(key){
     await saveOWInventory(true);
     owRefreshHandWeapon();
     render();
-    owMmoToast && owMmoToast(`${spec.emoji} ${spec.label} 구입 · 착용 완료!`);
+    owMmoToast && owMmoToast(`${spec.emoji} ${spec.label} 구입 · 착용! 사냥 공격력 +${spec.atkBonus||30}`);
   }catch(e){
     console.error(e);
     alert('구입 실패');
@@ -28161,7 +28354,7 @@ function owEquipWeapon(key){
   saveOWInventory();
   owRefreshHandWeapon();
   render();
-  owMmoToast && owMmoToast(`${spec.emoji} ${spec.label} 착용`);
+  owMmoToast && owMmoToast(`${spec.emoji} ${spec.label} 착용 · 사냥 공격력 +${spec.atkBonus||30}`);
 }
 
 function owUnequipWeapon(){
@@ -29605,26 +29798,42 @@ function rOWShopModal(){
           </div>
           <button data-a="ow_buyFirework" data-v="3">${(8000*3).toLocaleString()}P</button>
         </div>
-        <div style="margin-top:14px;font-size:12px;font-weight:800;color:#FFE8A6">⚔️ 3D 무기 (손에 착용)</div>
+        <div class="ow-shop-weapon-info">
+          ⚔️ <b>3D 검 무기</b> — 손에 착용하면 사냥 모드에서
+          <span class="ow-shop-atk-badge">⚔️ 공격력 +30</span>
+          <br><span style="opacity:.85;font-size:10.5px">기본 공격 · 스킬 1~3 · 화염탄 투사체 데미지에 모두 적용됩니다.</span>
+        </div>
         ${(()=>{
           const gender = S.myEntry?.gender || '';
           const w = S.ow.weapons || {};
           const eq = S.ow.equippedWeapon;
+          const atkBonus = 30;
           return ['blue','pink'].map((key)=>{
             const spec = OW_WEAPON_SHOP[key];
+            const bonus = spec.atkBonus || atkBonus;
             const owned = !!w[key];
             const wrongGender = spec.gender && gender !== spec.gender;
             const equipped = eq === key;
+            const atkBadge = equipped
+              ? `<span class="ow-shop-atk-badge on">⚔️ ATK +${bonus} 적용 중</span>`
+              : `<span class="ow-shop-atk-badge">⚔️ ATK +${bonus}</span>`;
+            const status = owned
+              ? (equipped ? '<span style="color:#81C784;font-weight:700">✅ 착용 중 · 사냥 데미지 +'+bonus+'</span>' : '<span style="color:#FFD54F">보유 · 미착용 (착용 시 ATK +' + bonus + ')</span>')
+              : (wrongGender ? '<span style="color:#ef9a9a">성별 불일치</span>' : '<span>미보유 · 구매 후 자동 착용</span>');
             const btn = owned
               ? (equipped
                 ? `<button data-a="ow_unequipWeapon">해제</button>`
                 : `<button data-a="ow_equipWeapon" data-k="${key}">착용</button>`)
               : `<button data-a="ow_buyWeapon" data-k="${key}" ${wrongGender?'disabled':''}>${spec.cost.toLocaleString()}P</button>`;
-            return `<div class="ow-shop-item">
+            return `<div class="ow-shop-item ow-shop-weapon">
               <span class="e">${spec.emoji}</span>
-              <div style="flex:1">
-                <div class="nm">${spec.label} <span style="font-size:10px;opacity:.7">(${spec.gender})</span></div>
-                <div class="ds">3D GLB 손 착용 · ${owned ? (equipped ? '<span style="color:#4CAF50">✅ 착용 중</span>' : '보유 · 미착용') : wrongGender ? '성별 불일치' : '미보유'}</div>
+              <div style="flex:1;min-width:0">
+                <div class="nm" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;line-height:1.4">
+                  <span>${spec.label} <span style="font-size:10px;opacity:.7">(${spec.gender})</span></span>
+                  ${atkBadge}
+                </div>
+                <div class="ds">3D GLB · 아바타 주위 회전 검 오라</div>
+                <div class="ds">${status}</div>
               </div>
               ${btn}
             </div>`;
@@ -30615,17 +30824,20 @@ const OW_UNSEAL_ALTAR = { x: -22, z: -4 };
 const OW_OPG_ROCK = { x: 8, z: -20 };
 const OW_DRAGON_ARENA = { x: -30, z: -24 };
 const OW_AVATAR_BODY_H = 1.72;
-const OW_BOSS_GLB_HEIGHT = 0.5;
-const OW_LEVIATHAN_GLB = '오픈월드/golem.glb';
-const OW_ZIPFER_GLB = '오픈월드/dragon.glb';
+const OW_GOLEM_BOSS_HEIGHT = 0.05;
+const OW_GOLEM_GLB_HEIGHT = OW_GOLEM_BOSS_HEIGHT;
+const OW_BOSS_GLB_HEIGHT = OW_GOLEM_BOSS_HEIGHT;
+function _owBossGolemCfg(extra){
+  return Object.assign({ golemPack:true, glbHeight:OW_GOLEM_BOSS_HEIGHT }, extra||{});
+}
 const OW_DRAGON_BOSSES = [
-  { id:'zipfer', name:'지퍼리드', element:'fire', emoji:'🔥', weak:'water', color:0xff4422, glb:OW_ZIPFER_GLB, glbHeight:OW_BOSS_GLB_HEIGHT },
-  { id:'amesist', name:'아메시스트', element:'dark', emoji:'🌑', weak:'holy', color:0x6622aa },
-  { id:'marduk', name:'마르두크', element:'holy', emoji:'✨', weak:'dark', color:0xffee88 },
-  { id:'sirin', name:'시린', element:'ice', emoji:'❄️', weak:'fire', color:0x88ddff },
-  { id:'nosfer', name:'노스페라투스', element:'blood', emoji:'🩸', weak:'holy', color:0xaa0022 },
-  { id:'fafnir', name:'파프니르', element:'earth', emoji:'🪨', weak:'wind', color:0x886644 },
-  { id:'ananta', name:'아난타', element:'wind', emoji:'🌪️', weak:'earth', color:0xaaddff },
+  _owBossGolemCfg({ id:'zipfer', name:'지퍼리드', element:'fire', emoji:'🔥', weak:'water', color:0xff4422 }),
+  _owBossGolemCfg({ id:'amesist', name:'아메시스트', element:'dark', emoji:'🌑', weak:'holy', color:0x6622aa }),
+  _owBossGolemCfg({ id:'marduk', name:'마르두크', element:'holy', emoji:'✨', weak:'dark', color:0xffee88 }),
+  _owBossGolemCfg({ id:'sirin', name:'시린', element:'ice', emoji:'❄️', weak:'fire', color:0x88ddff }),
+  _owBossGolemCfg({ id:'nosfer', name:'노스페라투스', element:'blood', emoji:'🩸', weak:'holy', color:0xaa0022 }),
+  _owBossGolemCfg({ id:'fafnir', name:'파프니르', element:'earth', emoji:'🪨', weak:'wind', color:0x886644 }),
+  _owBossGolemCfg({ id:'ananta', name:'아난타', element:'wind', emoji:'🌪️', weak:'earth', color:0xaaddff }),
 ];
 const OW_SPELL_RECIPES = [
   { id:'scroll_inferno', mats:['wood_birch','fish_common'], label:'화염 대마법' },
@@ -30875,7 +31087,7 @@ function owStartLeviathan3DFight(){
   const mob = __owRenderer.spawnMob({
     id:'leviathan3d_' + Date.now(), name:'심연의 레비아탄', emoji:'🐋', color:0x1565c0,
     hp, atk:420, sight:28, speed:0.045, patterns:['slam','charge','projectile'],
-    glb: OW_LEVIATHAN_GLB, glbHeight: OW_BOSS_GLB_HEIGHT, leviathanBoss: true
+    glbHeight: OW_GOLEM_BOSS_HEIGHT, leviathanBoss: true, golemPack: true
   }, 'boss');
   if(mob) mob.leviathanBoss = true;
   S.ow.mmo = S.ow.mmo || {};
@@ -30956,7 +31168,13 @@ function owBossAttackTap(){
 function owBossDefeat(){
   const nv = _owGetNovelState();
   const boss = owGetDragonBoss();
-  if(__owRenderer && __owRenderer._boss) __owRenderer._boss.dead = true;
+  if(__owRenderer && __owRenderer._boss){
+    __owRenderer._boss.dead = true;
+    if(__owRenderer._boss.golemMob){
+      const deadKey = (window.OW_GOLEM_MANIFEST && OW_GOLEM_MANIFEST.bossDeadAnim) || 'dead';
+      __owRenderer._loadGolemBossAnim(__owRenderer._boss, deadKey, 0);
+    }
+  }
   if(typeof owRecordMemoryCube === 'function') owRecordMemoryCube(`${boss.name} 격파`);
   try{ if(typeof owStoryProgress === 'function') owStoryProgress('boss', 1); }catch(e){}
   const isZipferKill = !!(S.ow.bossFight?.world || S.ow.worldBoss || nv.dragonBossId === 'zipfer' || boss?.id === 'zipfer');
@@ -31127,7 +31345,7 @@ const OW_MOB_DEFS = {
     { id:'boar',  name:'성난 멧돼지', emoji:'🐗', color:0x8d6e63, hp:1500, atk:85, sight:12, speed:0.05  },
   ],
   elite: [
-    { id:'golem',  name:'정예 골렘', emoji:'🪨', color:0x90a4ae, hp:4500, atk:150, sight:13, speed:0.038, patterns:['slam','charge'] },
+    { id:'golem',  name:'정예 골렘', emoji:'🪨', color:0x90a4ae, hp:4500, atk:150, sight:13, speed:0.038, patterns:['slam','charge'], golemPack:true, glbHeight:OW_GOLEM_BOSS_HEIGHT },
     { id:'wraith', name:'정예 망령', emoji:'👻', color:0x4dd0e1, hp:3800, atk:135, sight:15, speed:0.05,  patterns:['projectile','slam'] },
   ],
   boss: [
@@ -31233,7 +31451,8 @@ function owCombatAttack(){
   c.cdUntil.basic = now+330;
   owPlayAvatarCombatAnim('attack');
   const p=rd.human.position; let hitAny=false;
-  rd.mobs && rd.mobs.forEach(m=>{ if(m.dead||m.state==='spawn')return; const d=Math.hypot(m.group.position.x-p.x,m.group.position.z-p.z); if(d<2.7){ const crit=Math.random()<0.2; owCombatDamageMob(m, Math.floor((180+Math.random()*120)*(crit?2:1)), {crit,knock:0.6}); hitAny=true; } });
+  const wAtk = owWeaponAtkBonus();
+  rd.mobs && rd.mobs.forEach(m=>{ if(m.dead||m.state==='spawn')return; const d=Math.hypot(m.group.position.x-p.x,m.group.position.z-p.z); if(d<2.7){ const crit=Math.random()<0.2; owCombatDamageMob(m, Math.floor((180+Math.random()*120+wAtk)*(crit?2:1)), {crit,knock:0.6}); hitAny=true; } });
   if(hitAny){ rd._camShakeUntil=now+70; owCombatHaptic(14); }
 }
 /* ── 스킬 1/2/3 ── */
@@ -31249,12 +31468,12 @@ function owCombatSkill(n){
   const p=rd.human.position;
   if(n===1){           // 강타 — 단일 대상 고데미지 + 히트스톱
     const tgt=owCombatPickTarget();
-    if(tgt){ const d=Math.hypot(tgt.group.position.x-p.x,tgt.group.position.z-p.z); if(d<6){ owCombatDamageMob(tgt, 700+Math.floor(Math.random()*300), {crit:true,knock:1.3}); rd._slashFx(tgt.group.position,0x66e0ff); rd._camShakeUntil=now+180; } }
+    if(tgt){ const d=Math.hypot(tgt.group.position.x-p.x,tgt.group.position.z-p.z); if(d<6){ owCombatDamageMob(tgt, 700+Math.floor(Math.random()*300)+owWeaponAtkBonus(), {crit:true,knock:1.3}); rd._slashFx(tgt.group.position,0x66e0ff); rd._camShakeUntil=now+180; } }
   } else if(n===2){    // 화염탄 — 투사체
-    rd._playerProjectile(0xff6622, 900); rd._camShakeUntil=now+60;
+    rd._playerProjectile(0xff6622, 900+owWeaponAtkBonus()); rd._camShakeUntil=now+60;
   } else {             // 충격파 — 주변 전체 AOE + 넉백
     rd._aoeBurst(p.x,p.z,5,0xffcc33); rd._camShakeUntil=now+240;
-    rd.mobs && rd.mobs.forEach(m=>{ if(m.dead||m.state==='spawn')return; if(Math.hypot(m.group.position.x-p.x,m.group.position.z-p.z)<5) owCombatDamageMob(m, 500+Math.floor(Math.random()*200), {knock:1.7}); });
+    rd.mobs && rd.mobs.forEach(m=>{ if(m.dead||m.state==='spawn')return; if(Math.hypot(m.group.position.x-p.x,m.group.position.z-p.z)<5) owCombatDamageMob(m, 500+Math.floor(Math.random()*200)+owWeaponAtkBonus(), {knock:1.7}); });
   }
   owCombatHaptic(22);
 }
@@ -31724,6 +31943,7 @@ function rOWLeftStats(){
       <div class="ow-ls-bar mp"><span style="width:${mpPct}%"></span></div>
       <div class="ow-ls-bar-label"><span>✨ EXP</span><span>${S.myPet.xp||0} / ${xpRequiredForLevel(S.myPet.level||1)}</span></div>
       <div class="ow-ls-bar exp"><span style="width:${xpPct}%"></span></div>
+      ${S.ow.equippedWeapon && S.ow.weapons && S.ow.weapons[S.ow.equippedWeapon] ? `<div class="ow-ls-buff" style="background:rgba(255,87,34,.18);color:#FFCCBC">⚔️ ${OW_WEAPON_SHOP[S.ow.equippedWeapon]?.emoji||''} 검 착용 · 사냥 ATK +${owWeaponAtkBonus()}</div>` : ''}
       ${cookBuff ? `<div class="ow-ls-buff">🍲 HP×2 · ATK+${c.cookBuffAtk||0} (${Math.ceil((c.cookBuffUntil-Date.now())/60000)}분)</div>` : ''}
       ${exB && owFmtStatBonusLine(exB) ? `<div class="ow-ls-buff" style="background:rgba(129,199,132,.15);color:#fff">🧭 탐험 ${owFmtStatBonusLine(exB)}</div>` : ''}
       ${lifeB && owFmtStatBonusLine(lifeB) ? `<div class="ow-ls-buff" style="background:rgba(255,183,77,.15);color:#fff">⛏️ 생활 ${owFmtStatBonusLine(lifeB)}</div>` : ''}
@@ -32727,11 +32947,11 @@ const OW_LIFE_SKILL_META = {
 };
 const OW_MMO_MOUNTS = [
   { id:'foot',      name:'도보',       emoji:'🚶', speed:1,   jump:0, water:false, terrain:'all', cost:0,    skill:null, ability:null },
-  { id:'horse',     name:'말',         emoji:'🐴', speed:1.8, jump:0.2,water:false,terrain:'plains',cost:80000, skill:'riding', ability:'dash', abilityCd:8000, coop:2, seatY:1.12 },
-  { id:'wolf',      name:'늑대',       emoji:'🐺', speed:2.0, jump:0.3,water:false,terrain:'forest',cost:120000,skill:'riding', ability:'forest_sprint', abilityCd:10000, coop:2, seatY:1.05 },
-  { id:'car_ow',    name:'자동차',     emoji:'🚗', speed:2.5, jump:0,  water:false,terrain:'road',  cost:150000,skill:null, ability:'turbo', abilityCd:6000, coop:2, seatY:0.92 },
-  { id:'airship',   name:'비행기',     emoji:'✈️', speed:1.6, jump:0,  water:true, terrain:'air',   cost:250000,skill:'pilot', coop:2, ability:'hover', abilityCd:12000, fly:true, seatY:1.05 },
-  { id:'dragon',    name:'드래곤',     emoji:'🐉', speed:2.8, jump:0.5,water:false,terrain:'all',   cost:500000,skill:'dragon_rider', coop:2, ability:'fly', abilityCd:15000, fly:true, seatY:1.35 },
+  { id:'horse',     name:'말',         emoji:'🐴', speed:1.8, jump:0.2,water:false,terrain:'plains',cost:80000, skill:'riding', ability:'dash', abilityCd:8000, coop:2, seatY:0.95 },
+  { id:'wolf',      name:'늑대',       emoji:'🐺', speed:2.0, jump:0.3,water:false,terrain:'forest',cost:120000,skill:'riding', ability:'forest_sprint', abilityCd:10000, coop:2, seatY:0.9 },
+  { id:'car_ow',    name:'자동차',     emoji:'🚗', speed:2.5, jump:0,  water:false,terrain:'road',  cost:150000,skill:null, ability:'turbo', abilityCd:6000, coop:2, seatY:0.78 },
+  { id:'airship',   name:'비행기',     emoji:'✈️', speed:1.6, jump:0,  water:true, terrain:'air',   cost:250000,skill:'pilot', coop:2, ability:'hover', abilityCd:12000, fly:true, seatY:0.88 },
+  { id:'dragon',    name:'드래곤',     emoji:'🐉', speed:2.8, jump:0.5,water:false,terrain:'all',   cost:500000,skill:'dragon_rider', coop:2, ability:'fly', abilityCd:15000, fly:true, seatY:1.05 },
 ];
 const OW_MMO_SOCIAL_EMOTES = [
   { id:'wave',    emoji:'👋', label:'인사', rep:1, fame:1 },
