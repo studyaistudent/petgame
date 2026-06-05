@@ -4056,6 +4056,7 @@ body.ow-mode{ overscroll-behavior:none; overflow:hidden; }
 <script src="lm-golem-manifest.js?v=3"></script>
 <script src="lm-ow-avatar.js?v=12"></script>
 <script src="lm-glb-runtime.js?v=112"></script>
+<script src="lm-ow-mp-sync.js?v=2"></script>
 <script src="vendor/supabase.js"></script>
 <script src="supabase-firestore-shim.js?v=7"></script>
 <script>
@@ -22303,13 +22304,14 @@ function owUpdateHumanLocomotion(h, moving, dt, state){
 }
 function owPlayHumanCombatAnim(role){
   const h = __owRenderer && __owRenderer.human;
+  let ok = false;
   if(owHumanUsesOwAvatar(h) && window.LMOwAvatar){
-    return LMOwAvatar.triggerCombatAnim(h, role);
+    ok = LMOwAvatar.triggerCombatAnim(h, role);
+  } else if(h && window.LMGlb && typeof LMGlb.triggerAvatarCombatAnim === 'function'){
+    ok = LMGlb.triggerAvatarCombatAnim(h, role);
   }
-  if(h && window.LMGlb && typeof LMGlb.triggerAvatarCombatAnim === 'function'){
-    return LMGlb.triggerAvatarCombatAnim(h, role);
-  }
-  return false;
+  if(ok && window.OW_MP_SYNC) OW_MP_SYNC.publishCombatAnim(role);
+  return ok;
 }
 function owHumanCombatBusy(){
   const h = __owRenderer && __owRenderer.human;
@@ -22333,6 +22335,7 @@ async function saveAvatar(avatar){
     const data = { glbModel: avatar?.glbModel || '' };
     await petCol.doc(myNick).update({ avatar: data });
     if(S.myPet) S.myPet.avatar = data;
+    if(S.screen === 'openworld') owPushOWPositionNow();
   }catch(e){ console.error(e); }
 }
 
@@ -24991,10 +24994,12 @@ upsertOtherPet(nick, data){
     comp.add(p.userData.companionLabel);
     p.userData._owCompanionLabelPet = pn;
   }
+  if(window.OW_MP_SYNC) OW_MP_SYNC.applyRemotePlayer(this, nick, data);
 }
   removeOtherPet(nick){
     const p = this.otherPetsByNick.get(nick);
     if(p){
+      if(window.OW_MP_SYNC) OW_MP_SYNC.cleanupRemote(this, nick);
       this._syncOtherPicnicMat(p, false);
       // 동반 펫도 제거
       if(p.userData.companion){
@@ -25281,6 +25286,8 @@ upsertOtherPet(nick, data){
       homeX:mx, homeZ:mz, patrolTarget:null, idleUntil:0, atkCd:Date.now()+800, hitUntil:0,
       walkPhase:0, dead:false, deadT:0, telegraph:null,
       spawnRing:this._mkRing(mx,mz,color,1.2,0.85) };
+    if(def.wild) mob.wildCapture = true;
+    if(def.treasureGuard){ mob.treasureGuard = true; mob.treasureId = def.treasureId; }
     this.mobs.push(mob);
     if(useGolem) this._loadGolemMobAnim(mob, 'walk', 0);
     return mob;
@@ -26632,6 +26639,27 @@ if(S.ow.isDriver && this.companion){
       }
       /* ★ 승객 처리: inCar 상태인 다른 유저는 차 좌석에 배치 */
       const state = p.userData.state || 'idle';
+      if(state === 'racing' && p.userData._owRaceCar){
+        p.visible = false;
+        if(p.userData.companion) p.userData.companion.visible = false;
+        return;
+      }
+      if(p.userData._owMountMesh && p.parent === p.userData._owMountMesh){
+        if(p.userData.companion) p.userData.companion.visible = false;
+        return;
+      }
+      if(state === 'fishing'){
+        const tx = p.userData.targetX ?? p.position.x;
+        const tz = p.userData.targetZ ?? p.position.z;
+        p.position.x += (tx - p.position.x) * 0.2;
+        p.position.z += (tz - p.position.z) * 0.2;
+        p.position.y = 0;
+        const trotY = p.userData.targetRotY ?? p.rotation.y;
+        const dr = ((trotY - p.rotation.y + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
+        p.rotation.y += dr * 0.15;
+        if(p.userData.companion) p.userData.companion.visible = false;
+        return;
+      }
       if(state === 'riding' || state === 'driving'){
         const carSync = S.ow.carSync;
         const passengers = (carSync && carSync.passengers) || [];
@@ -26806,6 +26834,7 @@ if(S.ow.isDriver && this.companion){
         }
       }
     });
+    if(window.OW_MP_SYNC) OW_MP_SYNC.tickRemotePlayers(this, dt);
 
     /* === 벚꽃 / 눈 입자 === */
     if(this.petals && (S.ow.weather === 'petal' || S.ow.weather === 'sunny' || S.ow.weather === 'snow')){
@@ -27381,6 +27410,7 @@ function leaveOpenWorld(){
   S.ow.ghostRaidSync = null;
   S.ow.sharedHuntSync = null;
   S.ow.sharedBossSync = null;
+  if(window.OW_MP_SYNC) OW_MP_SYNC.leaveCleanup();
   if(S.ow.combat?.huntMode) owSharedHuntLeave();
   S.ow._voidUi = false;
   S.ow.storyScene = null;
@@ -27466,6 +27496,7 @@ function initOpenWorld3D(){
   subscribeOWWorldEvents();
   subscribeOWSharedHunt();
   subscribeOWSharedBoss();
+  if(window.OW_MP_SYNC) OW_MP_SYNC.subscribeWorldState();
   owMmoInitSubscriptions();
   owMmoEventVFXInit();
   owMmoGetController().eco.init();
@@ -27932,7 +27963,10 @@ function owTogglePhotoMode(){
 }
 
 function owCookCampfire(){
-  if(owMmoGetController().life.campfire.cook('camp_stew', true)) render();
+  if(owMmoGetController().life.campfire.cook('camp_stew', true)){
+    if(__owRenderer?.human) owMpSyncCampfireAt(__owRenderer.human.position, 60000);
+    render();
+  }
 }
 
 function owStartDeliveryJob(jobId){
@@ -28118,8 +28152,14 @@ function owTreasureCombat3D(treasureId){
   S.ow.combat.huntMode = true;
   S.ow._treasurePending = treasureId;
   rd.removeAllMobs && rd.removeAllMobs();
-  const mob = rd.spawnMob({ id:'treasure_'+treasureId, name:'보물 수호자', emoji:'👹', color:0xff8f00, hp:1200, atk:85, sight:12, speed:0.05, patterns:['charge'], treasureGuard:true, treasureId }, 'elite');
-  owMmoToast('⚔️ 보물 수호 몬스터 출현! 처치하면 상자 등장');
+  const spawnDef = { id:'treasure_'+treasureId, name:'보물 수호자', emoji:'👹', color:0xff8f00, hp:1200, atk:85, sight:12, speed:0.05, patterns:['charge'], treasureGuard:true, treasureId };
+  if(window.OW_MP_SYNC){
+    OW_MP_SYNC.spawnSharedMob('treasure', [{ def: spawnDef, tier: 'elite', x: pos.x, z: pos.z }]);
+  } else {
+    rd.spawnMob(spawnDef, 'elite');
+  }
+  owPushOWPositionNow();
+  owMmoToast('⚔️ 보물 수호 몬스터 출현! 함께 처치하면 상자 등장');
   render();
 }
 async function owTreasureOpenChest(treasureId){
@@ -28138,6 +28178,7 @@ async function owTreasureOpenChest(treasureId){
   const mult = owGetRewardMultiplier();
   const rewardPoints = Math.max(1, Math.round(tr.reward * mult));
   fs.treasureCollected[tr.id] = true;
+  if(window.OW_MP_SYNC) OW_MP_SYNC.markTreasureCollected(tr.id);
   if(rd.featureTreasures){
     const mesh = rd.featureTreasures.find(m => m.userData.treasureId === tr.id);
     if(mesh) mesh.visible = false;
@@ -28173,8 +28214,8 @@ function owOpenFeatureTreasure(){
 }
 function owBuildOWPositionPayload(){
   if(!__owRenderer || !S.myEntry?.nick) return null;
-  const pos = __owRenderer.human.position;
   const rot = __owRenderer.human.rotation.y;
+  const mpExtra = (window.OW_MP_SYNC && OW_MP_SYNC.buildPayloadExtras) ? OW_MP_SYNC.buildPayloadExtras() : {};
   return {
     nick: S.myEntry.nick,
     emoji: S.myPet?.petEmoji || '🐾',
@@ -28182,10 +28223,7 @@ function owBuildOWPositionPayload(){
     gender: S.myEntry?.gender || '',
     avatar: getMyAvatar(),
     heightCm: getMyHeightCm(),
-    x: +pos.x.toFixed(2),
-    z: +pos.z.toFixed(2),
     rotY: +rot.toFixed(2),
-    state: S.ow.inCar ? (S.ow.isDriver ? 'driving' : 'riding') : (S.ow.fishingPhase ? 'fishing' : (S.ow.onMat ? 'picnic' : 'idle')),
     onMat: !!S.ow.onMat,
     inCar: !!S.ow.inCar,
     isDriver: !!S.ow.isDriver,
@@ -28198,12 +28236,22 @@ function owBuildOWPositionPayload(){
     mountActive: S.ow.mmo?.ridingMount || 'foot',
     mountPassengerOf: S.ow.mmo?.mountPassengerOf || '',
     mountPassengers: (S.ow.mmo?.mountPassengers || []).slice(),
+    ...mpExtra,
   };
 }
 function owPushOWPositionNow(){
   const data = owBuildOWPositionPayload();
   if(!data) return;
   owCol.doc(S.myEntry.nick).set(data, { merge: true }).catch(()=>{});
+}
+function owSetFishingPhase(v){
+  S.ow.fishingPhase = v;
+  if(S.screen === 'openworld') owPushOWPositionNow();
+}
+function owMpSyncCampfireAt(pos, durationMs){
+  if(!pos) return;
+  if(__owRenderer && typeof __owRenderer.spawnCampfire === 'function') __owRenderer.spawnCampfire(pos);
+  if(window.OW_MP_SYNC) OW_MP_SYNC.addCampfire(pos.x, pos.z, durationMs || 60000);
 }
 function startOWPositionSync(){
   if(__owSyncInt) clearInterval(__owSyncInt);
@@ -28488,12 +28536,12 @@ function owStartFishing(){
   // 펫이 호수쪽 바라보기
   const a = Math.atan2(OW_LAKE_CENTER.x - petPos.x, OW_LAKE_CENTER.z - petPos.z);
   __owRenderer.petRotY = a;
-  S.ow.fishingPhase = 'casting';
+  owSetFishingPhase('casting');
   S.ow.fishingCastUntil = Date.now() + 900;
   render();
   setTimeout(()=>{
     if(S.ow.fishingPhase !== 'casting') return;
-    S.ow.fishingPhase = 'waiting';
+    owSetFishingPhase('waiting');
     S.ow.fishingStart = Date.now();
   const fishAssist = (typeof owMmoGetController === 'function' && S.myPet)
     ? (owMmoGetController()?.petExp?.getFishAssist?.() || { waitMult:1 })
@@ -28505,15 +28553,15 @@ function owStartFishing(){
   // 입질 타이밍 체크
   setTimeout(()=>{
     if(S.ow.fishingPhase === 'waiting'){
-      S.ow.fishingPhase = 'fighting';
+      owSetFishingPhase('fighting');
       S.ow.fishingFight = { progress:0, need: Math.random()<0.5?'left':'right', fishEmoji:'🐟' };
       render();
       setTimeout(()=>{
         if(S.ow.fishingPhase === 'fighting' && (S.ow.fishingFight?.progress||0) < 100){
-          S.ow.fishingPhase = 'miss';
+          owSetFishingPhase('miss');
           S.ow.fishingFight = null;
           render();
-          setTimeout(()=>{ S.ow.fishingPhase = null; render(); }, 1200);
+          setTimeout(()=>{ owSetFishingPhase(null); render(); }, 1200);
         }
       }, 12000);
     }
@@ -28536,7 +28584,7 @@ function owReelFish(){
   if(Math.random() < (fishAssist.rareBonus || 0)){
     S.ow.materials.fish_rare = (S.ow.materials.fish_rare || 0) + 1;
   }
-  S.ow.fishingPhase = 'caught';
+  owSetFishingPhase('caught');
   S.ow.fishingResult = caught;
   owQuestProgress('fish', 1);
   owMmoRecordEureka('fish', 1);
@@ -28544,12 +28592,12 @@ function owReelFish(){
   saveOWInventory();
   render();
   setTimeout(()=>{
-    S.ow.fishingPhase = null;
+    owSetFishingPhase(null);
     render();
   }, 1800);
 }
 function owCancelFishing(){
-  S.ow.fishingPhase = null;
+  owSetFishingPhase(null);
   render();
 }
 
@@ -28676,6 +28724,7 @@ function owEquipWeapon(key){
   S.ow.equippedWeapon = key;
   saveOWInventory();
   owRefreshHandWeapon();
+  owPushOWPositionNow();
   render();
   owMmoToast && owMmoToast(`${spec.emoji} ${spec.label} 착용 · 사냥 공격력 +${spec.atkBonus||30}`);
 }
@@ -28684,6 +28733,7 @@ function owUnequipWeapon(){
   S.ow.equippedWeapon = null;
   saveOWInventory();
   owRefreshHandWeapon();
+  owPushOWPositionNow();
   render();
   owMmoToast && owMmoToast('무기 해제');
 }
@@ -28816,6 +28866,7 @@ function owRefreshCompanion3D(){
   }
   rd.scene.add(rd.companion);
   if(typeof owSyncTamedCompanions3D === 'function') owSyncTamedCompanions3D();
+  else if(S.screen === 'openworld') owPushOWPositionNow();
 }
 function owBindStatPanelDrag(){
   const panel = document.getElementById('ow-stat-panel');
@@ -29192,6 +29243,7 @@ function owCookingFinish(){
   if(success && c.dish && __owRenderer && typeof __owRenderer.spawnCookDish3D === 'function'){
     __owRenderer.spawnCookDish3D(c.dish);
   }
+  if(success && __owRenderer?.human) owMpSyncCampfireAt(__owRenderer.human.position, 90000);
   render();
 }
 function owEatCookedFood(){
@@ -29279,6 +29331,7 @@ function owStartRace3D(){
   if(typeof rd._buildRaceTrack === 'function') rd._buildRaceTrack();
   if(typeof rd._updateRaceGuideLine === 'function') rd._updateRaceGuideLine(0);
   saveOWInventory();
+  owPushOWPositionNow();
   owMmoToast('🏁 3D 레이싱 시작! 노란 링 체크포인트를 통과하세요');
   render();
 }
@@ -30746,6 +30799,7 @@ function owTickAdvancedSystems(rd){
             alert('🏁 레이싱 완주! 보상을 획득했어요.');
           }
         }
+        owPushOWPositionNow();
       }
       // 아이템 박스
       if(now - ex.race.lastBoxCollectAt > 1200){
@@ -31435,7 +31489,7 @@ function owStartZipferWorldBossFight(){
   if(typeof owMmoToast==='function') owMmoToast(`⚔️ ${wb?.name || '지퍼리드'} 함께 토벌! 탭/⚔️로 공격`);
   render();
 }
-function owStartBossFight(){
+async function owStartBossFight(){
   if(!__owRenderer){ alert('오픈월드에서만 결투할 수 있어요.'); return; }
   if(S.ow.bossFight?.active) return;
   const zipLeft = owZipferCdLeft();
@@ -31447,13 +31501,30 @@ function owStartBossFight(){
   if(cd>0){ if(typeof owMmoToast==='function') owMmoToast(`👑 월드 보스 쿨타임 ${Math.ceil(cd/60000)}분 남음 (1시간)`); return; }
   const nv = _owGetNovelState();
   const boss = owGetDragonBoss();
-  nv.dragonHp = nv.dragonMaxHp = 80000 + Math.floor(Math.random()*40000);
+  const maxHp = 80000 + Math.floor(Math.random()*40000);
+  const p = __owRenderer.human.position;
+  const ang = __owRenderer.human.rotation.y || 0;
+  const x = +(p.x + Math.sin(ang) * 9).toFixed(2);
+  const z = +(p.z + Math.cos(ang) * 9).toFixed(2);
+  nv.dragonBossId = boss.id || 'zipfer';
+  nv.dragonHp = maxHp;
+  nv.dragonMaxHp = maxHp;
   owCloseAllPanels();
-  owBossCdSet('boss', OW_BOSS_CD_MS);   // 시도 시점부터 1시간 쿨타임
+  owBossCdSet('boss', OW_BOSS_CD_MS);
+  const dragon = {
+    id: 'shb_dr_'+Date.now(),
+    bossId: nv.dragonBossId, x, z,
+    hp: maxHp, maxHp, engaged: true, dead: false,
+    contributors: {}, killer: null, clearedAt: 0,
+  };
+  await owEventsCol.doc(OW_SHARED_BOSS_DOC).set({
+    active: true, kind: 'personal', host: owMyNick() || '',
+    fighters: {}, mobs: [], dragon, updatedAt: Date.now(),
+  }, { merge: true }).catch(()=>{});
+  await owSharedBossJoin('personal', false);
   S.ow.bossFight = { active:true, startedAt: Date.now() };
-  __owRenderer.spawnBoss(boss);
   __owRenderer.humanTarget = null;
-  if(typeof owMmoToast==='function') owMmoToast(`${boss.emoji} ${boss.name} 출현! 화면을 탭하거나 ⚔️로 공격!`);
+  if(typeof owMmoToast==='function') owMmoToast(`${boss.emoji} ${boss.name} 출현! 함께 토벌 — 탭/⚔️로 공격!`);
   render();
 }
 function owBossAttackTap(){
@@ -32187,6 +32258,11 @@ async function owSharedBossSpawnMobs(kind, spawnList){
       hp: item.hp, maxHp: item.maxHp,
     });
     if(item.leviathanBoss) mob.leviathanBoss = true;
+    if(item.def?.wild) mob.wildCapture = true;
+    if(item.def?.treasureGuard){
+      mob.treasureGuard = true;
+      mob.treasureId = item.def.treasureId;
+    }
     newMobs.push(owMobToSync(mob));
   }
   await owEventsCol.doc(OW_SHARED_BOSS_DOC).set({
@@ -32203,6 +32279,7 @@ function owCombatToggleHunt(){
     c.hp = c.maxHp; c.targetId = null; c.drop = null;
     owSharedHuntJoin().then(wasFirst => {
       if(wasFirst) owCombatSpawnWave();
+      owPushOWPositionNow();
       render();
     });
     if(typeof owMmoToast === 'function') owMmoToast('⚔️ 함께 사냥! 같은 몹을 다른 탐험가와 같이 잡을 수 있어요');
@@ -32212,6 +32289,7 @@ function owCombatToggleHunt(){
     c.drop = null;
     if(typeof owMmoToast === 'function') owMmoToast('🕊️ 사냥 모드를 종료했어요');
   }
+  owPushOWPositionNow();
   render();
 }
 /* ── 몹 웨이브 스폰 (호스트만 — 공유 세션에 기록) ── */
@@ -32702,6 +32780,7 @@ function owToggleTamedCompanion(id){
   OWMMODataStore.touch();
   saveOWInventory(true);
   owSyncTamedCompanions3D();
+  owPushOWPositionNow();
   owMmoToast(pet.companionOn ? `${pet.emoji||'🐾'} ${pet.name} 동반 ON — 사냥 시 함께 싸워요` : `${pet.name} 동반 OFF`);
 }
 function owRenameTamedPet(id){
@@ -32747,6 +32826,7 @@ function owSyncTamedCompanions3D(){
       combat:{ hp:pet.hp||pet.maxHp||600, maxHp:pet.maxHp||600, atkCd:0, dead:false }
     });
   });
+  if(S.screen === 'openworld') owPushOWPositionNow();
 }
 function owTamedPetsCombatTick(rd, human, dt){
   if(!rd?.tamedMeshes?.length || !S.ow.combat?.huntMode) return;
@@ -36223,7 +36303,11 @@ class OWCampfireSystem {
     if(b.hp) this.life.applyBuff('hp', b.hp, b.ms||1800000);
     if(b.dungeon) this.life.applyBuff('dungeon', b.dungeon, b.ms||3600000);
     owMmoToast('🍳 캠프파이어 요리 완료!');
-    try{ if(__owRenderer && typeof __owRenderer.spawnCampfire === 'function') __owRenderer.spawnCampfire(__owRenderer.human.position); }catch(e){}
+    try{
+      if(__owRenderer?.human && typeof owMpSyncCampfireAt === 'function'){
+        owMpSyncCampfireAt(__owRenderer.human.position, 60000);
+      }
+    }catch(e){}
     OWMMODataStore.touch();
     return true;
   }
@@ -36768,6 +36852,7 @@ class OWMountSystem {
     if(mountId === 'car_ow') S.ow.hasCar = true;
     OWMMODataStore.touch();
     owMmoToast(mountId === 'foot' ? '🚶 도보' : `${def.emoji} ${def.name} 탑승${def.fly?' — 비행!':''}`);
+    if(S.screen === 'openworld' && typeof owPushOWPositionNow === 'function') owPushOWPositionNow();
     render();
   }
   _abilityReady(id){
@@ -38352,11 +38437,19 @@ function owEventStart3DExperience(ev){
   if(cat === 'invasion' || cat === 'meteor'){
     S.ow.combat = S.ow.combat || {};
     S.ow.combat.huntMode = true; S.ow.combat.hp = S.ow.combat.maxHp; S.ow.combat.mp = S.ow.combat.maxMp;
-    owCombatSpawnWave();
-    if(Math.random()<0.55) __owRenderer.spawnMob(OW_MOB_DEFS.elite[Math.floor(Math.random()*OW_MOB_DEFS.elite.length)], 'elite');
-    owMmoToast('⚔️ 침공 몬스터 실전 체험! 처치하세요');
+    owSharedHuntJoin().then(wasFirst => {
+      if(wasFirst) owCombatSpawnWave();
+      if(Math.random() < 0.55 && window.OW_MP_SYNC){
+        const elite = OW_MOB_DEFS.elite[Math.floor(Math.random() * OW_MOB_DEFS.elite.length)];
+        const p = __owRenderer.human.position;
+        OW_MP_SYNC.spawnSharedMob('invasion', [{ def: elite, tier: 'elite', x: p.x + 3, z: p.z + 2 }]);
+      }
+      owPushOWPositionNow();
+      render();
+    });
+    owMmoToast('⚔️ 침공 몬스터 실전 체험! 함께 처치하세요');
   } else if(cat === 'festival'){
-    __owRenderer.spawnCampfire(__owRenderer.human.position);
+    owMpSyncCampfireAt(__owRenderer.human.position, 120000);
     owMmoToast('🎉 축제 체험 — 캠프파이어가 피어올랐어요!');
   } else {
     owMmoToast(`${ev.emoji||'✨'} ${ev.label||'이벤트'} 체험 시작!`);
@@ -38372,6 +38465,7 @@ function owNpcQuestStart(npcId){
   if(!mq) return false;
   S.ow.npcQuest = { npcId, title:mq.title, hint:mq.hint, tx:mq.tx, tz:mq.tz, r:mq.r||8, reward:mq.reward, affinity:mq.affinity||8, startedAt:Date.now() };
   if(__owRenderer) __owRenderer.humanTarget = new THREE.Vector3(mq.tx, 0, mq.tz);
+  owPushOWPositionNow();
   owMmoToast(`📜 이동 의뢰: ${mq.title} — ${mq.hint}`);
   return true;
 }
@@ -38392,6 +38486,7 @@ function owNpcQuestTick(){
     if(__owRenderer._npcQuestRing) __owRenderer._npcQuestRing.visible = false;
     owMmoToast(`✅ ${q.title} 완료! 우호 +${q.affinity||8}`);
     S.ow.npcQuest = null;
+    owPushOWPositionNow();
     render();
   }
 }
@@ -38414,9 +38509,16 @@ function owWildCombatStart(){
   owCloseAllPanels();
   const c = S.ow.combat; c.huntMode = true; c.hp = c.maxHp; c.mp = c.maxMp;
   __owRenderer.removeAllMobs && __owRenderer.removeAllMobs();
-  const mob = __owRenderer.spawnMob({ id:'wild_'+Date.now(), name:w.name||'야생', emoji:w.emoji||'🐾', color:0xff7043, hp:w.hp||900, atk:95, sight:14, speed:0.055, patterns:['charge','slam'], wild:true }, w.level>4?'elite':'normal');
-  if(mob) mob.wildCapture = true;
-  owMmoToast(`⚔️ ${w.emoji} ${w.name} 3D 포획전! 처치하면 길들입니다`);
+  const pos = __owRenderer.human.position;
+  const spawnDef = { id:'wild_'+Date.now(), name:w.name||'야생', emoji:w.emoji||'🐾', color:0xff7043, hp:w.hp||900, atk:95, sight:14, speed:0.055, patterns:['charge','slam'], wild:true };
+  if(window.OW_MP_SYNC){
+    OW_MP_SYNC.spawnSharedMob('wild', [{ def: spawnDef, tier: w.level>4?'elite':'normal', x: pos.x, z: pos.z }]);
+  } else {
+    const mob = __owRenderer.spawnMob(spawnDef, w.level>4?'elite':'normal');
+    if(mob) mob.wildCapture = true;
+  }
+  owPushOWPositionNow();
+  owMmoToast(`⚔️ ${w.emoji} ${w.name} 3D 포획전! 함께 처치하면 길들입니다`);
 }
 function owTamingCaptureFromCombat(mob){
   const w = owMmoGetController()?.wildTame?.getWild();
