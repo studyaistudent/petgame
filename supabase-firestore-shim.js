@@ -436,6 +436,16 @@
         pin = p && p.value ? String(p.value).trim() : '';
       }
     }
+    /* MBTI 완료 등 입력 폼이 사라진 뒤에도 S.nick/S.pin 으로 RLS 헤더 유지 */
+    if (!nick && global.S) {
+      if (global.S.myEntry?.nick) {
+        nick = String(global.S.myEntry.nick).trim();
+        pin = String(global.S.myEntry.pin || global.S.pin || '').trim();
+      } else if (global.S.nick) {
+        nick = String(global.S.nick).trim();
+        pin = String(global.S.pin || '').trim();
+      }
+    }
     return { nick, pin };
   }
 
@@ -916,5 +926,5 @@
     return ref.update(patch);
   };
 
-  global.__lmShimVersion = '6';
+  global.__lmShimVersion = '7';
 })(typeof window !== 'undefined' ? window : globalThis);

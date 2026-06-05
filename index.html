@@ -4052,7 +4052,7 @@ body.ow-mode{ overscroll-behavior:none; overflow:hidden; }
 <script src="vendor/FBXLoader.js"></script>
 <script src="lm-fbx-texture-manifest.js?v=3"></script>
 <script src="lm-glb-catalog.js?v=80"></script>
-<script src="lm-ow-glb.js?v=13"></script>
+<script src="lm-ow-glb.js?v=14"></script>
 <script src="lm-golem-manifest.js?v=3"></script>
 <script src="lm-ow-avatar.js?v=12"></script>
 <script src="lm-glb-runtime.js?v=112"></script>
@@ -4132,6 +4132,8 @@ const OW_CAR_DOC = "shared";
 const owEventsCol = db.collection("lm_openworld_events");
 const OW_GHOST_RAID_DOC = "ghost_raid";
 const OW_WORLD_EVENT_DOC = "world_broadcast";
+const OW_SHARED_HUNT_DOC = "shared_hunt";
+const OW_SHARED_BOSS_DOC = "shared_boss";
 const OW_UNDEAD_DOC = "undead_raid";
 /* ★ MMO 오픈월드 글로벌 컬렉션 */
 const owMmoEventsCol    = db.collection("lm_ow_world_events");
@@ -24868,6 +24870,58 @@ if(S.ow.inCar && S.ow.cameraMode === 'first'){
     human.position.y = -0.45;  // 엉덩이를 돗자리 위로 (다리 굽힘에 맞춰)
   }
 
+  _createPicnicMatMesh(x, z){
+    const matGroup = new THREE.Group();
+    const matMat1 = new THREE.MeshLambertMaterial({ color: 0xFFB5C8 });
+    const matMat2 = new THREE.MeshLambertMaterial({ color: 0xFFFFFF });
+    const matSize = 2.0;
+    for(let i = 0; i < 4; i++){
+      for(let j = 0; j < 4; j++){
+        const cell = new THREE.Mesh(
+          new THREE.BoxGeometry(matSize / 4, 0.04, matSize / 4),
+          ((i + j) % 2 === 0) ? matMat1 : matMat2
+        );
+        cell.position.set((i - 1.5) * (matSize / 4), 0.02, (j - 1.5) * (matSize / 4));
+        cell.receiveShadow = true;
+        matGroup.add(cell);
+      }
+    }
+    const basket = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.18, 0.22, 0.18, 12),
+      new THREE.MeshLambertMaterial({ color: 0xC68642 })
+    );
+    basket.position.set(0.6, 0.13, 0.6);
+    basket.castShadow = true;
+    matGroup.add(basket);
+    matGroup.position.set(x, 0, z);
+    return matGroup;
+  }
+  _disposePicnicMatMesh(mesh){
+    if(!mesh) return;
+    this.scene.remove(mesh);
+    mesh.traverse(o => {
+      if(o.geometry) o.geometry.dispose?.();
+      if(o.material){
+        if(Array.isArray(o.material)) o.material.forEach(m => m.dispose?.());
+        else o.material.dispose?.();
+      }
+    });
+  }
+  _syncOtherPicnicMat(p, show, x, z){
+    if(show){
+      if(!p.userData.matMesh){
+        p.userData.matMesh = this._createPicnicMatMesh(x, z);
+        this.scene.add(p.userData.matMesh);
+      } else {
+        p.userData.matMesh.position.set(x, 0, z);
+      }
+    } else if(p.userData.matMesh){
+      this._disposePicnicMatMesh(p.userData.matMesh);
+      p.userData.matMesh = null;
+      p.userData._owPicnicPrimed = false;
+    }
+  }
+
 // 3. OpenWorldRenderer 내부 upsertOtherPet의 펫 호출부 수정
 upsertOtherPet(nick, data){
   let p = this.otherPetsByNick.get(nick);
@@ -24893,10 +24947,36 @@ upsertOtherPet(nick, data){
   p.userData.mountPassengerOf = data.mountPassengerOf || '';
   p.userData.mountPassengers = Array.isArray(data.mountPassengers) ? data.mountPassengers.slice() : [];
   p.userData.mountActive = data.mountActive || 'foot';
+  const wasPicnic = p.userData.state === 'picnic';
   p.userData.state = data.state || 'idle';
+  p.userData.onMat = p.userData.state === 'picnic' || !!data.onMat;
+  if(wasPicnic && !p.userData.onMat){
+    p.userData._owPicnicPrimed = false;
+    this._resetHumanPose(p);
+    if(owHumanUsesOwAvatar(p) && window.LMOwAvatar){
+      if(typeof LMOwAvatar.restoreIdlePose === 'function') LMOwAvatar.restoreIdlePose(p);
+      else if(typeof LMOwAvatar.restoreStandY === 'function'){
+        const m = p.getObjectByName && (p.getObjectByName('ow_avatar_model') || p.getObjectByName('glb_model'));
+        LMOwAvatar.restoreStandY(p, m);
+      }
+    }
+    p.position.y = 0;
+    p.rotation.z = 0;
+  }
   p.userData.chatMsg = data.chatMsg || '';
   p.userData.chatExpire = data.chatExpire || 0;
+  if(data.emoteAt && data.emoteKind && data.emoteAt > (p.userData.lastEmoteAt || 0)){
+    p.userData.lastEmoteAt = data.emoteAt;
+    owApplyEmoteOnHuman(p, data.emoteKind);
+    const ed = owEmoteDef(data.emoteKind);
+    p.userData.emoteFloat = { emoji: ed.emoji, until: data.emoteUntil || (Date.now() + 2500) };
+  } else if(data.emoteUntil && Date.now() >= data.emoteUntil){
+    p.userData.emoteFloat = null;
+  }
   p.userData.emoji = data.emoji || '🐾';
+  const mx = typeof data.x === 'number' ? data.x : (p.userData.targetX ?? p.position.x);
+  const mz = typeof data.z === 'number' ? data.z : (p.userData.targetZ ?? p.position.z);
+  this._syncOtherPicnicMat(p, p.userData.onMat, mx, mz);
   const newPetName = data.petName || data.pet_name || '';
   if(newPetName) p.userData.petName = newPetName;
   const comp = p.userData.companion;
@@ -24915,6 +24995,7 @@ upsertOtherPet(nick, data){
   removeOtherPet(nick){
     const p = this.otherPetsByNick.get(nick);
     if(p){
+      this._syncOtherPicnicMat(p, false);
       // 동반 펫도 제거
       if(p.userData.companion){
         if(p.userData.companionLabel){
@@ -25017,6 +25098,9 @@ upsertOtherPet(nick, data){
   _loadGolemAnim(holder, animKey, holdMs, opts){
     const manifest = window.OW_GOLEM_MANIFEST;
     if(!holder || !holder.group || !manifest || !manifest.urls[animKey] || !window.LMOwGlb || !LMOwGlb.loadGlb) return false;
+    holder.golemFailed = holder.golemFailed || {};
+    if(holder.golemFailed[animKey]) return false;
+    if(holder.golemLoading) return false;
     opts = opts || {};
     const g = holder.group;
     const url = manifest.urls[animKey];
@@ -25036,7 +25120,12 @@ upsertOtherPet(nick, data){
       this._setGolemAnimState(holder, animKey, holdMs, ret);
     }).catch((err)=>{
       holder.golemLoading = null;
-      console.warn('[OW] Golem GLB 로드 실패:', url, err);
+      holder.golemFailed[animKey] = true;
+      holder._golemFailLog = holder._golemFailLog || {};
+      if(!holder._golemFailLog[animKey]){
+        holder._golemFailLog[animKey] = true;
+        console.warn('[OW] Golem GLB 로드 실패:', url, err);
+      }
     });
     return true;
   }
@@ -25086,7 +25175,64 @@ upsertOtherPet(nick, data){
   /* ════════ 🗡️ 오픈월드 몹 전투 레이어 ════════
      보스(spawnBoss)와는 별개의 '필드 잡몹' 시스템.
      create: spawnMob  /  tick: _tickMobs  /  연출: _tickMobFx · _updateMobPlates */
-  spawnMob(def, tier){
+  _nearestHunterPos(mob){
+    const g = mob && mob.group;
+    const fromX = g ? g.position.x : 0, fromZ = g ? g.position.z : 0;
+    if(mob && mob.bossShared && typeof owSharedBossNearestFighterPos === 'function'){
+      const t = owSharedBossNearestFighterPos(fromX, fromZ);
+      return { x: t.x, z: t.z };
+    }
+    if(mob && mob.sharedId && typeof owSharedHuntNearestHunterPos === 'function'){
+      const t = owSharedHuntNearestHunterPos(fromX, fromZ);
+      return { x: t.x, z: t.z };
+    }
+    const p = this.human.position;
+    return { x: p.x, z: p.z };
+  }
+  spawnMobFromSync(sm){
+    const def = owGetMobDefById(sm.defId, sm.tier);
+    const mob = this.spawnMob(def, sm.tier, {
+      x: sm.x, z: sm.z, forShared: true, sharedId: sm.id,
+      hp: sm.hp, maxHp: sm.maxHp, skipGround: sm.state && sm.state !== 'spawn'
+    });
+    mob.state = sm.state || 'patrol';
+    mob.spawnStart = sm.spawnStart || Date.now();
+    mob.homeX = sm.homeX != null ? sm.homeX : sm.x;
+    mob.homeZ = sm.homeZ != null ? sm.homeZ : sm.z;
+    mob.dead = !!sm.dead;
+    mob.deadT = sm.deadT || 0;
+    if(sm.state && sm.state !== 'spawn'){
+      mob.group.position.y = 0;
+      mob.group.userData.owMobSpawnState = 'ground';
+      if(mob.golemMob) this._snapOwGlbGroupToGround(mob.group);
+    }
+    return mob;
+  }
+  applyMobSyncState(mob, sm, isHost){
+    if(isHost) return;
+    const g = mob.group;
+    g.position.x += (sm.x - g.position.x) * 0.38;
+    g.position.z += (sm.z - g.position.z) * 0.38;
+    mob.hp = sm.hp;
+    mob.maxHp = sm.maxHp;
+    mob.state = sm.state || mob.state;
+    if(sm.dead && !mob.dead){
+      mob.dead = true; mob.deadT = sm.deadT || 0; mob.state = 'dead';
+      const me = owMyNick();
+      if(sm.killer === me && typeof owCombatOnMobDead === 'function'){
+        owCombatOnMobDead(mob, { sharedKill: true, killer: sm.killer });
+      }
+    }
+    mob.deadT = sm.deadT || mob.deadT;
+  }
+  removeSharedHuntMobs(){
+    (this.mobs || []).slice().forEach(m => { if(m && m.sharedId && !m.bossShared) this.removeMob(m); });
+  }
+  removeSharedBossMobs(){
+    (this.mobs || []).slice().forEach(m => { if(m && m.sharedId && m.bossShared) this.removeMob(m); });
+  }
+  spawnMob(def, tier, opts){
+    opts = opts || {};
     this.mobs = this.mobs || [];
     const color = def.color || 0x66bb6a;
     const scale = tier==='boss' ? 2.0 : tier==='elite' ? 1.4 : 1.0;
@@ -25120,13 +25266,18 @@ upsertOtherPet(nick, data){
     }
     g.scale.setScalar(mobScale);
     const hp=this.human.position, a=Math.random()*Math.PI*2, r=11+Math.random()*9;
-    const mx=hp.x+Math.cos(a)*r, mz=hp.z+Math.sin(a)*r;
-    g.position.set(mx,-1.6,mz);
+    const mx=opts.x != null ? opts.x : hp.x+Math.cos(a)*r;
+    const mz=opts.z != null ? opts.z : hp.z+Math.sin(a)*r;
+    g.position.set(mx, opts.skipGround ? 0 : -1.6, mz);
+    if(opts.skipGround) g.userData.owMobSpawnState = 'ground';
     this.scene.add(g);
-    const id='mob_'+(this._mobSeq=(this._mobSeq||0)+1);
-    const mob={ id, group:g, def, tier, color, hp:def.hp, maxHp:def.hp, atk:def.atk,
+    const id = opts.sharedId || (opts.forShared
+      ? ((opts.bossShared ? 'shb_' : 'shm_')+Date.now()+'_'+Math.random().toString(36).slice(2,6))
+      : ('mob_'+(this._mobSeq=(this._mobSeq||0)+1)));
+    const mob={ id, sharedId: opts.forShared || opts.sharedId ? id : null, bossShared: !!opts.bossShared, group:g, def, tier, color,
+      hp: opts.hp != null ? opts.hp : def.hp, maxHp: opts.maxHp != null ? opts.maxHp : def.hp, atk:def.atk,
       sight:def.sight||12, speed:def.speed||0.045, scale:mobScale, usesGlb:useGlb, golemMob:useGolem,
-      leviathanBoss:!!def.leviathanBoss, state:'spawn', spawnStart:Date.now(),
+      leviathanBoss:!!def.leviathanBoss, state: opts.skipGround ? 'patrol' : 'spawn', spawnStart:Date.now(),
       homeX:mx, homeZ:mz, patrolTarget:null, idleUntil:0, atkCd:Date.now()+800, hitUntil:0,
       walkPhase:0, dead:false, deadT:0, telegraph:null,
       spawnRing:this._mkRing(mx,mz,color,1.2,0.85) };
@@ -25197,7 +25348,7 @@ upsertOtherPet(nick, data){
     this._projectiles=this._projectiles||[];
     const m=new THREE.Mesh(new THREE.SphereGeometry(0.3,10,10), new THREE.MeshBasicMaterial({color:mob.color}));
     const p=mob.group.position; m.position.set(p.x,1.4*mob.scale,p.z); this.scene.add(m);
-    const tp=this.human.position, dx=tp.x-p.x, dz=tp.z-p.z, l=Math.hypot(dx,dz)||1;
+    const tp=this._nearestHunterPos(mob), dx=tp.x-p.x, dz=tp.z-p.z, l=Math.hypot(dx,dz)||1;
     this._projectiles.push({ mesh:m, vx:dx/l*0.34, vz:dz/l*0.34, dmg:mob.atk*0.9, born:Date.now(), mob });
   }
   _startTelegraph(mob, kind, x, z, radius, ms, dmg){
@@ -25212,7 +25363,7 @@ upsertOtherPet(nick, data){
     if(now<tg.until){ tg.mesh.material.opacity=0.32+0.4*Math.abs(Math.sin(now*0.02)); return; }
     if(tg.done) return;
     tg.done=true;
-    const p=this.human.position;
+    const p=this._nearestHunterPos(mob);
     let hitP=false;
     if(tg.kind==='circle') hitP = Math.hypot(p.x-tg.x,p.z-tg.z)<=tg.radius;
     else hitP = Math.hypot(p.x-mob.group.position.x,p.z-mob.group.position.z)<=tg.radius;
@@ -25265,11 +25416,11 @@ upsertOtherPet(nick, data){
       const hold = (OW_GOLEM_MANIFEST.animHoldMs && OW_GOLEM_MANIFEST.animHoldMs[ak]) || 900;
       this._loadGolemMobAnim(mob, ak, hold);
     }
-    const p=this.human.position;
+    const p=this._nearestHunterPos(mob);
     if(pat==='slam'){ this._startTelegraph(mob,'circle',p.x,p.z, mob.tier==='boss'?4:3, 620, mob.atk*(mob.tier==='boss'?1.75:1.4)); if(!mob.golemMob) mob.group.position.y=0.6; }
     else if(pat==='charge'){ this._startTelegraph(mob,'line',mob.group.position.x,mob.group.position.z,6,700,mob.atk*(mob.tier==='boss'?1.55:1.2)); }
     else if(pat==='projectile'){ this._spawnMobProjectile(mob); }
-    else { this._slashFx(this.human.position,mob.color); if(dist<2.5 && typeof owCombatPlayerHit==='function') owCombatPlayerHit(mob.atk, mob); }
+    else { this._slashFx(p,mob.color); if(dist<2.5 && typeof owCombatPlayerHit==='function') owCombatPlayerHit(mob.atk, mob); }
   }
   _pruneMobs(){
     if(!this.mobs || !this.mobs.length) return;
@@ -25281,15 +25432,20 @@ upsertOtherPet(nick, data){
     this._tickMobFx(now);
     if(!this.mobs || !this.mobs.length){
       this._updateMobPlates();
-      if(S.ow.combat && S.ow.combat.huntMode){ if(!this._nextWaveAt) this._nextWaveAt=now+2400; else if(now>this._nextWaveAt){ this._nextWaveAt=0; if(typeof owCombatSpawnWave==='function') owCombatSpawnWave(); } }
+      if(S.ow.combat && S.ow.combat.huntMode && !(typeof owSharedHuntActive==='function' && owSharedHuntActive())){
+        if(!this._nextWaveAt) this._nextWaveAt=now+2400;
+        else if(now>this._nextWaveAt){ this._nextWaveAt=0; if(typeof owCombatSpawnWave==='function') owCombatSpawnWave(); }
+      }
+      if(typeof owSharedHuntHostTick==='function') owSharedHuntHostTick(now);
+      if(typeof owSharedBossHostTick==='function') owSharedBossHostTick(now);
       return;
     }
     this._lodFrame=(this._lodFrame||0)+1;
-    const hpPos=this.human.position;
     for(let i=this.mobs.length-1;i>=0;i--){
       const mob=this.mobs[i];
       if(!mob || !mob.group){ this.mobs.splice(i,1); continue; }
       const g=mob.group;
+      const hpPos=this._nearestHunterPos(mob);
       const dx=hpPos.x-g.position.x, dz=hpPos.z-g.position.z, dist=Math.hypot(dx,dz);
       if(mob.state==='spawn'){
         const k=Math.min(1,(now-mob.spawnStart)/700);
@@ -25301,14 +25457,33 @@ upsertOtherPet(nick, data){
           const deadKey = (window.OW_GOLEM_MANIFEST && OW_GOLEM_MANIFEST.bossDeadAnim) || 'dead';
           this._loadGolemMobAnim(mob, this._isGolemWorldBoss(mob) ? deadKey : 'dead', 0);
         }
-        mob.deadT++; g.rotation.y+=0.3;
+        const advanceDead = !mob.sharedId || (typeof owSharedHuntIsHost==='function' && owSharedHuntIsHost());
+        if(advanceDead) mob.deadT++;
+        g.rotation.y+=0.3;
         if(!mob.golemMob) g.position.y-=0.06;
         const baseSc = mob.usesGlb ? 1 : mob.scale;
         g.scale.setScalar(Math.max(0.01, baseSc*(1-mob.deadT/18)));
-        if(mob.deadT>=18){ if(typeof owCombatGrantDrop==='function') owCombatGrantDrop(mob); this.removeMob(mob); continue; }
+        if(mob.deadT>=18){
+          if(typeof owCombatGrantDrop==='function' && (!mob.sharedId || mob._localKiller)) owCombatGrantDrop(mob);
+          if(mob.sharedId){
+            if(mob.bossShared){
+              if(typeof owSharedBossIsHost==='function' && owSharedBossIsHost() && typeof owSharedBossRemoveMob==='function') owSharedBossRemoveMob(mob.sharedId);
+            } else if(typeof owSharedHuntIsHost==='function' && owSharedHuntIsHost() && typeof owSharedHuntRemoveMob==='function'){
+              owSharedHuntRemoveMob(mob.sharedId);
+            }
+            this.removeMob(mob); continue;
+          }
+          this.removeMob(mob); continue;
+        }
       } else {
         const far=dist>40;
-        if(!(far && (this._lodFrame%3))) this._mobAI(mob, dist, dx, dz, now);
+        const bossSharedAi = mob.bossShared && typeof owSharedBossActive==='function' && owSharedBossActive();
+        const huntSharedAi = mob.sharedId && !mob.bossShared && typeof owSharedHuntActive==='function' && owSharedHuntActive();
+        const sharedSkipAi = (bossSharedAi || huntSharedAi) && (
+          (bossSharedAi && typeof owSharedBossIsHost==='function' && !owSharedBossIsHost()) ||
+          (huntSharedAi && typeof owSharedHuntIsHost==='function' && !owSharedHuntIsHost())
+        );
+        if(!sharedSkipAi && !(far && (this._lodFrame%3))) this._mobAI(mob, dist, dx, dz, now);
         mob.walkPhase += (mob.state==='chase'||mob.state==='patrol'||mob.state==='retreat')?0.25:0.06;
         if(mob.golemMob){
           if(mob.golemAnimUntil && now > mob.golemAnimUntil){
@@ -25333,6 +25508,8 @@ upsertOtherPet(nick, data){
     }
     this._updateMobPlates();
     if(typeof this._updateCombatHud==='function') this._updateCombatHud();
+    if(typeof owSharedHuntHostTick==='function') owSharedHuntHostTick(now);
+    if(typeof owSharedBossHostTick==='function') owSharedBossHostTick(now);
   }
   _updateMobPlates(){
     const root=document.getElementById('ow-root'); if(!root) return;
@@ -25765,8 +25942,9 @@ upsertOtherPet(nick, data){
   }
   _tickBoss(t, dt){
     const b=this._boss; if(!b) return;
-    const hp=this.human.position;
-    const face=Math.atan2(hp.x-b.baseX, hp.z-b.baseZ);
+    const tgt = b.bossShared && typeof owSharedBossNearestFighterPos === 'function'
+      ? owSharedBossNearestFighterPos(b.baseX, b.baseZ) : this.human.position;
+    const face=Math.atan2(tgt.x-b.baseX, tgt.z-b.baseZ);
     b.group.rotation.y += (((face-b.group.rotation.y+Math.PI*3)%(Math.PI*2))-Math.PI)*0.06;
     let lunge=0;
     if(b.lungeUntil){ const k=(b.lungeUntil-Date.now())/420; if(k<=0){ b.lungeUntil=0; } else { lunge=Math.sin((1-k)*Math.PI)*2.6; } }
@@ -26498,6 +26676,50 @@ if(S.ow.isDriver && this.companion){
           return;
         }
       }
+      /* ★ 돗자리 피크닉 — 다른 유저 돗자리 + 앉기 포즈 */
+      if(state === 'picnic'){
+        const tx = p.userData.targetX ?? p.position.x;
+        const tz = p.userData.targetZ ?? p.position.z;
+        p.position.x += (tx - p.position.x) * 0.2;
+        p.position.z += (tz - p.position.z) * 0.2;
+        p.position.y = 0;
+        const trotY = p.userData.targetRotY ?? p.rotation.y;
+        const dr = ((trotY - p.rotation.y + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
+        p.rotation.y += dr * 0.15;
+        p.rotation.z = 0;
+        this._syncOtherPicnicMat(p, true, tx, tz);
+        if(owHumanUsesOwAvatar(p) || p.userData.glbMultiClip || p.userData.glbStatic){
+          if(!p.userData._owPicnicPrimed){
+            if(owHumanUsesOwAvatar(p) && window.LMOwAvatar && typeof LMOwAvatar.primeSitMatPose === 'function'){
+              LMOwAvatar.primeSitMatPose(p);
+            } else if(window.LMGlb && typeof LMGlb.primeSitMatPose === 'function'){
+              LMGlb.primeSitMatPose(p, 0.04);
+            }
+            p.userData._owPicnicPrimed = true;
+          }
+          p.userData._lmSitMatAligned = false;
+          owUpdateHumanLocomotion(p, false, dt, {
+            moving: false, speedMult: 1,
+            sitting: true, inCar: false, riding: false, onMat: true,
+            matSurfaceY: 0.04, defeated: false, combat: false
+          });
+        } else {
+          this._sitDown(p);
+        }
+        if(p.userData.companion){
+          p.userData.companion.visible = true;
+          const comp = p.userData.companion;
+          const cosY = Math.cos(p.rotation.y), sinY = Math.sin(p.rotation.y);
+          const targetX = p.position.x + (-1.1 * cosY + -0.9 * sinY);
+          const targetZ = p.position.z + (1.1 * sinY + -0.9 * cosY);
+          comp.position.x += (targetX - comp.position.x) * 0.12;
+          comp.position.z += (targetZ - comp.position.z) * 0.12;
+          comp.position.y = 0;
+        }
+        return;
+      }
+      this._syncOtherPicnicMat(p, false);
+
       /* 일반 상태: 펫 보이게 */
       if(p.userData.companion) p.userData.companion.visible = true;
 
@@ -26942,6 +27164,20 @@ function updateOWOverlays(rd){
     }
   }
 
+  // 내 이모트 플로트
+  if(S.ow.emoteKind && Date.now() < (S.ow.emoteUntil || 0)){
+    const bodyH = rd.human.userData.lmBodyHeight || 2.52;
+    const v = rd.human.position.clone(); v.y += bodyH * 1.35;
+    const sp = project(v);
+    if(sp.z < 1){
+      const ef = document.createElement('div');
+      ef.className = 'ow-mmo-emote-float';
+      ef.textContent = owEmoteDef(S.ow.emoteKind).emoji;
+      ef.style.left = sp.x + 'px';
+      ef.style.top = sp.y + 'px';
+      root.appendChild(ef);
+    }
+  }
   // 내 펫 말풍선
   if(S.ow.chatMsg && Date.now() < S.ow.chatExpire){
     const v = rd.pet.position.clone(); v.y += 2.4;
@@ -26980,6 +27216,18 @@ function updateOWOverlays(rd){
         pm.style.left = psp.x + 'px';
         pm.style.top = psp.y + 'px';
         root.appendChild(pm);
+      }
+    }
+    if(p.userData.emoteFloat && Date.now() < (p.userData.emoteFloat.until || 0)){
+      const v3 = p.position.clone(); v3.y += bodyH * 1.35;
+      const sp3 = project(v3);
+      if(sp3.z < 1){
+        const ef = document.createElement('div');
+        ef.className = 'ow-mmo-emote-float';
+        ef.textContent = p.userData.emoteFloat.emoji;
+        ef.style.left = sp3.x + 'px';
+        ef.style.top = sp3.y + 'px';
+        root.appendChild(ef);
       }
     }
     if(p.userData.chatMsg && Date.now() < (p.userData.chatExpire || 0)){
@@ -27128,7 +27376,12 @@ function leaveOpenWorld(){
   if(__owMountRideUnsub){ try{ __owMountRideUnsub(); }catch(e){} __owMountRideUnsub = null; }
   if(__owCarUnsub){ try{ __owCarUnsub(); }catch(e){} __owCarUnsub = null; }
   if(__owGhostUnsub){ try{ __owGhostUnsub(); }catch(e){} __owGhostUnsub = null; }
+  if(__owHuntUnsub){ try{ __owHuntUnsub(); }catch(e){} __owHuntUnsub = null; }
+  if(__owBossCombatUnsub){ try{ __owBossCombatUnsub(); }catch(e){} __owBossCombatUnsub = null; }
   S.ow.ghostRaidSync = null;
+  S.ow.sharedHuntSync = null;
+  S.ow.sharedBossSync = null;
+  if(S.ow.combat?.huntMode) owSharedHuntLeave();
   S.ow._voidUi = false;
   S.ow.storyScene = null;
   if(S.ow.bossFight){ S.ow.bossFight = null; if(__owRenderer && typeof __owRenderer.removeBoss==='function') __owRenderer.removeBoss(); }
@@ -27211,6 +27464,8 @@ function initOpenWorld3D(){
   owInitNovelLayer(__owRenderer);
   subscribeOWGhostRaid();
   subscribeOWWorldEvents();
+  subscribeOWSharedHunt();
+  subscribeOWSharedBoss();
   owMmoInitSubscriptions();
   owMmoEventVFXInit();
   owMmoGetController().eco.init();
@@ -27797,33 +28052,51 @@ async function owClaimQuest(questId){
   saveOWInventory();
   render();
 }
-function owTriggerEmote(kind){
-  const h = __owRenderer && __owRenderer.human;
-  const roleMap = { wave:'greet', dance:'dance', heart:'greet', shine:'greet', party:'greet', laugh:'greet', arise:'greet' };
-  const role = roleMap[kind];
-  if(h && role){
-    if(owHumanUsesOwAvatar(h) && window.LMOwAvatar){
-      LMOwAvatar.triggerEmote(h, role);
-    } else if(window.LMGlb){
-      if(kind === 'wave' && typeof LMGlb.triggerAvatarGreet === 'function') LMGlb.triggerAvatarGreet(h);
-      else if(kind === 'dance' && typeof LMGlb.triggerAvatarDance === 'function') LMGlb.triggerAvatarDance(h);
-      else if(typeof LMGlb.triggerAvatarEmote === 'function') LMGlb.triggerAvatarEmote(h, role);
-    }
-  }
+function owEmoteDef(kind){
   const emotes = {
     heart: { emoji:'💖', text:'💖' },
     wave:  { emoji:'👋', text:'👋 반가워!' },
     shine: { emoji:'✨', text:'✨ 반짝!' },
     dance: { emoji:'💃', text:'💃 댄스!' },
     laugh: { emoji:'😆', text:'😆 하하!' },
-    party: { emoji:'🎉', text:'🎉 축하!' },
+    party: { emoji:'📣', text:'📣 파티 모집!' },
     arise: { emoji:'🌑', text:'일어나라…' },
+    pose:  { emoji:'📸', text:'📸 포즈!' },
+    photo: { emoji:'📸', text:'📸 사진!' },
+    hug:   { emoji:'🤗', text:'🤗 포옹!' },
+    highfive: { emoji:'✋', text:'✋ 하이파이브!' },
+    cheer: { emoji:'📣', text:'📣 응원!' },
+    bow:   { emoji:'🙇', text:'🙇 인사!' },
   };
-  const e = emotes[kind] || emotes.heart;
-  owSendChat(e.text);
-  if(kind === 'arise' && __owRenderer){
+  return emotes[kind] || emotes.heart;
+}
+function owApplyEmoteOnHuman(human, kind){
+  if(!human || !kind) return;
+  const roleMap = { wave:'greet', dance:'dance', heart:'greet', shine:'greet', party:'greet', laugh:'greet', arise:'greet', pose:'greet', photo:'greet', hug:'greet', highfive:'greet', cheer:'greet', bow:'greet' };
+  const role = roleMap[kind] || 'greet';
+  if(owHumanUsesOwAvatar(human) && window.LMOwAvatar){
+    LMOwAvatar.triggerEmote(human, role);
+  } else if(window.LMGlb){
+    if(kind === 'wave' && typeof LMGlb.triggerAvatarGreet === 'function') LMGlb.triggerAvatarGreet(human);
+    else if(kind === 'dance' && typeof LMGlb.triggerAvatarDance === 'function') LMGlb.triggerAvatarDance(human);
+    else if(typeof LMGlb.triggerAvatarEmote === 'function') LMGlb.triggerAvatarEmote(human, role);
+  }
+  if(kind === 'arise' && human === __owRenderer?.human && __owRenderer){
     __owRenderer._ariseBurstUntil = Date.now() + 3500;
   }
+}
+function owTriggerEmote(kind){
+  const h = __owRenderer && __owRenderer.human;
+  owApplyEmoteOnHuman(h, kind);
+  const e = owEmoteDef(kind);
+  const now = Date.now();
+  S.ow.emoteKind = kind;
+  S.ow.emoteAt = now;
+  S.ow.emoteUntil = now + 2800;
+  S.ow.chatMsg = e.text;
+  S.ow.chatExpire = now + 2800;
+  owSendChat(e.text);
+  owPushOWPositionNow();
   owQuestProgress('social', 1);
   render();
 }
@@ -27898,33 +28171,48 @@ function owOpenFeatureTreasure(){
   if(!near){ alert('오늘의 보물을 아직 찾지 못했어요.'); return; }
   owCollectTreasure(near.id);
 }
+function owBuildOWPositionPayload(){
+  if(!__owRenderer || !S.myEntry?.nick) return null;
+  const pos = __owRenderer.human.position;
+  const rot = __owRenderer.human.rotation.y;
+  return {
+    nick: S.myEntry.nick,
+    emoji: S.myPet?.petEmoji || '🐾',
+    petName: S.myPet?.petName || '펫',
+    gender: S.myEntry?.gender || '',
+    avatar: getMyAvatar(),
+    heightCm: getMyHeightCm(),
+    x: +pos.x.toFixed(2),
+    z: +pos.z.toFixed(2),
+    rotY: +rot.toFixed(2),
+    state: S.ow.inCar ? (S.ow.isDriver ? 'driving' : 'riding') : (S.ow.fishingPhase ? 'fishing' : (S.ow.onMat ? 'picnic' : 'idle')),
+    onMat: !!S.ow.onMat,
+    inCar: !!S.ow.inCar,
+    isDriver: !!S.ow.isDriver,
+    chatMsg: (Date.now() < S.ow.chatExpire) ? S.ow.chatMsg : '',
+    chatExpire: (Date.now() < S.ow.chatExpire) ? S.ow.chatExpire : 0,
+    emoteKind: (Date.now() < (S.ow.emoteUntil || 0)) ? (S.ow.emoteKind || '') : '',
+    emoteAt: S.ow.emoteAt || 0,
+    emoteUntil: S.ow.emoteUntil || 0,
+    ts: Date.now(),
+    mountActive: S.ow.mmo?.ridingMount || 'foot',
+    mountPassengerOf: S.ow.mmo?.mountPassengerOf || '',
+    mountPassengers: (S.ow.mmo?.mountPassengers || []).slice(),
+  };
+}
+function owPushOWPositionNow(){
+  const data = owBuildOWPositionPayload();
+  if(!data) return;
+  owCol.doc(S.myEntry.nick).set(data, { merge: true }).catch(()=>{});
+}
 function startOWPositionSync(){
   if(__owSyncInt) clearInterval(__owSyncInt);
   __owSyncInt = setInterval(()=>{
-    if(!__owRenderer || !S.myEntry?.nick) return;
-    const pos = __owRenderer.human.position;
-    const rot = __owRenderer.human.rotation.y;
-    const data = {
-      nick: S.myEntry.nick,
-      emoji: S.myPet?.petEmoji || '🐾',
-      petName: S.myPet?.petName || '펫',
-      gender: S.myEntry?.gender || '',
-      avatar: getMyAvatar(),
-      heightCm: getMyHeightCm(),
-      x: +pos.x.toFixed(2),
-      z: +pos.z.toFixed(2),
-      rotY: +rot.toFixed(2),
-      state: S.ow.inCar ? (S.ow.isDriver ? 'driving' : 'riding') : (S.ow.fishingPhase ? 'fishing' : (S.ow.onMat ? 'picnic' : 'idle')),
-      inCar: !!S.ow.inCar,
-      isDriver: !!S.ow.isDriver,
-      chatMsg: (Date.now() < S.ow.chatExpire) ? S.ow.chatMsg : '',
-      chatExpire: (Date.now() < S.ow.chatExpire) ? S.ow.chatExpire : 0,
-      ts: Date.now(),
-      mountActive: S.ow.mmo?.ridingMount || 'foot',
-      mountPassengerOf: S.ow.mmo?.mountPassengerOf || '',
-      mountPassengers: (S.ow.mmo?.mountPassengers || []).slice(),
-    };
+    const data = owBuildOWPositionPayload();
+    if(!data) return;
     owCol.doc(S.myEntry.nick).set(data, { merge: true }).catch(()=>{});
+    if(S.ow.combat?.huntMode && typeof owSharedHuntUpdateHunterPos === 'function') owSharedHuntUpdateHunterPos();
+    if((S.ow.bossFight?.active || S.ow.combat?.huntMode) && typeof owSharedBossUpdateFighterPos === 'function') owSharedBossUpdateFighterPos();
   }, OW_SYNC_MS);
 }
 function subscribeOWPlayers(){
@@ -27974,27 +28262,62 @@ function subscribeOWCar(){
     }
   });
 }
+function owTradeFromNick(t){ return (t && (t.from || t.from_nick)) || ''; }
+function owTradeToNick(t){ return (t && (t.to || t.to_nick)) || ''; }
+function owApplyOpenTradeState(t){
+  const myNick = S.myEntry?.nick;
+  if(!myNick || !t) return;
+  const from = owTradeFromNick(t);
+  const to = owTradeToNick(t);
+  const sellerOffer = t.sellerOffer || t.seller_offer || [];
+  const buyerOffer = t.buyerOffer || t.buyer_offer || [];
+  const sellerLocked = !!(t.sellerLocked || t.seller_locked);
+  const buyerLocked = !!(t.buyerLocked || t.buyer_locked);
+  S.ow.activeTrade = t;
+  S.ow.tradeWith = myNick === from ? to : from;
+  S.ow.tradeOffer = myNick === from ? sellerOffer : buyerOffer;
+  S.ow.tradeRecvOffer = myNick === from ? buyerOffer : sellerOffer;
+  S.ow.tradeLocked = myNick === from ? sellerLocked : buyerLocked;
+  S.ow.tradeReq = null;
+  S.ow.showTrade = true;
+}
+function owHandleOpenTradeSnapshot(snap){
+  if(snap.empty){
+    if(S.ow.showTrade){
+      S.ow.activeTrade = null;
+      S.ow.tradeWith = null;
+      S.ow.tradeOffer = [];
+      S.ow.tradeRecvOffer = [];
+      S.ow.tradeLocked = false;
+      S.ow.showTrade = false;
+      if(S.screen==='openworld') render();
+    }
+    return;
+  }
+  snap.forEach(doc=>{ owApplyOpenTradeState({ id: doc.id, ...doc.data() }); });
+  if(S.screen==='openworld') render();
+}
 function subscribeOWTrade(){
   // 받은 거래 요청 감시
   const myNick = S.myEntry?.nick; if(!myNick) return;
   owTradeCol.where('to', '==', myNick).where('status', '==', 'pending')
     .onSnapshot(snap=>{
+      if(snap.empty){
+        if(!S.ow.showTrade) S.ow.tradeReq = null;
+        if(S.screen==='openworld') render();
+        return;
+      }
       snap.forEach(doc=>{
         const t = { id: doc.id, ...doc.data() };
         S.ow.tradeReq = t;
-        if(S.screen==='openworld') render();
       });
+      if(S.screen==='openworld') render();
     });
-  // 진행 중인 거래 감시 (양쪽 어느 nick으로든 참여)
+  // 진행 중인 거래 — participants 또는 신청자(from) 기준 (양쪽 거래창 동시 오픈)
   owTradeCol.where('participants', 'array-contains', myNick).where('status', '==', 'open')
-    .onSnapshot(snap=>{
-      snap.forEach(doc=>{
-        const t = { id: doc.id, ...doc.data() };
-        S.ow.activeTrade = t;
-        S.ow.tradeRecvOffer = t.sellerNick === myNick ? (t.buyerOffer||[]) : (t.sellerOffer||[]);
-        if(S.screen==='openworld' && S.ow.showTrade) render();
-      });
-    });
+    .onSnapshot(owHandleOpenTradeSnapshot);
+  owTradeCol.where('from', '==', myNick).where('status', '==', 'open')
+    .onSnapshot(owHandleOpenTradeSnapshot);
 }
 
 /* ─── 채팅 메시지 보내기 ─── */
@@ -29127,15 +29450,7 @@ function owToggleMat(){
   if(S.ow.onMat){
     // 정리 — mat 제거 + 일어나기
     if(rd._matMesh){
-      rd.scene.remove(rd._matMesh);
-      // dispose
-      rd._matMesh.traverse(o=>{
-        if(o.geometry) o.geometry.dispose?.();
-        if(o.material){
-          if(Array.isArray(o.material)) o.material.forEach(m=>m.dispose?.());
-          else o.material.dispose?.();
-        }
-      });
+      rd._disposePicnicMatMesh(rd._matMesh);
       rd._matMesh = null;
     }
     rd._isSitting = false;
@@ -29163,6 +29478,7 @@ function owToggleMat(){
       });
     }
     S.ow.onMat = false;
+    owPushOWPositionNow();
     render();
     return;
   }
@@ -29170,40 +29486,8 @@ function owToggleMat(){
   // 펴기 — mat 메쉬 생성하고 그 위에 앉기
   const hx = rd.human.position.x;
   const hz = rd.human.position.z;
-
-  // mat 생성 (체크무늬 정사각형)
-  const matGroup = new THREE.Group();
-  const matMat1 = new THREE.MeshLambertMaterial({ color: 0xFFB5C8 });
-  const matMat2 = new THREE.MeshLambertMaterial({ color: 0xFFFFFF });
-  const matSize = 2.0;
-  // 4x4 체크무늬
-  for(let i = 0; i < 4; i++){
-    for(let j = 0; j < 4; j++){
-      const cell = new THREE.Mesh(
-        new THREE.BoxGeometry(matSize/4, 0.04, matSize/4),
-        ((i+j)%2 === 0) ? matMat1 : matMat2
-      );
-      cell.position.set(
-        (i - 1.5) * (matSize/4),
-        0.02,
-        (j - 1.5) * (matSize/4)
-      );
-      cell.receiveShadow = true;
-      matGroup.add(cell);
-    }
-  }
-  // 작은 음식 장식 (도시락)
-  const basket = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.18, 0.22, 0.18, 12),
-    new THREE.MeshLambertMaterial({ color: 0xC68642 })
-  );
-  basket.position.set(0.6, 0.13, 0.6);
-  basket.castShadow = true;
-  matGroup.add(basket);
-
-  matGroup.position.set(hx, 0, hz);
-  rd.scene.add(matGroup);
-  rd._matMesh = matGroup;
+  rd._matMesh = rd._createPicnicMatMesh(hx, hz);
+  rd.scene.add(rd._matMesh);
   S.ow.onMat = true;
   rd._isSitting = true;
 
@@ -29226,6 +29510,7 @@ function owToggleMat(){
       combat: !!(S.ow.combat?.huntMode || S.ow.bossFight?.active)
     });
   }
+  owPushOWPositionNow();
   render();
 }
 
@@ -29272,21 +29557,23 @@ async function owSendTradeRequest(targetNick){
   }catch(e){ console.error(e); alert('거래 신청 실패'); }
 }
 async function owAcceptTrade(tradeId){
-  if(!tradeId) return;
+  if(!tradeId || !S.ow.tradeReq) return;
+  const req = S.ow.tradeReq;
+  const from = owTradeFromNick(req);
+  const to = owTradeToNick(req);
   try{
     await owTradeDocUpdate(tradeId, {
       status: 'open',
       sellerOffer: [], buyerOffer: [],
       sellerLocked: false, buyerLocked: false,
-      participants: [S.ow.tradeReq.from, S.ow.tradeReq.to],
+      participants: [from, to],
     });
-    S.ow.tradeWith = S.ow.tradeReq.from;
-    S.ow.tradeOffer = [];
-    S.ow.tradeRecvOffer = [];
-    S.ow.tradeLocked = false;
-    S.ow.activeTrade = { id: tradeId, status: 'open' };
-    S.ow.tradeReq = null;
-    S.ow.showTrade = true;
+    owApplyOpenTradeState({
+      id: tradeId, status: 'open', from, to,
+      sellerOffer: [], buyerOffer: [],
+      sellerLocked: false, buyerLocked: false,
+      participants: [from, to],
+    });
     render();
   }catch(e){ console.error(e); alert('수락 실패'); }
 }
@@ -29328,7 +29615,7 @@ async function _owSyncTradeOffer(){
     const doc = await owTradeCol.doc(S.ow.activeTrade.id).get();
     if(!doc.exists) return;
     const data = doc.data();
-    const isSeller = data.from === myNick;
+    const isSeller = owTradeFromNick(data) === myNick;
     const fld = isSeller ? 'sellerOffer' : 'buyerOffer';
     const lockFld = isSeller ? 'sellerLocked' : 'buyerLocked';
     await owTradeDocUpdate(S.ow.activeTrade.id, {
@@ -29344,7 +29631,7 @@ async function owToggleTradeLock(){
     const doc = await owTradeCol.doc(S.ow.activeTrade.id).get();
     if(!doc.exists) return;
     const data = doc.data();
-    const isSeller = data.from === myNick;
+    const isSeller = owTradeFromNick(data) === myNick;
     const lockFld = isSeller ? 'sellerLocked' : 'buyerLocked';
     const newLock = !S.ow.tradeLocked;
     await owTradeDocUpdate(S.ow.activeTrade.id, { [lockFld]: newLock });
@@ -30238,10 +30525,8 @@ function owSetPhotoPose(kind){
   ex.photoZone = ex.photoZone || 'fountain';
   S.ow.showFeatureHub = false;
   S.ow.showExpansion = false;
-  S.ow.chatMsg = kind === 'dance' ? '💃 댄스 포즈!' : kind === 'heart' ? '💖 하트 포즈!' : '📸 포즈!';
-  S.ow.chatExpire = Date.now() + 2500;
+  owTriggerEmote(kind === 'dance' ? 'dance' : kind === 'heart' ? 'heart' : 'pose');
   saveOWInventory();
-  render();
 }
 function owOpenPhotoMode(){
   const ex = _owGetExpandedState();
@@ -30853,6 +31138,12 @@ const OW_SOUL_LINKER_LINES = [
 let __owNovelLayer = null;
 let __owGhostUnsub = null;
 let __owWorldUnsub = null;
+let __owHuntUnsub = null;
+let __owHuntPushAt = 0;
+const OW_HUNT_PUSH_MS = 320;
+let __owBossCombatUnsub = null;
+let __owBossPushAt = 0;
+const OW_BOSS_PUSH_MS = 320;
 let __owCaptureAnim = null;
 
 function _owCreateNovelState(dayKey){
@@ -31027,7 +31318,12 @@ function owBossCdSet(key, ms){
 function owWorldBossClearStale(){
   if(S.ow.worldBoss){ S.ow.worldBoss = null; }
   S.ow.bossFight = null;
-  if(__owRenderer && typeof __owRenderer.removeBoss === 'function') __owRenderer.removeBoss();
+  if(__owRenderer){
+    if(__owRenderer._boss?.bossShared) __owRenderer.removeBoss();
+    else if(typeof __owRenderer.removeBoss === 'function') __owRenderer.removeBoss();
+    __owRenderer.removeSharedBossMobs && __owRenderer.removeSharedBossMobs();
+  }
+  owSharedBossClearDoc();
 }
 function owZipferCdLeft(){
   try{ return Math.max(0, (OWMMODataStore.get().zipferNextAt||0) - Date.now()); }catch(e){ return 0; }
@@ -31082,17 +31378,20 @@ function owStartLeviathan3DFight(){
   }
   const c = S.ow.combat;
   c.huntMode = true; c.hp = c.maxHp; c.mp = c.maxMp; c.targetId = null; c.drop = null;
-  __owRenderer.removeAllMobs && __owRenderer.removeAllMobs();
+  __owRenderer.removeSharedBossMobs && __owRenderer.removeSharedBossMobs();
   const hp = Math.max(12000, Math.floor((boss.hp || boss.maxHp || 500000) / 35));
-  const mob = __owRenderer.spawnMob({
-    id:'leviathan3d_' + Date.now(), name:'심연의 레비아탄', emoji:'🐋', color:0x1565c0,
-    hp, atk:420, sight:28, speed:0.045, patterns:['slam','charge','projectile'],
-    glbHeight: OW_GOLEM_BOSS_HEIGHT, leviathanBoss: true, golemPack: true
-  }, 'boss');
-  if(mob) mob.leviathanBoss = true;
+  const p = __owRenderer.human.position;
+  owSharedBossSpawnMobs('leviathan3d', [{
+    def: {
+      id:'leviathan3d', name:'심연의 레비아탄', emoji:'🐋', color:0x1565c0,
+      hp, atk:420, sight:28, speed:0.045, patterns:['slam','charge','projectile'],
+      glbHeight: OW_GOLEM_BOSS_HEIGHT, leviathanBoss: true, golemPack: true,
+    },
+    tier: 'boss', x: p.x, z: p.z, hp, maxHp: hp, leviathanBoss: true,
+  }]);
   S.ow.mmo = S.ow.mmo || {};
   S.ow.mmo.leviathanFight = { active:true, startedAt:Date.now(), dmg:0 };
-  owMmoToast('🐋 3D 토벌전! 화면 탭/⚔️로 공격하세요');
+  owMmoToast('🐋 함께 3D 토벌전! 화면 탭/⚔️로 공격하세요');
   render();
 }
 function owStartZipferWorldBossFight(){
@@ -31105,25 +31404,35 @@ function owStartZipferWorldBossFight(){
     return;
   }
   const wb = S.ow.worldBoss;
-  if(!wb || !wb.active){
+  const syncDragon = owSharedBossSync()?.dragon;
+  if((!wb || !wb.active) && (!syncDragon || syncDragon.dead)){
     if(typeof owMmoToast==='function') owMmoToast('🔥 지퍼리드가 아직 맵에 없어요');
     return;
   }
   owCloseAllPanels();
   const nv = _owGetNovelState();
-  nv.dragonBossId = wb.bossId || 'zipfer';
-  if(!nv.dragonHp || nv.dragonHp <= 0) nv.dragonHp = nv.dragonMaxHp || 120000;
-  wb.engaged = true;
+  nv.dragonBossId = wb?.bossId || syncDragon?.bossId || 'zipfer';
+  if(syncDragon){
+    nv.dragonHp = syncDragon.hp;
+    nv.dragonMaxHp = syncDragon.maxHp;
+  } else if(!nv.dragonHp || nv.dragonHp <= 0){
+    nv.dragonHp = nv.dragonMaxHp || 120000;
+  }
+  owSharedBossJoin('zipfer', false).then(() => {
+    const ref = owEventsCol.doc(OW_SHARED_BOSS_DOC);
+    ref.get().then(snap => {
+      const cur = snap.exists ? snap.data() : {};
+      const dragon = { ...(cur.dragon || syncDragon || {}), engaged: true };
+      ref.set({ dragon, updatedAt: Date.now() }, { merge: true }).catch(() => {});
+    });
+  });
+  if(wb) wb.engaged = true;
   S.ow.bossFight = { active:true, startedAt:Date.now(), world:true };
   if(__owRenderer._boss){
     __owRenderer._boss.engaged = true;
     __owRenderer._boss.nextAtk = Date.now() + 1800;
-  } else {
-    const boss = OW_DRAGON_BOSSES.find(d=>d.id==='zipfer') || OW_DRAGON_BOSSES[0];
-    __owRenderer.spawnBoss(boss, { x: wb.x, z: wb.z });
-    if(__owRenderer._boss){ __owRenderer._boss.engaged = true; __owRenderer._boss.nextAtk = Date.now() + 1800; }
   }
-  if(typeof owMmoToast==='function') owMmoToast(`⚔️ ${wb.name} 결투 시작! 탭/⚔️로 공격`);
+  if(typeof owMmoToast==='function') owMmoToast(`⚔️ ${wb?.name || '지퍼리드'} 함께 토벌! 탭/⚔️로 공격`);
   render();
 }
 function owStartBossFight(){
@@ -31158,14 +31467,38 @@ function owBossAttackTap(){
   const buffs = (typeof owGetLifeCombatBuffs==='function') ? owGetLifeCombatBuffs() : { atk:1 };
   const crit = Math.random() < 0.25;
   const dmg = Math.floor((1200 + Math.random()*1800) * mult * (buffs.atk||1) * (crit?2:1));
+  const sync = owSharedBossSync();
+  if(sync?.dragon && !sync.dragon.dead){
+    owSharedBossApplyDragonDamage(dmg).then(res => {
+      if(!res) return;
+      nv.dragonHp = res.newHp;
+      if(S.ow.worldBoss) S.ow.worldBoss.myContrib = (res.contributors || {})[owMyNick()] || 0;
+      __owRenderer.bossHit();
+      __owRenderer.spawnBossDmg(dmg, crit || weakHit);
+      if(res.dead){
+        const myContrib = (res.contributors || {})[owMyNick()] || 0;
+        owBossDefeat({ localKill: true, contributors: res.contributors, myContrib, clearedAt: res.clearedAt });
+      } else render();
+    });
+    return;
+  }
   nv.dragonHp = Math.max(0, (nv.dragonHp||0) - dmg);
   if(S.ow.bossFight.world && S.ow.worldBoss){ S.ow.worldBoss.myContrib = (S.ow.worldBoss.myContrib||0) + dmg; }
   __owRenderer.bossHit();
   __owRenderer.spawnBossDmg(dmg, crit || weakHit);
-  if(nv.dragonHp <= 0){ owBossDefeat(); }
+  if(nv.dragonHp <= 0){ owBossDefeat({ localKill: true }); }
   else { render(); }
 }
-function owBossDefeat(){
+function owBossDefeatFromSync(s){
+  const contrib = (s?.dragon?.contributors || {})[owMyNick()] || 0;
+  owBossDefeat({ sharedKill: true, contributors: s?.dragon?.contributors || {}, myContrib: contrib, clearedAt: s?.dragon?.clearedAt });
+}
+function owBossDefeat(opts){
+  opts = opts || {};
+  if(opts.clearedAt && S.ow._bossDefeatHandled === opts.clearedAt) return;
+  if(opts.clearedAt) S.ow._bossDefeatHandled = opts.clearedAt;
+  else if(opts.localKill && S.ow._bossDefeatLocalHandled) return;
+  else if(opts.localKill) S.ow._bossDefeatLocalHandled = true;
   const nv = _owGetNovelState();
   const boss = owGetDragonBoss();
   if(__owRenderer && __owRenderer._boss){
@@ -31180,7 +31513,10 @@ function owBossDefeat(){
   const isZipferKill = !!(S.ow.bossFight?.world || S.ow.worldBoss || nv.dragonBossId === 'zipfer' || boss?.id === 'zipfer');
   /* 월드 보스(맵 랜덤 출현) — 기여도 차등 보상 + 24시간 리스폰 */
   if(isZipferKill){
-    const contrib = (S.ow.worldBoss?.myContrib) || 0;
+    const contrib = opts.myContrib != null ? opts.myContrib
+      : ((opts.contributors || {})[owMyNick()] || (S.ow.worldBoss?.myContrib) || 0);
+    if(opts.sharedKill && contrib <= 0) return;
+    if(opts.localKill) opts.myContrib = contrib;
     const frac = Math.min(1, contrib / (nv.dragonMaxHp || 1));
     const tier = frac>=0.6 ? '🥇 1등급' : frac>=0.3 ? '🥈 2등급' : '🥉 참여';
     const pts = Math.round(40000*frac + 8000);
@@ -31191,6 +31527,7 @@ function owBossDefeat(){
     mw.worldBossNextAt = Date.now() + 24*60*60*1000;
     mw.zipferNextAt = Date.now() + OW_ZIPFER_CD_MS;
     OWMMODataStore.touch();
+    if(opts.localKill || contrib > 0) owSharedBossClearDoc();
     owWorldBossClearStale();
     if(typeof owMmoToast==='function') owMmoToast(`🏆 지퍼리드 처치! 기여 ${Math.round(frac*100)}% · ${tier} · +${pts.toLocaleString()}P · ${owFmtBossCd(OW_ZIPFER_CD_MS)}`);
   } else {
@@ -31219,31 +31556,40 @@ function owBossFlee(){
   render();
 }
 /* ═══════════ 👑 월드 보스 — 맵 랜덤 출현 (24시간) ═══════════ */
-function owWorldBossSpawn(){
+async function owWorldBossSpawn(){
   if(!__owRenderer) return;
   const mw = OWMMODataStore.get();
   const zipLeft = Math.max(0, (mw.zipferNextAt||0) - Date.now());
   if(zipLeft > 0) return;
+  const existing = owSharedBossSync();
+  if(existing?.dragon && !existing.dragon.dead && existing.dragon.hp > 0) return;
   const boss = OW_DRAGON_BOSSES.find(d=>d.id==='zipfer') || OW_DRAGON_BOSSES[0];
   const ang = Math.random()*Math.PI*2, r = 18 + Math.random()*16;
   const x = Math.cos(ang)*r, z = Math.sin(ang)*r;
-  const nv = _owGetNovelState();
-  nv.dragonBossId = 'zipfer';
-  nv.dragonHp = nv.dragonMaxHp = 120000 + Math.floor(Math.random()*60000);
-  S.ow.worldBoss = { active:true, engaged:false, x, z, name:boss.name, emoji:boss.emoji, bossId:'zipfer', myContrib:0 };
-  __owRenderer.spawnBoss(boss, { x, z });
+  const maxHp = 120000 + Math.floor(Math.random()*60000);
+  const dragon = {
+    id: 'shb_dr_'+Date.now(),
+    bossId: 'zipfer', x: +x.toFixed(2), z: +z.toFixed(2),
+    hp: maxHp, maxHp, engaged: false, dead: false,
+    contributors: {}, killer: null, clearedAt: 0,
+  };
+  await owEventsCol.doc(OW_SHARED_BOSS_DOC).set({
+    active: true, kind: 'zipfer', host: owMyNick() || '',
+    fighters: {}, mobs: [], dragon, updatedAt: Date.now(),
+  }, { merge: true }).catch(()=>{});
   S.ow.worldBossAlertUntil = Date.now() + 15000;
-  if(typeof owMmoToast==='function') owMmoToast(`🔥 지퍼리드 출현! (${Math.round(x)}, ${Math.round(z)})`);
+  if(typeof owMmoToast==='function') owMmoToast(`🔥 지퍼리드 출현! (${Math.round(x)}, ${Math.round(z)}) — 함께 토벌!`);
 }
 function owWorldBossTick(){
   if(!__owRenderer || S.ow.bossFight?.active) return;
   const mw = OWMMODataStore.get();
   const zipLeft = Math.max(0, (mw.zipferNextAt||0) - Date.now());
   if(zipLeft > 0){
-    if(S.ow.worldBoss?.active) owWorldBossClearStale();
+    if(S.ow.worldBoss?.active || owSharedBossSync()?.dragon) owWorldBossClearStale();
     return;
   }
-  if((!S.ow.worldBoss || !S.ow.worldBoss.active) && Date.now() >= (mw.worldBossNextAt||0)){
+  const syncDragon = owSharedBossSync()?.dragon;
+  if((!syncDragon || syncDragon.dead || syncDragon.hp <= 0) && Date.now() >= (mw.worldBossNextAt||0)){
     owWorldBossSpawn(); return;
   }
   const wb = S.ow.worldBoss;
@@ -31254,8 +31600,15 @@ function owWorldBossTick(){
     if(Math.hypot(h.x-wb.x, h.z-wb.z) < 7){
       wb.engaged = true;
       S.ow.bossFight = { active:true, startedAt:Date.now(), world:true };
+      owSharedBossJoin('zipfer', false);
+      const syncDragon = owSharedBossSync()?.dragon;
+      if(syncDragon){
+        owEventsCol.doc(OW_SHARED_BOSS_DOC).set({
+          dragon: { ...syncDragon, engaged: true }, updatedAt: Date.now(),
+        }, { merge: true }).catch(()=>{});
+      }
       if(__owRenderer._boss){ __owRenderer._boss.engaged = true; __owRenderer._boss.nextAtk = Date.now()+1800; }
-      if(typeof owMmoToast==='function') owMmoToast(`⚔️ ${wb.name} 결투 시작! 탭/⚔️로 공격`);
+      if(typeof owMmoToast==='function') owMmoToast(`⚔️ ${wb.name} 함께 토벌! 탭/⚔️로 공격`);
       render();
     }
   }
@@ -31360,6 +31713,487 @@ const OW_DROP_QUALITY = {
   legend: { label:'전설',   emoji:'🌟', color:0xffd54f, points:13000, mat:'fish_legend' },
 };
 
+/* ── 공동 사냥 (오픈월드 플레이어가 같은 몹을 함께 잡음) ── */
+function owMyNick(){ return S.myEntry?.nick || ''; }
+function owGetMobDefById(defId, tier){
+  const pool = OW_MOB_DEFS[tier] || OW_MOB_DEFS.normal;
+  return pool.find(d => d.id === defId) || pool[0];
+}
+function owMobToSync(mob){
+  const g = mob.group;
+  return {
+    id: mob.sharedId || mob.id,
+    defId: mob.def.id, tier: mob.tier,
+    x: +g.position.x.toFixed(2), z: +g.position.z.toFixed(2),
+    hp: mob.hp, maxHp: mob.maxHp,
+    state: mob.state, dead: !!mob.dead, deadT: mob.deadT || 0,
+    homeX: mob.homeX, homeZ: mob.homeZ,
+    spawnStart: mob.spawnStart,
+    killer: mob.killer || null,
+  };
+}
+function owSharedHuntSync(){ return S.ow.sharedHuntSync || null; }
+function owSharedHuntActive(){
+  const s = owSharedHuntSync();
+  return !!(s && s.active);
+}
+function owSharedHuntIsHost(){
+  const s = owSharedHuntSync();
+  const me = owMyNick();
+  if(!s || !me || !s.active) return false;
+  if(s.host) return s.host === me;
+  const keys = Object.keys(s.hunters || {});
+  return keys[0] === me;
+}
+function owSharedHuntNearestHunterPos(fromX, fromZ){
+  const s = owSharedHuntSync();
+  const hunters = s?.hunters || {};
+  let best = null, bd = 1e9;
+  const rd = __owRenderer;
+  if(rd?.human){
+    const p = rd.human.position;
+    const d = Math.hypot(p.x - fromX, p.z - fromZ);
+    if(d < bd){ bd = d; best = { x: p.x, z: p.z }; }
+  }
+  Object.values(hunters).forEach(h => {
+    if(!h || h.x == null) return;
+    const d = Math.hypot(h.x - fromX, h.z - fromZ);
+    if(d < bd){ bd = d; best = { x: h.x, z: h.z }; }
+  });
+  return best || (rd?.human ? { x: rd.human.position.x, z: rd.human.position.z } : { x: 0, z: 0 });
+}
+function owSharedHuntCenter(s){
+  const hunters = Object.values(s?.hunters || {}).filter(h => h && h.x != null);
+  if(!hunters.length && __owRenderer?.human){
+    const p = __owRenderer.human.position;
+    return { x: p.x, z: p.z };
+  }
+  return {
+    x: hunters.reduce((a, h) => a + h.x, 0) / hunters.length,
+    z: hunters.reduce((a, h) => a + h.z, 0) / hunters.length,
+  };
+}
+async function owSharedHuntJoin(){
+  const me = owMyNick();
+  const rd = __owRenderer;
+  if(!me || !rd) return false;
+  const pos = rd.human.position;
+  const ref = owEventsCol.doc(OW_SHARED_HUNT_DOC);
+  const snap = await ref.get().catch(() => null);
+  const cur = snap?.exists ? snap.data() : null;
+  const hunters = { ...(cur?.hunters || {}) };
+  hunters[me] = { x: +pos.x.toFixed(2), z: +pos.z.toFixed(2), ts: Date.now() };
+  const center = owSharedHuntCenter({ hunters });
+  const wasActive = !!(cur && cur.active);
+  const host = wasActive ? (cur.host || Object.keys(hunters)[0]) : me;
+  await ref.set({
+    active: true,
+    host,
+    hunters,
+    centerX: +center.x.toFixed(2),
+    centerZ: +center.z.toFixed(2),
+    mobs: cur?.mobs || [],
+    nextWaveAt: wasActive ? (cur.nextWaveAt || Date.now() + 2400) : (Date.now() + 600),
+    updatedAt: Date.now(),
+  }, { merge: true }).catch(() => {});
+  return !wasActive;
+}
+async function owSharedHuntLeave(){
+  const me = owMyNick();
+  if(!me) return;
+  const ref = owEventsCol.doc(OW_SHARED_HUNT_DOC);
+  const snap = await ref.get().catch(() => null);
+  if(!snap?.exists) return;
+  const cur = snap.data() || {};
+  const hunters = { ...(cur.hunters || {}) };
+  delete hunters[me];
+  const keys = Object.keys(hunters);
+  if(!keys.length){
+    await ref.set({ active: false, hunters: {}, mobs: [], host: '', updatedAt: Date.now() }, { merge: true }).catch(() => {});
+    return;
+  }
+  const center = owSharedHuntCenter({ hunters });
+  const host = cur.host === me ? keys[0] : (cur.host || keys[0]);
+  await ref.set({
+    hunters, host,
+    centerX: +center.x.toFixed(2),
+    centerZ: +center.z.toFixed(2),
+    updatedAt: Date.now(),
+  }, { merge: true }).catch(() => {});
+}
+let __owHuntPosAt = 0;
+async function owSharedHuntUpdateHunterPos(){
+  const now = Date.now();
+  if(now - __owHuntPosAt < 1200) return;
+  __owHuntPosAt = now;
+  const me = owMyNick();
+  if(!me || !S.ow.combat?.huntMode || !__owRenderer?.human) return;
+  const s = owSharedHuntSync();
+  if(!s?.active || !s.hunters?.[me]) return;
+  const p = __owRenderer.human.position;
+  const ref = owEventsCol.doc(OW_SHARED_HUNT_DOC);
+  const hunters = { ...s.hunters };
+  hunters[me] = { x: +p.x.toFixed(2), z: +p.z.toFixed(2), ts: Date.now() };
+  const center = owSharedHuntCenter({ hunters });
+  await ref.set({
+    hunters,
+    centerX: +center.x.toFixed(2),
+    centerZ: +center.z.toFixed(2),
+    updatedAt: Date.now(),
+  }, { merge: true }).catch(() => {});
+}
+async function owSharedHuntApplyDamage(mob, newHp, died){
+  if(!mob?.sharedId) return;
+  const me = owMyNick();
+  const ref = owEventsCol.doc(OW_SHARED_HUNT_DOC);
+  const snap = await ref.get().catch(() => null);
+  if(!snap?.exists) return;
+  const cur = snap.data() || {};
+  const mobs = (cur.mobs || []).map(m => {
+    if(m.id !== mob.sharedId) return m;
+    return {
+      ...m,
+      hp: newHp,
+      dead: died,
+      deadT: died ? 0 : (m.deadT || 0),
+      killer: died ? me : (m.killer || null),
+      state: died ? 'dead' : m.state,
+    };
+  });
+  await ref.set({ mobs, updatedAt: Date.now() }, { merge: true }).catch(() => {});
+}
+async function owSharedHuntRemoveMob(sharedId){
+  if(!sharedId || !owSharedHuntIsHost()) return;
+  const ref = owEventsCol.doc(OW_SHARED_HUNT_DOC);
+  const snap = await ref.get().catch(() => null);
+  if(!snap?.exists) return;
+  const cur = snap.data() || {};
+  const mobs = (cur.mobs || []).filter(m => m.id !== sharedId);
+  await ref.set({ mobs, updatedAt: Date.now() }, { merge: true }).catch(() => {});
+}
+function owApplySharedHuntSync(){
+  const s = owSharedHuntSync();
+  const rd = __owRenderer;
+  if(!rd || S.screen !== 'openworld') return;
+  const me = owMyNick();
+  const inHunters = !!(s?.hunters && me && s.hunters[me]);
+  if(!s?.active || !inHunters){
+    rd.removeSharedHuntMobs && rd.removeSharedHuntMobs();
+    return;
+  }
+  const mobsData = s.mobs || [];
+  const syncIds = new Set();
+  const isHost = owSharedHuntIsHost();
+  for(const sm of mobsData){
+    if(sm.dead && (sm.deadT || 0) >= 18) continue;
+    syncIds.add(sm.id);
+    let mob = (rd.mobs || []).find(m => m.sharedId === sm.id);
+    if(!mob){
+      mob = rd.spawnMobFromSync(sm);
+      if(sm.dead && !mob._deathHandled){
+        mob.dead = true; mob.deadT = sm.deadT || 0; mob.state = 'dead';
+        if(sm.killer === me && typeof owCombatOnMobDead === 'function'){
+          owCombatOnMobDead(mob, { sharedKill: true, killer: sm.killer });
+        }
+      }
+    } else {
+      rd.applyMobSyncState(mob, sm, isHost);
+    }
+  }
+  (rd.mobs || []).filter(m => m.sharedId && !syncIds.has(m.sharedId)).forEach(m => {
+    if(!m.dead) rd.removeMob(m);
+  });
+}
+function owSharedHuntHostTick(now){
+  if(!owSharedHuntIsHost() || !S.ow.combat?.huntMode) return;
+  const s = owSharedHuntSync();
+  const rd = __owRenderer;
+  if(!s?.active || !rd) return;
+  now = now || Date.now();
+  if(now - __owHuntPushAt >= OW_HUNT_PUSH_MS){
+    __owHuntPushAt = now;
+    const mobs = (rd.mobs || []).filter(m => m.sharedId).map(owMobToSync);
+    owEventsCol.doc(OW_SHARED_HUNT_DOC).set({ mobs, updatedAt: now }, { merge: true }).catch(() => {});
+  }
+  const alive = (s.mobs || []).filter(m => !m.dead);
+  if(!alive.length){
+    if(!s.nextWaveAt){
+      owEventsCol.doc(OW_SHARED_HUNT_DOC).set({ nextWaveAt: now + 2400 }, { merge: true }).catch(() => {});
+    } else if(now > s.nextWaveAt){
+      owCombatSpawnWave();
+    }
+  }
+}
+function subscribeOWSharedHunt(){
+  if(__owHuntUnsub){ try{ __owHuntUnsub(); }catch(e){} }
+  __owHuntUnsub = owEventsCol.doc(OW_SHARED_HUNT_DOC).onSnapshot(doc => {
+    S.ow.sharedHuntSync = doc.exists ? doc.data() : null;
+    owApplySharedHuntSync();
+  });
+}
+
+/* ── 공동 보스 (멀티플레이어가 같은 보스 HP 공유) ── */
+function owSharedBossSync(){ return S.ow.sharedBossSync || null; }
+function owSharedBossActive(){
+  const s = owSharedBossSync();
+  if(!s?.active) return false;
+  if(s.dragon && !s.dragon.dead && s.dragon.hp > 0) return true;
+  return (s.mobs || []).some(m => !m.dead);
+}
+function owSharedBossIsHost(){
+  const s = owSharedBossSync();
+  const me = owMyNick();
+  if(!s || !me || !s.active) return false;
+  if(s.host) return s.host === me;
+  const keys = Object.keys(s.fighters || {});
+  return keys[0] === me;
+}
+function owSharedBossNearestFighterPos(fromX, fromZ){
+  const s = owSharedBossSync();
+  const fighters = s?.fighters || {};
+  let best = null, bd = 1e9;
+  const rd = __owRenderer;
+  if(rd?.human){
+    const p = rd.human.position;
+    const d = Math.hypot(p.x - fromX, p.z - fromZ);
+    if(d < bd){ bd = d; best = { x: p.x, z: p.z }; }
+  }
+  Object.values(fighters).forEach(f => {
+    if(!f || f.x == null) return;
+    const d = Math.hypot(f.x - fromX, f.z - fromZ);
+    if(d < bd){ bd = d; best = { x: f.x, z: f.z }; }
+  });
+  return best || (rd?.human ? { x: rd.human.position.x, z: rd.human.position.z } : { x: 0, z: 0 });
+}
+async function owSharedBossJoin(kind, resetMobs){
+  const me = owMyNick();
+  const rd = __owRenderer;
+  if(!me || !rd) return false;
+  const pos = rd.human.position;
+  const ref = owEventsCol.doc(OW_SHARED_BOSS_DOC);
+  const snap = await ref.get().catch(() => null);
+  const cur = snap?.exists ? snap.data() : null;
+  const fighters = { ...(cur?.fighters || {}) };
+  fighters[me] = { x: +pos.x.toFixed(2), z: +pos.z.toFixed(2), ts: Date.now(), dmg: fighters[me]?.dmg || 0 };
+  const wasActive = !!(cur && cur.active && (cur.dragon?.hp > 0 || (cur.mobs || []).some(m => !m.dead)));
+  const host = wasActive ? (cur.host || Object.keys(fighters)[0]) : me;
+  const patch = {
+    active: true,
+    kind: kind || cur?.kind || 'mob',
+    host,
+    fighters,
+    updatedAt: Date.now(),
+  };
+  if(!wasActive || resetMobs){
+    patch.mobs = cur?.mobs && !resetMobs ? cur.mobs : [];
+  }
+  await ref.set(patch, { merge: true }).catch(() => {});
+  return !wasActive;
+}
+async function owSharedBossEnsureFighter(){
+  const me = owMyNick();
+  const s = owSharedBossSync();
+  if(!me || !s?.active || s.fighters?.[me]) return;
+  await owSharedBossJoin(s.kind, false);
+}
+let __owBossFighterPosAt = 0;
+async function owSharedBossUpdateFighterPos(dmgAdd){
+  const now = Date.now();
+  if(now - __owBossFighterPosAt < 1200) return;
+  __owBossFighterPosAt = now;
+  const me = owMyNick();
+  if(!me || !__owRenderer?.human) return;
+  const s = owSharedBossSync();
+  if(!s?.active || !s.fighters?.[me]) return;
+  const p = __owRenderer.human.position;
+  const fighters = { ...s.fighters };
+  fighters[me] = {
+    x: +p.x.toFixed(2), z: +p.z.toFixed(2), ts: now,
+    dmg: (fighters[me]?.dmg || 0) + (dmgAdd || 0),
+  };
+  await owEventsCol.doc(OW_SHARED_BOSS_DOC).set({ fighters, updatedAt: now }, { merge: true }).catch(() => {});
+}
+async function owSharedBossApplyMobDamage(mob, newHp, died){
+  if(!mob?.sharedId || !mob.bossShared) return;
+  const me = owMyNick();
+  const ref = owEventsCol.doc(OW_SHARED_BOSS_DOC);
+  const snap = await ref.get().catch(() => null);
+  if(!snap?.exists) return;
+  const cur = snap.data() || {};
+  const mobs = (cur.mobs || []).map(m => {
+    if(m.id !== mob.sharedId) return m;
+    return { ...m, hp: newHp, dead: died, deadT: died ? 0 : (m.deadT || 0), killer: died ? me : (m.killer || null), state: died ? 'dead' : m.state };
+  });
+  const fighters = { ...(cur.fighters || {}) };
+  if(fighters[me]) fighters[me] = { ...fighters[me], dmg: (fighters[me].dmg || 0) };
+  await ref.set({ mobs, fighters, updatedAt: Date.now() }, { merge: true }).catch(() => {});
+}
+async function owSharedBossRemoveMob(sharedId){
+  if(!sharedId || !owSharedBossIsHost()) return;
+  const ref = owEventsCol.doc(OW_SHARED_BOSS_DOC);
+  const snap = await ref.get().catch(() => null);
+  if(!snap?.exists) return;
+  const cur = snap.data() || {};
+  const mobs = (cur.mobs || []).filter(m => m.id !== sharedId);
+  const active = (mobs.some(m => !m.dead)) || (cur.dragon && !cur.dragon.dead && cur.dragon.hp > 0);
+  await ref.set({ mobs, active, updatedAt: Date.now() }, { merge: true }).catch(() => {});
+}
+function owSyncWorldBossFromShared(s){
+  const d = s?.dragon;
+  if(!d || d.dead) return;
+  const boss = OW_DRAGON_BOSSES.find(x => x.id === d.bossId) || OW_DRAGON_BOSSES[0];
+  S.ow.worldBoss = {
+    active: true, engaged: !!d.engaged, x: d.x, z: d.z,
+    name: boss.name, emoji: boss.emoji, bossId: d.bossId || 'zipfer',
+    myContrib: (d.contributors || {})[owMyNick()] || 0,
+  };
+  const nv = _owGetNovelState();
+  nv.dragonBossId = d.bossId || 'zipfer';
+  nv.dragonHp = d.hp;
+  nv.dragonMaxHp = d.maxHp;
+}
+function owApplySharedBossSync(){
+  const s = owSharedBossSync();
+  const rd = __owRenderer;
+  if(!rd || S.screen !== 'openworld') return;
+  if(!s?.active){
+    rd.removeSharedBossMobs && rd.removeSharedBossMobs();
+    if(rd._boss?.bossShared) rd.removeBoss();
+    return;
+  }
+  if(s.dragon){
+    if(!s.dragon.dead && s.dragon.hp > 0){
+      owSyncWorldBossFromShared(s);
+      const boss = OW_DRAGON_BOSSES.find(x => x.id === s.dragon.bossId) || OW_DRAGON_BOSSES[0];
+      if(!rd._boss || rd._boss.bossSharedId !== s.dragon.id){
+        if(rd._boss) rd.removeBoss();
+        rd.spawnBoss(boss, { x: s.dragon.x, z: s.dragon.z });
+        if(rd._boss){
+          rd._boss.bossSharedId = s.dragon.id;
+          rd._boss.bossShared = true;
+          rd._boss.engaged = !!s.dragon.engaged;
+        }
+      } else if(rd._boss){
+        rd._boss.engaged = !!s.dragon.engaged;
+        rd._boss.baseX = s.dragon.x;
+        rd._boss.baseZ = s.dragon.z;
+        rd._boss.group.position.x = s.dragon.x;
+        rd._boss.group.position.z = s.dragon.z;
+      }
+    } else if(s.dragon.dead && s.dragon.clearedAt && S.ow._sharedBossDefeatAt !== s.dragon.clearedAt){
+      S.ow._sharedBossDefeatAt = s.dragon.clearedAt;
+      owBossDefeatFromSync(s);
+      if(rd._boss?.bossShared) rd.removeBoss();
+      S.ow.worldBoss = null;
+    } else if(rd._boss?.bossShared){
+      rd.removeBoss();
+      if(S.ow.worldBoss?.bossId === 'zipfer') S.ow.worldBoss = null;
+    }
+  } else if(rd._boss?.bossShared){
+    rd.removeBoss();
+  }
+  const mobsData = s.mobs || [];
+  const syncIds = new Set();
+  const isHost = owSharedBossIsHost();
+  const me = owMyNick();
+  for(const sm of mobsData){
+    if(sm.dead && (sm.deadT || 0) >= 18) continue;
+    syncIds.add(sm.id);
+    let mob = (rd.mobs || []).find(m => m.sharedId === sm.id);
+    if(!mob){
+      mob = rd.spawnMobFromSync(sm);
+      mob.bossShared = true;
+      if(sm.dead && !mob._deathHandled && sm.killer === me){
+        owCombatOnMobDead(mob, { sharedKill: true, killer: sm.killer });
+      }
+    } else {
+      rd.applyMobSyncState(mob, sm, isHost);
+    }
+  }
+  (rd.mobs || []).filter(m => m.bossShared && m.sharedId && !syncIds.has(m.sharedId)).forEach(m => {
+    if(!m.dead) rd.removeMob(m);
+  });
+}
+function owSharedBossHostTick(now){
+  if(!owSharedBossIsHost()) return;
+  const s = owSharedBossSync();
+  const rd = __owRenderer;
+  if(!s?.active || !rd) return;
+  now = now || Date.now();
+  if(now - __owBossPushAt >= OW_BOSS_PUSH_MS){
+    __owBossPushAt = now;
+    const mobs = (rd.mobs || []).filter(m => m.bossShared).map(owMobToSync);
+    owEventsCol.doc(OW_SHARED_BOSS_DOC).set({ mobs, updatedAt: now }, { merge: true }).catch(() => {});
+  }
+}
+function subscribeOWSharedBoss(){
+  if(__owBossCombatUnsub){ try{ __owBossCombatUnsub(); }catch(e){} }
+  __owBossCombatUnsub = owEventsCol.doc(OW_SHARED_BOSS_DOC).onSnapshot(doc => {
+    S.ow.sharedBossSync = doc.exists ? doc.data() : null;
+    owApplySharedBossSync();
+    if(S.screen === 'openworld') render();
+  });
+}
+async function owSharedBossApplyDragonDamage(dmg){
+  await owSharedBossEnsureFighter();
+  const me = owMyNick();
+  const ref = owEventsCol.doc(OW_SHARED_BOSS_DOC);
+  const snap = await ref.get().catch(() => null);
+  if(!snap?.exists) return null;
+  const cur = snap.data() || {};
+  const dragon = cur.dragon;
+  if(!dragon || dragon.dead) return null;
+  const newHp = Math.max(0, dragon.hp - dmg);
+  const contributors = { ...(dragon.contributors || {}) };
+  contributors[me] = (contributors[me] || 0) + dmg;
+  const fighters = { ...(cur.fighters || {}) };
+  if(fighters[me]) fighters[me] = { ...fighters[me], dmg: (fighters[me].dmg || 0) + dmg };
+  const dead = newHp <= 0;
+  const patch = {
+    dragon: {
+      ...dragon, hp: newHp, contributors, engaged: true, dead,
+      clearedAt: dead ? Date.now() : (dragon.clearedAt || 0),
+      killer: dead ? me : (dragon.killer || null),
+    },
+    fighters,
+    active: !dead,
+    updatedAt: Date.now(),
+  };
+  await ref.set(patch, { merge: true }).catch(() => {});
+  return { newHp, dead, contributors, clearedAt: patch.dragon.clearedAt || 0 };
+}
+async function owSharedBossClearDoc(){
+  await owEventsCol.doc(OW_SHARED_BOSS_DOC).set({
+    active: false, dragon: null, mobs: [], fighters: {}, host: '', updatedAt: Date.now(),
+  }, { merge: true }).catch(() => {});
+}
+async function owSharedBossSpawnMobs(kind, spawnList){
+  if(!__owRenderer || !spawnList?.length) return;
+  const ref = owEventsCol.doc(OW_SHARED_BOSS_DOC);
+  const snap = await ref.get().catch(() => null);
+  const cur = snap?.exists ? snap.data() : null;
+  const hasAlive = (cur?.dragon && !cur.dragon.dead && cur.dragon.hp > 0)
+    || (cur?.mobs || []).some(m => !m.dead);
+  if(hasAlive){
+    await owSharedBossJoin(kind, false);
+    return;
+  }
+  const wasFirst = await owSharedBossJoin(kind, true);
+  if(!wasFirst && !owSharedBossIsHost()) return;
+  const newMobs = [];
+  for(const item of spawnList){
+    const mob = __owRenderer.spawnMob(item.def, item.tier, {
+      x: item.x, z: item.z, forShared: true, bossShared: true,
+      hp: item.hp, maxHp: item.maxHp,
+    });
+    if(item.leviathanBoss) mob.leviathanBoss = true;
+    newMobs.push(owMobToSync(mob));
+  }
+  await owEventsCol.doc(OW_SHARED_BOSS_DOC).set({
+    active: true, kind, mobs: newMobs, updatedAt: Date.now(),
+  }, { merge: true }).catch(() => {});
+}
+
 /* ── 사냥 모드 토글 (전투 레이어 진입/종료) ── */
 function owCombatToggleHunt(){
   if(!__owRenderer){ alert('오픈월드에서만 사냥할 수 있어요.'); return; }
@@ -31367,32 +32201,60 @@ function owCombatToggleHunt(){
   c.huntMode = !c.huntMode;
   if(c.huntMode){
     c.hp = c.maxHp; c.targetId = null; c.drop = null;
-    owCombatSpawnWave();
-    if(typeof owMmoToast === 'function') owMmoToast('⚔️ 전투 시작! 몹을 사냥하세요');
+    owSharedHuntJoin().then(wasFirst => {
+      if(wasFirst) owCombatSpawnWave();
+      render();
+    });
+    if(typeof owMmoToast === 'function') owMmoToast('⚔️ 함께 사냥! 같은 몹을 다른 탐험가와 같이 잡을 수 있어요');
   } else {
-    __owRenderer.removeAllMobs && __owRenderer.removeAllMobs();
+    owSharedHuntLeave();
+    __owRenderer.removeSharedHuntMobs && __owRenderer.removeSharedHuntMobs();
     c.drop = null;
     if(typeof owMmoToast === 'function') owMmoToast('🕊️ 사냥 모드를 종료했어요');
   }
   render();
 }
-/* ── 몹 웨이브 스폰 ── */
+/* ── 몹 웨이브 스폰 (호스트만 — 공유 세션에 기록) ── */
 function owCombatSpawnWave(){
   if(!__owRenderer) return;
+  const s = owSharedHuntSync();
+  if(s?.active && !owSharedHuntIsHost()) return;
+  const cx = s?.centerX ?? __owRenderer.human.position.x;
+  const cz = s?.centerZ ?? __owRenderer.human.position.z;
   const pool = OW_MOB_DEFS.normal;
-  const n = 2 + Math.floor(Math.random()*2);     // 2~3마리
-  for(let i=0;i<n;i++) __owRenderer.spawnMob(pool[Math.floor(Math.random()*pool.length)], 'normal');
-  if(Math.random() < 0.6) __owRenderer.spawnMob(OW_MOB_DEFS.elite[Math.floor(Math.random()*OW_MOB_DEFS.elite.length)], 'elite');
+  const n = 2 + Math.floor(Math.random() * 2);
+  const newMobs = [];
+  for(let i = 0; i < n; i++){
+    const def = pool[Math.floor(Math.random() * pool.length)];
+    const a = Math.random() * Math.PI * 2, r = 11 + Math.random() * 9;
+    const mob = __owRenderer.spawnMob(def, 'normal', { x: cx + Math.cos(a) * r, z: cz + Math.sin(a) * r, forShared: true });
+    newMobs.push(owMobToSync(mob));
+  }
+  if(Math.random() < 0.6){
+    const def = OW_MOB_DEFS.elite[Math.floor(Math.random() * OW_MOB_DEFS.elite.length)];
+    const a = Math.random() * Math.PI * 2, r = 14 + Math.random() * 6;
+    const mob = __owRenderer.spawnMob(def, 'elite', { x: cx + Math.cos(a) * r, z: cz + Math.sin(a) * r, forShared: true });
+    newMobs.push(owMobToSync(mob));
+  }
+  if(s?.active){
+    const existing = (s.mobs || []).filter(m => !m.dead);
+    owEventsCol.doc(OW_SHARED_HUNT_DOC).set({
+      mobs: [...existing, ...newMobs],
+      nextWaveAt: Date.now() + 2400,
+      updatedAt: Date.now(),
+    }, { merge: true }).catch(() => {});
+  }
 }
-/* ── 필드 보스 소환 (전투 레이어 안에서) ── */
+/* ── 필드 보스 소환 (전투 레이어 — 멀티 공유) ── */
 function owCombatSpawnFieldBoss(){
   if(!__owRenderer) return;
   if(!S.ow.combat.huntMode){ S.ow.combat.huntMode=true; S.ow.combat.hp=S.ow.combat.maxHp; S.ow.combat.mp=S.ow.combat.maxMp; }
-  __owRenderer.spawnMob(OW_MOB_DEFS.boss[0], 'boss');
-  if(typeof owMmoToast === 'function') owMmoToast('👹 필드 보스 출현!');
+  const p = __owRenderer.human.position;
+  owSharedBossSpawnMobs('field', [{ def: OW_MOB_DEFS.boss[0], tier: 'boss', x: p.x, z: p.z }]);
+  if(typeof owMmoToast === 'function') owMmoToast('👹 필드 보스 출현! 함께 토벌하세요');
   render();
 }
-/* ── 월드 보스 3D 실전 결투 ── */
+/* ── 월드 보스 3D 실전 결투 (멀티 공유) ── */
 function owStartWorldBoss3D(){
   if(!__owRenderer){ alert('오픈월드에서만 결투할 수 있어요.'); return; }
   owCloseAllPanels();
@@ -31400,21 +32262,28 @@ function owStartWorldBoss3D(){
   const wb = S.ow.mmo?.bossV2Sync || {};
   const name = wb.name || '월드 보스';
   const emoji = wb.emoji || '👑';
-  __owRenderer.removeAllMobs && __owRenderer.removeAllMobs();
-  __owRenderer.spawnMob({ id:'worldboss', name, emoji, color:0x8e24aa, hp:24000, atk:260, sight:24, speed:0.05, patterns:['slam','charge','projectile'] }, 'boss');
-  if(typeof owMmoToast==='function') owMmoToast(`👑 ${name} 3D 토벌전 시작! 화면 탭/⚔️로 공격`);
+  __owRenderer.removeSharedBossMobs && __owRenderer.removeSharedBossMobs();
+  const p = __owRenderer.human.position;
+  owSharedBossSpawnMobs('world3d', [{
+    def: { id:'worldboss', name, emoji, color:0x8e24aa, hp:24000, atk:260, sight:24, speed:0.05, patterns:['slam','charge','projectile'] },
+    tier: 'boss', x: p.x + 4, z: p.z,
+  }]);
+  if(typeof owMmoToast==='function') owMmoToast(`👑 ${name} 함께 3D 토벌! 화면 탭/⚔️로 공격`);
   render();
 }
-/* ── 길드 영토전 3D 실전 결투 ── */
+/* ── 길드 영토전 3D 실전 결투 (멀티 공유) ── */
 function owStartGuildWar3D(){
   if(!__owRenderer){ alert('오픈월드에서만 결투할 수 있어요.'); return; }
   owCloseAllPanels();
   const c=S.ow.combat; c.huntMode=true; c.hp=c.maxHp; c.mp=c.maxMp; c.targetId=null; c.drop=null;
-  __owRenderer.removeAllMobs && __owRenderer.removeAllMobs();
-  __owRenderer.spawnMob({ id:'guildlord', name:'적 길드 수호장', emoji:'🛡️', color:0x3949ab, hp:17000, atk:220, sight:22, speed:0.055, patterns:['charge','slam'] }, 'boss');
-  __owRenderer.spawnMob({ id:'guard1', name:'길드 호위병', emoji:'⚔️', color:0x5c6bc0, hp:2400, atk:110, sight:16, speed:0.062, patterns:['charge'] }, 'elite');
-  __owRenderer.spawnMob({ id:'guard2', name:'길드 호위병', emoji:'⚔️', color:0x5c6bc0, hp:2400, atk:110, sight:16, speed:0.062, patterns:['charge'] }, 'elite');
-  if(typeof owMmoToast==='function') owMmoToast('🏰 길드 영토전 3D 결투 시작! 수호장을 처치하세요');
+  __owRenderer.removeSharedBossMobs && __owRenderer.removeSharedBossMobs();
+  const p = __owRenderer.human.position;
+  owSharedBossSpawnMobs('guild', [
+    { def: { id:'guildlord', name:'적 길드 수호장', emoji:'🛡️', color:0x3949ab, hp:17000, atk:220, sight:22, speed:0.055, patterns:['charge','slam'] }, tier: 'boss', x: p.x, z: p.z },
+    { def: { id:'guard1', name:'길드 호위병', emoji:'⚔️', color:0x5c6bc0, hp:2400, atk:110, sight:16, speed:0.062, patterns:['charge'] }, tier: 'elite', x: p.x - 3, z: p.z + 2 },
+    { def: { id:'guard2', name:'길드 호위병', emoji:'⚔️', color:0x5c6bc0, hp:2400, atk:110, sight:16, speed:0.062, patterns:['charge'] }, tier: 'elite', x: p.x + 3, z: p.z + 2 },
+  ]);
+  if(typeof owMmoToast==='function') owMmoToast('🏰 길드전 함께 3D 결투! 수호장을 처치하세요');
   render();
 }
 /* ── 타겟 선택 (고정/근접 우선) ── */
@@ -31434,7 +32303,31 @@ function owCombatDamageMob(mob, dmg, opts){
   const p=rd.human.position, kx=mob.group.position.x-p.x, kz=mob.group.position.z-p.z, l=Math.hypot(kx,kz)||1, kb=opts.knock||0.5;
   mob.group.position.x+=kx/l*kb; mob.group.position.z+=kz/l*kb;
   if(mob.state==='patrol'||mob.state==='idle') mob.state='chase';
-  if(mob.hp<=0 && !mob.dead) owCombatOnMobDead(mob);
+  if(mob.hp<=0 && !mob.dead){
+    if(mob.sharedId){
+      mob.dead = true; mob.state = 'dead'; mob.deadT = 0;
+      mob.killer = owMyNick();
+      mob._localKiller = true;
+      if(mob.bossShared){
+        owSharedBossEnsureFighter();
+        owSharedBossApplyMobDamage(mob, 0, true);
+        owSharedBossUpdateFighterPos(dmg);
+      } else {
+        owSharedHuntApplyDamage(mob, 0, true);
+      }
+      owCombatOnMobDead(mob, { localKill: true });
+    } else {
+      owCombatOnMobDead(mob);
+    }
+  } else if(mob.sharedId){
+    if(mob.bossShared){
+      owSharedBossEnsureFighter();
+      owSharedBossApplyMobDamage(mob, mob.hp, false);
+      owSharedBossUpdateFighterPos(dmg);
+    } else {
+      owSharedHuntApplyDamage(mob, mob.hp, false);
+    }
+  }
 }
 /* ── 기본 공격 ── */
 function owCombatAnimBusy(){
@@ -31593,14 +32486,23 @@ function owCombatPlayerHit(dmg, mob){
   if(c.hp<=0) owCombatDefeat();
 }
 /* ── 몹 처치 ── */
-function owCombatOnMobDead(mob){
+function owCombatOnMobDead(mob, opts){
+  opts = opts || {};
+  if(mob._deathHandled) return;
+  if(mob.sharedId){
+    if(opts.sharedKill && opts.killer !== owMyNick()) return;
+    if(!opts.localKill && !opts.sharedKill) return;
+  }
+  mob._deathHandled = true;
   mob.dead=true; mob.deadT=0; mob.state='dead';
   if(mob.wildCapture && typeof owTamingCaptureFromCombat==='function') owTamingCaptureFromCombat(mob);
-  if(mob.leviathanBoss){
+  if(mob.leviathanBoss && (opts.localKill || (opts.sharedKill && opts.killer === owMyNick()))){
     const ctrl = owMmoGetController();
     let boss = ctrl.boss.getBoss();
     const nick = S.myEntry?.nick || '?';
-    const dmg = Math.max(8000, S.ow.mmo?.leviathanFight?.dmg || 50000);
+    const s = owSharedBossSync();
+    const fighterDmg = Object.values(s?.fighters || {}).reduce((a, f) => a + (f?.dmg || 0), 0);
+    const dmg = Math.max(8000, fighterDmg || S.ow.mmo?.leviathanFight?.dmg || 50000);
     const until = Date.now() + OW_LEVIATHAN_CD_MS;
     const mw = OWMMODataStore.get();
     mw.leviathanNextAt = until;
@@ -34155,10 +35057,8 @@ class OWPhotoZoneSystem {
     S.ow.mmo.photoSession.pose = pose;
     const ex = _owGetExpandedState();
     ex.photoPose = pose;
-    S.ow.chatMsg = pose === 'dance' ? '💃' : pose === 'heart' ? '💖' : '📸';
-    S.ow.chatExpire = Date.now() + 2000;
+    owTriggerEmote(pose === 'dance' ? 'dance' : pose === 'heart' ? 'heart' : 'pose');
     saveOWInventory();
-    render();
   }
   snapPhoto(){
     if(!S.ow.mmo.photoSession) return;
@@ -37155,21 +38055,14 @@ class OWSocialInteractionSystem {
   playEmote(emoteId, targetNick){
     const em = OW_MMO_SOCIAL_EMOTES.find(e => e.id === emoteId);
     if(!em) return;
-    if(emoteId === 'wave' && __owRenderer && __owRenderer.human){
-      owTriggerEmote('wave');
-    }
     if(em.needNear && targetNick){
-      const me = __owRenderer?.pet?.position;
+      const me = __owRenderer?.human?.position || __owRenderer?.pet?.position;
       const other = __owRenderer?.otherPetsByNick?.get(targetNick);
       if(!me || !other || Math.hypot(me.x - other.position.x, me.z - other.position.z) > 5){
         owMmoToast('너무 멀어요'); return;
       }
     }
-    S.ow.mmo.socialEmote = em.emoji;
-    S.ow.mmo.socialEmoteUntil = Date.now() + 1800;
-    S.ow.chatMsg = em.emoji;
-    S.ow.chatExpire = Date.now() + 2000;
-    owSendChat(em.label);
+    owTriggerEmote(emoteId);
     const mw = OWMMODataStore.get();
     mw.stats.socialCount = (mw.stats.socialCount||0) + 1;
     mw.fame = (mw.fame||0) + (em.fame||1);

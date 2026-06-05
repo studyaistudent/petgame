@@ -139,18 +139,30 @@
     return loader;
   }
 
+  function encodeAssetUrl(url) {
+    const s = String(url || '').replace(/\\/g, '/').trim();
+    if (!s) return s;
+    if (/^https?:\/\//i.test(s)) return s;
+    if (/%[0-9A-Fa-f]{2}/.test(s)) return s;
+    const qi = s.indexOf('?');
+    const base = qi >= 0 ? s.slice(0, qi) : s;
+    const query = qi >= 0 ? s.slice(qi) : '';
+    return base.split('/').map((seg) => encodeURIComponent(seg)).join('/') + query;
+  }
+
   function loadGlb(url) {
     const key = url;
     if (cache.has(key)) return cache.get(key);
     const ld = getLoader();
     if (!ld) return Promise.reject(new Error('GLTFLoader missing'));
-    const loadUrl = String(url).replace(/\\/g, '/');
+    const loadUrl = encodeAssetUrl(url);
     const p = new Promise((resolve, reject) => {
       ld.load(
         loadUrl,
         (g) => resolve(g),
         undefined,
         (err) => {
+          cache.delete(key);
           console.warn('[LMOwGlb] GLB 로드 실패:', loadUrl, err && err.message ? err.message : err);
           reject(err);
         }
