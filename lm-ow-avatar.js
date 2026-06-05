@@ -55,7 +55,27 @@
 
   const gltfCache = new Map();
   const clipCache = new Map();
+  const loadFailWarned = new Set();
   let loader = null;
+
+  function formatLoadError(err) {
+    if (!err) return 'unknown';
+    if (typeof err === 'string') return err;
+    if (err.message) return err.message;
+    if (err.type === 'error' && err.target && err.target.status === 0) {
+      return 'network error (서버 미실행 또는 연결 끊김)';
+    }
+    return String(err);
+  }
+
+  function warnLoadFail(role, url, err) {
+    if (loadFailWarned.has(url)) return;
+    loadFailWarned.add(url);
+    console.warn('[LMOwAvatar] 모션 로드 실패:', role, url, formatLoadError(err));
+    if (typeof global.owMmoToast === 'function') {
+      global.owMmoToast('모션 파일을 불러오지 못했어요. start-server.bat 실행 후 새로고침 해주세요.');
+    }
+  }
 
   function isFemale(gender) {
     return GENDER_FEMALE.test(String(gender || '').trim());
@@ -91,10 +111,16 @@
     const p = new Promise((resolve, reject) => {
       ld.load(
         url,
-        (gltf) => resolve(gltf),
+        (gltf) => {
+          loadFailWarned.delete(key);
+          resolve(gltf);
+        },
         undefined,
         (err) => reject(err)
       );
+    }).catch((err) => {
+      gltfCache.delete(key);
+      throw err;
     });
     gltfCache.set(key, p);
     return p;
@@ -363,11 +389,16 @@
 
   function loadClip(url) {
     if (clipCache.has(url)) return clipCache.get(url);
-    const p = loadGlb(url).then((gltf) => {
-      const clip = gltf.animations && gltf.animations[0];
-      if (!clip) throw new Error('no animation in ' + url);
-      return clip;
-    });
+    const p = loadGlb(url)
+      .then((gltf) => {
+        const clip = gltf.animations && gltf.animations[0];
+        if (!clip) throw new Error('no animation in ' + url);
+        return clip;
+      })
+      .catch((err) => {
+        clipCache.delete(url);
+        throw err;
+      });
     clipCache.set(url, p);
     return p;
   }
@@ -418,11 +449,7 @@
         wrapper.parent && wrapper.parent.userData && wrapper.parent.userData.mountId;
       if (!onMountMesh) wrapper.position.y = 0;
       wrapper.rotation.z = 0;
-      if (model && wrapper.userData.glbBaseY != null) {
-        const off = wrapper.userData._lmMountSitYOffset != null ? wrapper.userData._lmMountSitYOffset : -0.1;
-        wrapper.userData._lmMountSitYOffset = off;
-        model.position.y = wrapper.userData.glbBaseY + off;
-      }
+      applyMountSitModelY(wrapper);
       if (wrapper.userData.owLocoAnim !== 'ride' && !wrapper.userData.owLocoLoading) {
         wrapper.userData.owLocoLoading = true;
         setRideAnim(wrapper).finally(() => {
@@ -495,6 +522,7 @@
 
   function triggerCombatAnim(wrapper, role) {
     if (!wrapper || !wrapper.userData.owReady || isCombatAnimPlaying(wrapper)) return false;
+    if (wrapper.userData._owEmoteLoading) return false;
     const paths = pathsFor(wrapper.userData.owGender);
     const url = paths[role];
     if (!url) return false;
@@ -502,6 +530,7 @@
     const mixer = wrapper.userData.owMixer;
     if (!model || !mixer) return false;
 
+    wrapper.userData._owEmoteLoading = role;
     loadClip(url)
       .then((clip) => {
         const root = findSkinnedRoot(model);
@@ -521,7 +550,10 @@
           wrapper.userData.owCombatUntil = 0;
         }, clip.duration * 1000 + 100);
       })
-      .catch((e) => console.warn('[LMOwAvatar] 전투 모션:', role, e));
+      .catch((e) => warnLoadFail(role, url, e))
+      .finally(() => {
+        if (wrapper.userData._owEmoteLoading === role) wrapper.userData._owEmoteLoading = null;
+      });
     return true;
   }
 
@@ -539,6 +571,8 @@
   function primeSitMatPose(wrapper) {
     const paths = pathsFor(wrapper.userData.owGender);
     if (!paths.sitMat) return;
+    if (wrapper.userData._owSitMatLoading) return;
+    wrapper.userData._owSitMatLoading = true;
     wrapper.userData.owLocoAnim = 'sit';
     wrapper.userData.owMode = 'sit';
     loadClip(paths.sitMat)
@@ -555,7 +589,15 @@
         wrapper.userData.owSitAction = action;
         mixer.update(0);
       })
-      .catch(() => {});
+      .catch((e) => {
+        warnLoadFail('sitMat', paths.sitMat, e);
+        wrapper.userData.owLocoAnim = '';
+        wrapper.userData.owMode = 'idle';
+        setLocomotionAnim(wrapper, 'idle');
+      })
+      .finally(() => {
+        wrapper.userData._owSitMatLoading = false;
+      });
   }
 
   /** 돗자리 정리 등 — 앉기 포즈 해제 후 idle 대기 */
@@ -590,12 +632,36 @@
     loadGlb(paths.idle).catch(() => {});
     loadGlb(paths.walk).catch(() => {});
     if (paths.ride) loadGlb(paths.ride).catch(() => {});
+    /* 돗자리·이모티콘 GLB — 오픈월드 진입 후 백그라운드 선로드 (약 32MB × 3) */
+    const bg = () => {
+      if (paths.sitMat) loadGlb(paths.sitMat).catch(() => {});
+      if (paths.greet) loadGlb(paths.greet).catch(() => {});
+      if (paths.dance) loadGlb(paths.dance).catch(() => {});
+    };
+    if (typeof global.setTimeout === 'function') global.setTimeout(bg, 3000);
+    else bg();
+  }
+
+  function resolveMountSitYOffset(wrapper) {
+    if (global.LMOwGlb && typeof global.LMOwGlb.resolveMountSitYOffset === 'function') {
+      return global.LMOwGlb.resolveMountSitYOffset(wrapper);
+    }
+    return -0.64;
+  }
+
+  function applyMountSitModelY(wrapper) {
+    if (!wrapper) return;
+    const model = wrapper.getObjectByName('ow_avatar_model');
+    if (!model || wrapper.userData.glbBaseY == null) return;
+    const off = resolveMountSitYOffset(wrapper);
+    wrapper.userData._lmMountSitYOffset = off;
+    model.position.y = wrapper.userData.glbBaseY + off;
   }
 
   function setRideMode(wrapper, riding) {
     if (!wrapper || !wrapper.userData.owReady) return Promise.resolve();
     if (riding) {
-      wrapper.userData._lmMountSitYOffset = -0.1;
+      applyMountSitModelY(wrapper);
       return setRideAnim(wrapper);
     }
     wrapper.userData._lmMountSitYOffset = 0;
@@ -622,6 +688,8 @@
     createWrapper,
     loadAvatarInto,
     updateLocomotion,
+    resolveMountSitYOffset,
+    applyMountSitModelY,
     setRideMode,
     setRideAnim,
     triggerCombatAnim,
