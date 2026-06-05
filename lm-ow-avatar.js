@@ -717,6 +717,4 @@
     loadGlb,
     setCombatDefeat
   };
-
-  console.info('[LMOwAvatar] 오픈월드 아바타 모듈 준비 (boystandard / girlstandard)');
 })(typeof window !== 'undefined' ? window : global);

@@ -421,7 +421,6 @@
       });
     }
     if (entry && entry.preferEmbeddedTextures !== false && modelHasTextures(root)) {
-      console.info('[LMGlb] 내장 텍스처 사용:', entry.localUrl || url);
       sanitizeBrokenTextures(root);
       ensureSkinnedMaterials(root);
       return Promise.resolve(root);
@@ -3987,7 +3986,6 @@
     wrapper.userData.lmHandWeaponBone = null;
     wrapper.userData.lmHandWeaponModel = null;
     wrapper.userData._lmHandAttachVer = LM_HAND_ATTACH_VER;
-    console.info('[LMGlb] 무기 궤도:', entry.localUrl || propId);
   }
 
   /** 장착 검 — 아바타 주위 회전 */
@@ -4616,7 +4614,6 @@
   };
 
   window.__lmGlbReady = true;
-  console.info('[LMGlb] 3D GLB 준비됨 — 오픈월드 상단 🎨 3D 버튼');
 
   window.LMGlb = {
     catalog,

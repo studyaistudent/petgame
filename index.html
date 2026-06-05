@@ -9927,7 +9927,7 @@ async function startOnecard(bet){
   const myNick=S.myEntry?.nick;
   if(!myNick||!S.myPet){alert("MBTI 검사 완료 후 이용해주세요!");return;}
   if((S.myPet.points||0)<bet){alert(`포인트 부족! (필요: ${bet.toLocaleString()}P)`);return;}
-  if(!confirm(`🃏 ${bet.toLocaleString()}P 베팅 후 원카드 시작?\n승리 시 ${(bet*2).toLocaleString()}P 획득!`))return;
+  if(!confirm(`🃏 ${bet.toLocaleString()}P 베팅 후 원카드 시작?\n승리 시 +${bet.toLocaleString()}P 획득 · 패배 시 -${bet.toLocaleString()}P`))return;
 
   await petCol.doc(myNick).update({points:INC(-bet)});
   S.myPet.points=(S.myPet.points||0)-bet;
@@ -10369,7 +10369,7 @@ async function finishOnecard(result) {
     if (!S.myPet.onecardRecord) S.myPet.onecardRecord = { win: 0, lose: 0 };
     S.myPet.onecardRecord.win++;
 
-    oc.log.push(`🏆 승리! +${win.toLocaleString()}P`);
+    oc.log.push(`🏆 승리! +${oc.bet.toLocaleString()}P`);
     onQuestEvent('onecard_win', 1);
   } else {
     updateData['onecardRecord.lose'] = INC(1);
@@ -10408,7 +10408,7 @@ function rOnecardTab() {
     <div class="card card-rose" style="text-align:center;padding:1.6rem;margin-bottom:12px">
       <div style="font-size:54px;margin-bottom:10px">🃏</div>
       <h2 style="font-family:'Playfair Display',serif;font-style:italic;font-size:22px;color:var(--rose2);margin:0 0 6px">Original One Card</h2>
-      <p style="font-size:12.5px;color:var(--text2);margin:0 0 12px">CPU와 1:1 진검승부!<br>승리 시 베팅의 2배를 획득합니다 💰</p>
+      <p style="font-size:12.5px;color:var(--text2);margin:0 0 12px">CPU와 1:1 진검승부!<br>승리 시 베팅금만큼 획득 · 패배 시 베팅금 손실 💰</p>
       
       <div style="font-size:11.5px;color:var(--text3);text-align:left;background:rgba(255,255,255,.6);border-radius:10px;padding:10px 14px;margin-bottom:14px;line-height:1.65;max-height:220px;overflow-y:auto">
         <b>📖 나무위키 정통 룰 요약</b><br>
@@ -10444,7 +10444,7 @@ function rOnecardTab() {
       <div style="font-size:64px;margin-bottom:8px">${isWin ? '🏆' : '💔'}</div>
       <h2 style="font-family:'Playfair Display',serif;font-style:italic;font-size:26px;margin:0 0 6px;color:${isWin ? '#B8860B' : '#C62828'}">${isWin ? 'VICTORY' : 'DEFEAT'}</h2>
       <p style="font-size:14px;color:var(--text1);margin:0 0 14px">
-        ${isWin ? `+${(oc.bet * 2).toLocaleString()}P 획득!` : `${oc.bet.toLocaleString()}P 손실`}
+        ${isWin ? `+${oc.bet.toLocaleString()}P 획득!` : `-${oc.bet.toLocaleString()}P`}
       </p>
       <div class="onecard-log" style="background:rgba(0,0,0,.06);color:var(--text2);max-height:140px;margin-bottom:14px">
         ${oc.log.map(l => `<div>${esc(l)}</div>`).join('')}
@@ -26285,7 +26285,6 @@ upsertOtherPet(nick, data){
         const baseSc = mob.usesGlb ? 1 : mob.scale;
         g.scale.setScalar(Math.max(0.01, baseSc*(1-mob.deadT/18)));
         if(mob.deadT>=18){
-          if(typeof owCombatGrantDrop==='function' && (!mob.sharedId || mob._localKiller)) owCombatGrantDrop(mob);
           if(mob.sharedId){
             if(mob.bossShared){
               if(typeof owSharedBossIsHost==='function' && owSharedBossIsHost() && typeof owSharedBossRemoveMob==='function') owSharedBossRemoveMob(mob.sharedId);
@@ -26702,7 +26701,8 @@ upsertOtherPet(nick, data){
     this._applyRidePose(h, dt);
   }
   _updateCombatHud(){
-    const c=S.ow.combat; if(!c||!c.huntMode) return;
+    const c=S.ow.combat;
+    if(!c||!c.huntMode) return;
     const now=Date.now();
     const hpEl=document.getElementById('ow-combat-hp-fill'); if(hpEl) hpEl.style.width=Math.max(0,c.hp/c.maxHp*100)+'%';
     const hpLbl=document.getElementById('ow-combat-hp-label'); if(hpLbl) hpLbl.textContent='❤️ '+Math.ceil(c.hp);
@@ -28219,7 +28219,7 @@ function enterOpenWorld(){
   S.ow.combat = S.ow.combat || { huntMode:false, hp:1000, maxHp:1000, mp:1000, maxMp:1000, targetId:null, autoTarget:true, autoConsume:false, guarding:false, iframeUntil:0, cdUntil:{ basic:0,s1:0,s2:0,s3:0,dodge:0 }, drop:null, kills:0, deaths:0 };
   if(S.ow.combat.maxMp == null){ S.ow.combat.mp = 1000; S.ow.combat.maxMp = 1000; }
   if(S.ow.combat.autoConsume == null) S.ow.combat.autoConsume = false;
-  S.ow.combat.huntMode = false; S.ow.combat.drop = null;
+  S.ow.combat.huntMode = false; S.ow.combat.drop = null; S.ow.combat._droppedMobKeys = null;
   S.ow.combat.hp = S.ow.combat.maxHp; S.ow.combat.mp = S.ow.combat.maxMp;  // 입장 시 풀 회복(부활)
   /* 🐾 펫 전투 상태 (동반 펫 HP/MP/자동공격) */
   S.ow.petCombat = S.ow.petCombat || { hp:600, maxHp:600, mp:300, maxMp:300, dead:false, reviveAt:0, atkCd:0, mpCd:0 };
@@ -28343,7 +28343,8 @@ function leaveOpenWorld(){
   S.ow.storyScene = null;
   if(S.ow.bossFight){ S.ow.bossFight = null; if(__owRenderer && typeof __owRenderer.removeBoss==='function') __owRenderer.removeBoss(); }
   if(S.ow.worldBoss){ S.ow.worldBoss = null; }
-  if(S.ow.combat){ S.ow.combat.huntMode = false; S.ow.combat.drop = null; if(__owRenderer && typeof __owRenderer.removeAllMobs==='function') __owRenderer.removeAllMobs(); }
+  if(S.ow.combat){ S.ow.combat.huntMode = false; S.ow.combat.drop = null; S.ow.combat._droppedMobKeys = null; if(__owRenderer && typeof __owRenderer.removeAllMobs==='function') __owRenderer.removeAllMobs(); }
+  if(typeof owCombatHideDropPopup==='function') owCombatHideDropPopup();
   document.getElementById('ow-root')?.classList.remove('ow-void-mode');
   if(__owWorldUnsub){ try{ __owWorldUnsub(); }catch(e){} __owWorldUnsub = null; }
   owMmoLeaveCleanup();
@@ -33114,7 +33115,9 @@ function owApplySharedHuntSync(){
     const localShared = (rd.mobs || []).filter(m => m.sharedId && !m.bossShared);
     if(!localShared.length){
       (s.mobs || []).forEach(sm => {
-        if(sm.dead && (sm.deadT || 0) >= 18) return;
+        if(sm.dead) return;
+        const dropped = S.ow.combat?._droppedMobKeys;
+        if(dropped && dropped.has(sm.id)) return;
         if((rd.mobs || []).some(m => m.sharedId === sm.id)) return;
         rd.spawnMobFromSync(sm);
       });
@@ -33139,8 +33142,8 @@ function owApplySharedHuntSync(){
       rd.applyMobSyncState(mob, sm, isHost);
     }
   }
-  (rd.mobs || []).filter(m => m.sharedId && !syncIds.has(m.sharedId)).forEach(m => {
-    if(!m.dead) rd.removeMob(m);
+  (rd.mobs || []).filter(m => m.sharedId && !m.bossShared && !syncIds.has(m.sharedId)).forEach(m => {
+    rd.removeMob(m);
   });
 }
 function owSharedHuntHostTick(now){
@@ -33356,7 +33359,7 @@ function owApplySharedBossSync(){
     }
   }
   (rd.mobs || []).filter(m => m.bossShared && m.sharedId && !syncIds.has(m.sharedId)).forEach(m => {
-    if(!m.dead) rd.removeMob(m);
+    rd.removeMob(m);
   });
 }
 function owSharedBossHostTick(now){
@@ -33457,7 +33460,8 @@ function owCombatToggleHunt(){
   const c = S.ow.combat;
   c.huntMode = !c.huntMode;
   if(c.huntMode){
-    c.hp = c.maxHp; c.targetId = null; c.drop = null;
+    c.hp = c.maxHp; c.targetId = null; c.drop = null; c._droppedMobKeys = null;
+    if(typeof owCombatHideDropPopup==='function') owCombatHideDropPopup();
     owSharedHuntJoin().then(wasFirst => {
       if(wasFirst) owCombatSpawnWave();
       owPushOWPositionNow();
@@ -33467,7 +33471,8 @@ function owCombatToggleHunt(){
   } else {
     owSharedHuntLeave();
     __owRenderer.removeSharedHuntMobs && __owRenderer.removeSharedHuntMobs();
-    c.drop = null;
+    c.drop = null; c._droppedMobKeys = null;
+    if(typeof owCombatHideDropPopup==='function') owCombatHideDropPopup();
     if(typeof owMmoToast === 'function') owMmoToast('🕊️ 사냥 모드를 종료했어요');
   }
   owPushOWPositionNow();
@@ -33836,6 +33841,9 @@ function owCombatOnMobDead(mob, opts){
   if(typeof owGrantTamedPetsExp === 'function') owGrantTamedPetsExp(Math.max(8, Math.floor(xp * 0.4)));
   if(typeof owMmoToast==='function') owMmoToast(`💥 ${mob.def.name} · +${pts}P · +${xp} EXP`);
   if(mob.tier==='boss') S.ow.combat.bossKills = (S.ow.combat.bossKills||0) + 1;
+  const me = owMyNick();
+  const iGetLoot = !mob.sharedId || opts.localKill || (opts.sharedKill && opts.killer === me);
+  if(iGetLoot && typeof owCombatGrantDrop==='function') owCombatGrantDrop(mob);
   owCombatHaptic(35);
 }
 /* ── 드롭/보상 (희귀도 + 반짝임 연출) ── */
@@ -33845,16 +33853,57 @@ function owCombatRollQuality(tier){
   if(tier==='elite') return r<0.06?'legend':r<0.22?'epic':r<0.55?'rare':'common';
   return r<0.01?'epic':r<0.13?'rare':'common';
 }
+/** 전리품 팝업 — ow-ui-root 재렌더와 분리(ow-root에 고정, 상태 변경 시에만 DOM 갱신) */
+function owCombatHideDropPopup(){
+  document.getElementById('ow-drop-popup')?.remove();
+  if(S.ow.combat) S.ow.combat._dropPopupSig = null;
+}
+function owCombatSyncDropPopup(c, drop){
+  const root = document.getElementById('ow-root');
+  if(!root || !c) return;
+  if(!drop){
+    owCombatHideDropPopup();
+    return;
+  }
+  const sig = `${drop.mobKey}|${drop.emoji}|${drop.name}|${drop.points}|${drop.quality}`;
+  if(c._dropPopupSig === sig && document.getElementById('ow-drop-popup')) return;
+  c._dropPopupSig = sig;
+  let el = document.getElementById('ow-drop-popup');
+  if(!el){
+    el = document.createElement('div');
+    el.id = 'ow-drop-popup';
+    root.appendChild(el);
+  }
+  el.className = `ow-drop-popup q-${drop.quality}${drop.boss?' boss':''}`;
+  el.innerHTML = `<div class="ow-drop-emoji">${drop.emoji}</div><div class="ow-drop-meta"><b>${esc(drop.name)}</b><span>+${drop.points.toLocaleString()}P</span></div>`;
+}
 function owCombatGrantDrop(mob){
+  const c = S.ow.combat;
+  if(!c || !c.huntMode) return;
+  const mobKey = String(mob.sharedId || mob.id);
+  if(!c._droppedMobKeys) c._droppedMobKeys = new Set();
+  if(mob._dropGranted || c._droppedMobKeys.has(mobKey)) return;
+  if(c.drop && c.drop.mobKey === mobKey && Date.now() < c.drop.until) return;
+  mob._dropGranted = true;
+  c._droppedMobKeys.add(mobKey);
   const q=owCombatRollQuality(mob.tier), def=OW_DROP_QUALITY[q];
   const mult = mob.tier==='boss'?20:mob.tier==='elite'?5:1;
   const pts = def.points*mult;
   const mats={}; mats[def.mat] = mob.tier==='boss'?3:1;
   if(typeof owAddReward==='function') owAddReward(pts, mats);
-  S.ow.combat.drop={ emoji:def.emoji, name:`${def.label} ${mob.def.name} 전리품`, quality:q, points:pts, until:Date.now()+2800, boss:mob.tier==='boss' };
+  if(c._dropTimer){ clearTimeout(c._dropTimer); c._dropTimer = null; }
+  const drop = { mobKey, emoji:def.emoji, name:`${def.label} ${mob.def.name} 전리품`, quality:q, points:pts, until:Date.now()+2800, boss:mob.tier==='boss' };
+  c.drop = drop;
   if(mob.tier==='boss' && typeof owMmoToast==='function') owMmoToast(`🏆 [전광판] ${mob.def.name} 토벌! ${owFmtMatLoot(mats)}`);
-  render();
-  setTimeout(()=>{ if(S.ow.combat.drop && Date.now()>=S.ow.combat.drop.until){ S.ow.combat.drop=null; render(); } }, 2900);
+  owCombatSyncDropPopup(c, drop);
+  c._dropTimer = setTimeout(()=>{
+    if(!S.ow.combat) return;
+    if(S.ow.combat.drop && Date.now() >= S.ow.combat.drop.until){
+      S.ow.combat.drop = null;
+      S.ow.combat._dropTimer = null;
+      owCombatHideDropPopup();
+    }
+  }, 2900);
 }
 /* ── 전투 불능 → 경험치/포인트 차감 후 부활 ── */
 function owCombatDefeat(){
@@ -33870,7 +33919,8 @@ function owCombatDefeat(){
   /* 전투 정리 */
   __owRenderer && __owRenderer.removeAllMobs && __owRenderer.removeAllMobs();
   if(S.ow.bossFight){ S.ow.bossFight=null; __owRenderer && __owRenderer.removeBoss && __owRenderer.removeBoss(); }
-  c.huntMode=false; c.drop=null;
+  c.huntMode=false; c.drop=null; c._droppedMobKeys=null;
+  if(typeof owCombatHideDropPopup==='function') owCombatHideDropPopup();
   /* 부활: 풀 회복 + 스폰 지점 복귀 + 잠깐 무적 */
   c.hp=c.maxHp; c.mp=c.maxMp; c.iframeUntil=Date.now()+2500;
   if(__owRenderer && __owRenderer.human){
@@ -34358,10 +34408,6 @@ function rOWCombatHud(){
   const hpPct=Math.max(0,c.hp/c.maxHp*100);
   const mats=S.ow.materials||{};
   const autoOn=!!c.autoConsume;
-  let drop='';
-  if(c.drop && Date.now()<c.drop.until){
-    drop=`<div class="ow-drop-popup q-${c.drop.quality}${c.drop.boss?' boss':''}"><div class="ow-drop-emoji">${c.drop.emoji}</div><div class="ow-drop-meta"><b>${esc(c.drop.name)}</b><span>+${c.drop.points.toLocaleString()}P</span></div></div>`;
-  }
   return `
   <div class="ow-combat-hud">
     <div class="ow-combat-playerhp">
@@ -34393,7 +34439,6 @@ function rOWCombatHud(){
         <button type="button" class="ow-cbtn atk" data-a="ow_combatAttack">⚔️<small>공격</small></button>
       </div>
     </div>
-    ${drop}
   </div>`;
 }
 
