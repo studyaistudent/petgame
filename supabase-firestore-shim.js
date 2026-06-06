@@ -593,12 +593,12 @@
     entry.channel = null;
     entry.subscribed = false;
     entry.subscribing = false;
-    if (ch) {
+    if (!ch) return;
+    setTimeout(() => {
       try {
         client.removeChannel(ch);
       } catch (_) {}
-    }
-    entry.tearingDown = false;
+    }, 0);
   }
 
   function subscribeRealtime(client, table, filter, listener) {
@@ -1148,6 +1148,6 @@
     return ref.update(patch);
   };
 
-  global.__lmShimVersion = '14';
+  global.__lmShimVersion = '15';
   global.__lmIsTableDead = isTableDead;
 })(typeof window !== 'undefined' ? window : globalThis);

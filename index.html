@@ -4264,7 +4264,7 @@ body.ow-mode{ overscroll-behavior:none; overflow:hidden; }
 <script src="lm-ow-mp-sync.js?v=6"></script>
 <script src="lm-ow-pvp.js?v=5"></script>
 <script src="vendor/supabase.js?v=1"></script>
-<script src="supabase-firestore-shim.js?v=14"></script>
+<script src="supabase-firestore-shim.js?v=15"></script>
 <script>
 (function bootCheck(){
   const msgs=[];
@@ -25246,9 +25246,11 @@ _buildHuman(avatar, heightCm, gender){
   _syncOwHousePlotLabels(){
     if(!this._owHousePlotGroups) return;
     const plots = S.owHousePlots || {};
+    let ownerChanged = false;
     this._owHousePlotGroups.forEach((g) => {
       const data = plots[g.userData.plotId];
       const owner = data?.owner || null;
+      if(g.userData.owner !== owner) ownerChanged = true;
       g.userData.owner = owner;
       const label = owner ? `${shortNick(owner)}의 집` : '분양중 · 10만P';
       if(g.userData.signSprite){
@@ -25265,12 +25267,18 @@ _buildHuman(avatar, heightCm, gender){
       if(g.userData.portalInner) g.userData.portalInner.material.color.setHex(portalCol);
       if(g.userData.portalLight) g.userData.portalLight.color.setHex(portalCol);
     });
+    if(ownerChanged){
+      this._housePlotNearId = null;
+      this._housePlotPortalEnterAt = 0;
+    }
   }
 
   _tickOwHousePlots(t){
     if(!this._owHousePlotGroups) return;
     const hp = this.human?.position;
     const myNick = S.myEntry?.nick;
+    const PORTAL_RADIUS = 3.2;
+    const ENTER_COOLDOWN_MS = 1800;
     let nearPlot = null;
     this._owHousePlotGroups.forEach((g) => {
       if(g.userData.portalRing){
@@ -25282,7 +25290,7 @@ _buildHuman(avatar, heightCm, gender){
       }
       if(hp && g.userData.portalPos){
         const d = Math.hypot(hp.x - g.userData.portalPos.x, hp.z - g.userData.portalPos.z);
-        if(d < 2.4 && (!nearPlot || d < nearPlot.d)){
+        if(d < PORTAL_RADIUS && (!nearPlot || d < nearPlot.d)){
           nearPlot = {
             plotId: g.userData.plotId,
             owner: g.userData.owner,
@@ -25293,24 +25301,39 @@ _buildHuman(avatar, heightCm, gender){
       }
     });
     S.ow.mmo.housePlotNear = nearPlot;
-    const prevId = this._housePlotNearId || null;
-    const currId = nearPlot?.plotId || null;
-    if(currId !== prevId){
-      this._housePlotNearId = currId;
-      if(nearPlot){
-        if(!nearPlot.owner){
-          if(S.ow.housePlotBuyDismissed !== currId){
+    if(!nearPlot){
+      this._housePlotNearId = null;
+      S.ow.housePlotBuyModal = null;
+      S.ow.housePlotBuyDismissed = null;
+      if(S.screen === 'openworld') renderOpenWorldUIPass();
+      return;
+    }
+    const currId = nearPlot.plotId;
+    if(!nearPlot.owner){
+      if(this._housePlotNearId !== currId){
+        this._housePlotNearId = currId;
+        if(S.ow.housePlotBuyDismissed !== currId){
+          const myOwned = Object.values(S.owHousePlots || {}).find(p => p.owner === myNick);
+          if(myOwned){
+            if(S.ow.housePlotBuyModal){
+              S.ow.housePlotBuyModal = null;
+              if(S.screen === 'openworld') renderOpenWorldUIPass();
+            }
+          } else {
             S.ow.housePlotBuyModal = currId;
             if(S.screen === 'openworld') renderOpenWorldUIPass();
           }
-        } else if(!S.ow._housePlotEntering){
-          owEnterHousePortal(currId);
         }
-      } else {
-        S.ow.housePlotBuyModal = null;
-        S.ow.housePlotBuyDismissed = null;
-        if(S.screen === 'openworld') renderOpenWorldUIPass();
       }
+      return;
+    }
+    this._housePlotNearId = currId;
+    S.ow.housePlotBuyModal = null;
+    const now = Date.now();
+    const lastEnter = this._housePlotPortalEnterAt || 0;
+    if(!S.ow._housePlotEntering && now - lastEnter >= ENTER_COOLDOWN_MS){
+      this._housePlotPortalEnterAt = now;
+      owEnterHousePortal(currId);
     }
   }
 
@@ -27397,10 +27420,11 @@ upsertOtherPet(nick, data){
 
   /* 매 프레임 업데이트 */
   update(dt){
+    if(!S.ow?.active) return;
     const t = performance.now() * 0.001;
 
     /* === 🧑 사람 이동 (탭으로 설정한 목표를 향해 자연스럽게 걷기) === */
-    if(!S.ow.inCar){
+    if(!S.ow.inCar && this.human){
       if(typeof this._updateMountMesh === 'function') this._updateMountMesh(dt);
       this._applyMountPassengerFollow(dt);
       this._applyDriverPassengerSeats();
@@ -28299,6 +28323,7 @@ resize(){
 
 
 function owInitFeatureLayer(rd){
+  if(!rd?.scene) return;
   try{
     if(__owFeatureLayer && Array.isArray(__owFeatureLayer.meshes)){
       __owFeatureLayer.meshes.forEach(m=>{
@@ -28344,6 +28369,7 @@ function owInitFeatureLayer(rd){
   });
 }
 function owUpdateFeatureLayer(rd, dt, t){
+  if(!rd || !S.ow?.active) return;
   const fs = S.ow.featureState;
   if(!fs) return;
   owEnsureFeatureState(false);
@@ -28737,6 +28763,7 @@ function enterOpenWorld(){
   });
 }
 function leaveOpenWorld(){
+  if(S.ow) S.ow.active = false;
   __owLastTradeUiFp = '';
   __owLastTradeReqId = null;
   __owTradeSyncPending = false;
@@ -28905,20 +28932,30 @@ function initOpenWorld3D(){
   let lastT = performance.now();
 
   const loop = ()=>{
-    if(!__owRenderer) return;
+    const rd = __owRenderer;
+    if(!rd || !S.ow?.active){
+      __owRaf = null;
+      return;
+    }
 
     const now = performance.now();
     const dt = Math.min(0.05, (now - lastT) / 1000);
     lastT = now;
 
     try{
-      __owRenderer.update(dt);
-      owUpdateFeatureLayer(__owRenderer, dt, now * 0.001);
+      if(S.ow.active && __owRenderer === rd){
+        rd.update(dt);
+        owUpdateFeatureLayer(rd, dt, now * 0.001);
+      }
     }catch(e){
       console.error('[OpenWorld update error]', e);
     }
 
-    __owRaf = requestAnimationFrame(loop);
+    if(S.ow?.active && __owRenderer){
+      __owRaf = requestAnimationFrame(loop);
+    } else {
+      __owRaf = null;
+    }
   };
 
   loop();
@@ -38393,6 +38430,7 @@ class OWHouseHubBridge {
   }
   async visitOwnHouseFromOW(){
     if(!S.myHouse) await initMyHouse();
+    if(S.ow) S.ow.active = false;
     const mw = OWMMODataStore.get();
     mw.houseLink.visits = (mw.houseLink.visits||0) + 1;
     mw.houseLink.lastGuestAt = Date.now();
@@ -38406,6 +38444,7 @@ class OWHouseHubBridge {
   async visitNearbyFromOW(nick){
     if(!nick) return;
     if(nick === S.myEntry?.nick) return this.visitOwnHouseFromOW();
+    if(S.ow) S.ow.active = false;
     const mw = OWMMODataStore.get();
     mw.houseLink.hubRep = (mw.houseLink.hubRep||0) + 2;
     OWMMODataStore.touch();
@@ -40563,6 +40602,7 @@ async function owBuyHousePlot(plotId){
     if(__owRenderer){
       __owRenderer._syncOwHousePlotLabels();
       __owRenderer._housePlotNearId = null;
+      __owRenderer._housePlotPortalEnterAt = 0;
     }
     if(S.ow.mmo?.housePlotNear?.plotId === plotId) await owEnterHousePortal(plotId);
     else render();
@@ -40597,6 +40637,9 @@ function rOWHousePlotBuyModal(){
   if(!plotId) return '';
   const plot = (OW_HOUSE_PLOT_PLACEMENTS || []).find(p => p.id === plotId);
   if(!plot) return '';
+  const myNick = S.myEntry?.nick;
+  const myOwned = Object.values(S.owHousePlots || {}).find(p => p.owner === myNick);
+  if(myOwned) return '';
   const pts = S.myPet?.points || 0;
   const canBuy = pts >= OW_HOUSE_PLOT_COST;
   return `<div class="ow-modal ow-modal-front" data-a="ow_closeHousePlotBuy" data-plot="${esc(plotId)}">
@@ -40640,7 +40683,12 @@ function owMmoRenderMapInteractHUD(){
       const label = plot.mine ? '내 집' : `${shortNick(plot.owner)}의 집`;
       html += `<div class="ow-campfire-bar" style="top:auto;bottom:calc(248px + env(safe-area-inset-bottom));pointer-events:none;opacity:.92">🌀 ${esc(label)} · 입장 중…</div>`;
     } else if(!S.ow.housePlotBuyModal){
-      html += `<div class="ow-campfire-bar" style="top:auto;bottom:calc(248px + env(safe-area-inset-bottom));pointer-events:none;opacity:.92">🏠 분양중 · ${OW_HOUSE_PLOT_COST.toLocaleString()}P</div>`;
+      const myOwned = Object.values(S.owHousePlots || {}).find(p => p.owner === S.myEntry?.nick);
+      if(myOwned){
+        html += `<div class="ow-campfire-bar" style="top:auto;bottom:calc(248px + env(safe-area-inset-bottom));pointer-events:none;opacity:.92">🏠 이미 집 보유 중 (1인 1채)</div>`;
+      } else {
+        html += `<div class="ow-campfire-bar" style="top:auto;bottom:calc(248px + env(safe-area-inset-bottom));pointer-events:none;opacity:.92">🏠 분양중 · ${OW_HOUSE_PLOT_COST.toLocaleString()}P</div>`;
+      }
     }
   }
   const house = S.ow.mmo?.mapHouseNear;
@@ -40830,8 +40878,13 @@ function owMmoInitSubscriptions(){
 }
 
 function owMmoLeaveCleanup(){
-  __owMmoUnsubs.forEach(u => { try{ u(); }catch(e){} });
+  const pending = __owMmoUnsubs;
   __owMmoUnsubs = [];
+  if(pending.length){
+    setTimeout(() => {
+      pending.forEach(u => { try{ u(); }catch(e){} });
+    }, 80);
+  }
   try{ __owMmoController?.explore?.radar?.dispose(); }catch(e){}
   S.ow.mmo.photoSession = null;
   S.ow.mmo.lifeGame = null;
