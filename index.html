@@ -28369,14 +28369,15 @@ function owInitFeatureLayer(rd){
   });
 }
 function owUpdateFeatureLayer(rd, dt, t){
-  if(!rd || !S.ow?.active) return;
+  if(!rd?.scene || !S.ow?.active || __owRenderer !== rd) return;
   const fs = S.ow.featureState;
   if(!fs) return;
   owEnsureFeatureState(false);
   if(!__owFeatureLayer || !Array.isArray(__owFeatureLayer.meshes)){
     owInitFeatureLayer(rd);
+    if(!rd?.scene || !S.ow?.active || __owRenderer !== rd) return;
   }
-  const humanPos = rd.human?.position;
+  const humanPos = rd?.human?.position;
   for(const mesh of __owFeatureLayer.meshes){
     const tid = mesh.userData.treasureId;
     if(tid){
@@ -28402,7 +28403,7 @@ function owUpdateFeatureLayer(rd, dt, t){
     }
   }
 
-  if(humanPos){
+  if(humanPos && rd?.human){
     rd._owLastHumanPos = rd._owLastHumanPos || humanPos.clone();
     const dist = Math.hypot(humanPos.x - rd._owLastHumanPos.x, humanPos.z - rd._owLastHumanPos.z);
     rd._owLastHumanPos.copy(humanPos);
@@ -28432,6 +28433,7 @@ function owUpdateFeatureLayer(rd, dt, t){
     }
   }
 
+  if(!rd?.scene || __owRenderer !== rd) return;
   if(rd._owFeatureSaveAt == null) rd._owFeatureSaveAt = 0;
   if(now - rd._owFeatureSaveAt > 6000){
     rd._owFeatureSaveAt = now;
@@ -28696,8 +28698,9 @@ function enterOpenWorld(){
   // ★ 자동차는 모든 유저에게 기본 무료 지급 (별도 가구 필요 없음)
   S.ow.hasCar = true;
 
+  if(__owRaf){ cancelAnimationFrame(__owRaf); __owRaf = null; }
   S.screen = 'openworld';
-  S.ow.active = true;
+  S.ow.active = false;
   owBindUiPointerGuard();
   if(window.LMGlb){
     try{
@@ -28929,29 +28932,33 @@ function initOpenWorld3D(){
     }
   }catch(e){}
 
+  S.ow.active = true;
+
   let lastT = performance.now();
 
   const loop = ()=>{
-    const rd = __owRenderer;
-    if(!rd || !S.ow?.active){
+    if(!S.ow?.active || !__owRenderer?.scene){
       __owRaf = null;
       return;
     }
+    const rd = __owRenderer;
 
     const now = performance.now();
     const dt = Math.min(0.05, (now - lastT) / 1000);
     lastT = now;
 
     try{
-      if(S.ow.active && __owRenderer === rd){
+      if(S.ow.active && __owRenderer === rd && rd?.scene){
         rd.update(dt);
-        owUpdateFeatureLayer(rd, dt, now * 0.001);
+        if(S.ow.active && __owRenderer === rd){
+          owUpdateFeatureLayer(rd, dt, now * 0.001);
+        }
       }
     }catch(e){
       console.error('[OpenWorld update error]', e);
     }
 
-    if(S.ow?.active && __owRenderer){
+    if(S.ow?.active && __owRenderer?.scene){
       __owRaf = requestAnimationFrame(loop);
     } else {
       __owRaf = null;
