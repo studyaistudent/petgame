@@ -133,6 +133,7 @@
     lm_ow_territories: { pk: 'id', dataBlob: true },
     lm_ow_world_boss: { pk: 'doc_key', dataBlob: true },
     lm_ow_house_trade: { pk: 'doc_key', dataBlob: true },
+    lm_ow_house_plots: { pk: 'plot_id', known: ['plot_id', 'owner', 'purchased_at', 'cost', 'extra'] },
   };
 
   const ORDER_MAP = {

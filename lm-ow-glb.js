@@ -11,7 +11,7 @@
     fox: 'pet/Meshy_AI_Pet_Fox_0603040017_image-to-3d-texture.glb',
     frog: 'pet/Meshy_AI_Pet_Frog_0603040123_image-to-3d-texture.glb',
     hamster: 'pet/Meshy_AI_Pet_Hamster_0603040049_image-to-3d-texture.glb',
-    hedgehog: 'pet/Meshy_AI_Pet_Hedgehog_0603040132_image-to-3d-texture.glb',
+    hedgehog: 'pet/Meshy_AI_Pet_Hedgehog_0606034740_image-to-3d-texture.glb',
     koala: 'pet/Meshy_AI_Pet_Koala_0603040053_image-to-3d-texture.glb',
     lion: 'pet/Meshy_AI_Pet_Lion_0603040045_image-to-3d-texture.glb',
     mouse: 'pet/Meshy_AI_Pet_Mouse_0603040129_image-to-3d-texture.glb',
@@ -107,7 +107,11 @@
   const WORLD = {
     npc: '오픈월드/Meshy_AI_NPC_Raccoon_0603045824_image-to-3d-texture.glb',
     house: '오픈월드/Meshy_AI_Pastel_House_0603045805_image-to-3d-texture.glb',
-    lamp: '오픈월드/Meshy_AI_Street_Lamp_0603045800_image-to-3d-texture.glb'
+    purchasableHouse: '오픈월드/house.glb',
+    lamp: '오픈월드/Meshy_AI_Street_Lamp_0603045800_image-to-3d-texture.glb',
+    fire: '오픈월드/fire.glb',
+    flower: '오픈월드/flower.glb',
+    fountain: '오픈월드/fountain.glb'
   };
 
   /** 오픈월드 NPC GLB — id별 메쉬 (실제 파일: 오픈월드/ 폴더) */
@@ -120,12 +124,17 @@
     guard_capt: [
       '오픈월드/Meshy_AI_NPC3Bear_Knight_of_the_St_0603091418_texture.glb',
       '오픈월드폴더/Meshy_AI_NPC3Bear_Knight_of_the_St_0603091418_texture.glb'
+    ],
+    /* 110MB+ — git 제외, 로컬에 있으면 로드 · 없으면 default 너구리 */
+    herbalist: [
+      '오픈월드/Meshy_AI_NPC_Gathering_Merchan_0606035153_image-to-3d-texture.glb'
     ]
   };
 
   const NPC_TARGET_H = {
     wanderer: 1.62,
     guard_capt: 1.88,
+    herbalist: 1.62,
     default: 1.55
   };
 
@@ -852,16 +861,82 @@
   }
 
   const HOUSE_DEFAULT_H = 4.2;
+  const FLOWER_PETAL_TARGET_H = 0.38;
+
+  function applyModelTint(model, tintHex, strength) {
+    const THREE = global.THREE;
+    if (!model || !tintHex || !THREE) return;
+    const tint = new THREE.Color(tintHex);
+    const mix = strength != null ? strength : 0.42;
+    model.traverse((o) => {
+      if (!o.isMesh && !o.isSkinnedMesh) return;
+      const mats = Array.isArray(o.material) ? o.material : [o.material];
+      mats.forEach((m) => {
+        if (!m || !m.color) return;
+        if (!m.userData._owOrigColor) m.userData._owOrigColor = m.color.clone();
+        m.color.copy(m.userData._owOrigColor).lerp(tint, mix);
+      });
+    });
+  }
 
   /** 오픈월드 주택 GLB — 동일 메쉬, targetH(미터)로 크기만 조절 */
-  function attachHouse(group, targetH) {
+  function attachHouse(group, targetH, opts) {
+    opts = opts || {};
     const h =
       targetH != null && Number(targetH) > 0 ? Number(targetH) : HOUSE_DEFAULT_H;
-    return attachModel(group, WORLD.house, h, 'ow_glb_model');
+    const url = opts.url || WORLD.house;
+    return attachModel(group, url, h, 'ow_glb_model', { polishMaterials: opts.polishMaterials !== false })
+      .then((model) => {
+        if (opts.tint) applyModelTint(model, opts.tint, opts.tintStrength);
+        return model;
+      });
+  }
+
+  function attachCampfire(group, targetH) {
+    return attachModel(group, WORLD.fire, targetH || 1.8, 'ow_glb_model', { polishMaterials: true });
+  }
+
+  function attachFountain(group, targetH) {
+    return attachModel(group, WORLD.fountain, targetH || 3.2, 'ow_glb_model', { polishMaterials: true });
   }
 
   function attachLamp(group) {
     return attachModel(group, WORLD.lamp, 3.4, 'ow_glb_model');
+  }
+
+  /** 벚꽃 입자 — flower.glb 인스턴스 필드 */
+  function spawnFlowerPetals(scene, count, bounds) {
+    const THREE = global.THREE;
+    if (!scene || !THREE) return Promise.reject(new Error('scene missing'));
+    count = count || 55;
+    bounds = bounds || { half: 60 };
+    const half = bounds.half || 60;
+    const root = new THREE.Group();
+    root.name = 'ow_flower_petals';
+    const petals = [];
+    return loadGlb(WORLD.flower).then((gltf) => {
+      for (let i = 0; i < count; i++) {
+        const wrap = new THREE.Group();
+        const model = cloneGltfScene(gltf);
+        model.name = 'ow_flower_petal';
+        applyFit(model, FLOWER_PETAL_TARGET_H + Math.random() * 0.12);
+        model.rotation.y = Math.random() * Math.PI * 2;
+        model.rotation.x = (Math.random() - 0.5) * 0.35;
+        wrap.add(model);
+        wrap.userData.speed = 0.018 + Math.random() * 0.04;
+        wrap.userData.phase = i * 0.37;
+        wrap.userData.sway = 0.012 + Math.random() * 0.018;
+        wrap.position.set(
+          (Math.random() - 0.5) * half * 2,
+          Math.random() * 28 + 5,
+          (Math.random() - 0.5) * half * 2
+        );
+        root.add(wrap);
+        petals.push(wrap);
+      }
+      scene.add(root);
+      return { root, petals, half };
+    });
   }
 
   function tickMixers(root, dt) {
@@ -955,7 +1030,12 @@
     attachMount,
     attachNpc,
     HOUSE_DEFAULT_H,
+    FLOWER_PETAL_TARGET_H,
+    applyModelTint,
     attachHouse,
+    attachCampfire,
+    attachFountain,
+    spawnFlowerPetals,
     attachLamp,
     tickMixers,
     updatePetLocomotion,

@@ -4279,6 +4279,7 @@ const owMmoEconomyCol   = db.collection("lm_ow_economy");
 const owMmoTerritoryCol = db.collection("lm_ow_territories");
 const owMmoBossCol      = db.collection("lm_ow_world_boss");
 const owMmoHouseTradeCol = db.collection("lm_ow_house_trade");
+const owHousePlotCol = db.collection("lm_ow_house_plots");
 const OW_MMO_ECONOMY_DOC = "global";
 const OW_MMO_BOSS_DOC    = "active";
 const OW_MMO_GLOBAL_EVENT_DOC = "global_active";
@@ -5924,7 +5925,7 @@ let S={
   /* 던전 배틀 상태 */
   dungeonState:null,
   /* ★ 신규 */
-  myHouse:null, houseEntries:[],
+  myHouse:null, houseEntries:[], owHousePlots:{},
   myGifts:[], unreadGifts:0,
   visitingHouse:null,
   equipTab:'shop',
@@ -6043,6 +6044,7 @@ let S={
       eurekaBurst:null,
       lifeGame:null,
       campfireNear:false,
+      housePlotNear:null,
       activeBuffs:null,
     },
   },
@@ -21672,6 +21674,8 @@ function attachEvents(){
       else if(a==="ow_tamingFeed"){ owTamingFeedPet(el.dataset.id); render(); }
       else if(a==="ow_mapFarmAct"){ owMapFarmInteract(parseInt(el.dataset.slot,10)); render(); }
       else if(a==="ow_mapHouseTp"){ owMapHouseTeleport(el.dataset.nick); render(); }
+      else if(a==="ow_buyHousePlot"){ owBuyHousePlot(el.dataset.plot); }
+      else if(a==="ow_enterHousePortal"){ owEnterHousePortal(el.dataset.plot); }
       else if(a==="ow_mmoNpcShop"){ owMmoGetController().npc.buyFromShop(el.dataset.id, el.dataset.item); render(); }
       else if(a==="ow_mmoNpcGift"){ owMmoGetController().npc.giftItem(el.dataset.id, el.dataset.item); render(); }
       else if(a==="ow_mmoNpcGo"){ owMmoGetController().npc.goToNpc(el.dataset.id); }
@@ -24081,6 +24085,14 @@ const OW_HOUSE_PLACEMENTS = [
   { x: -10, z: 8, ry: -0.6, h: 5.0 },
   { x: OW_HOUSE_HUB_POS.x, z: OW_HOUSE_HUB_POS.z, ry: 0.35, h: 5.4, hub: true }
 ];
+/** 오픈월드 분양 집 — house.glb · 색상별 · 선착순 10만P */
+const OW_HOUSE_PLOT_COST = 100000;
+const OW_HOUSE_PLOT_PLACEMENTS = [
+  { id:'plot_rose', x: 25, z: 15, ry: -0.8, h: 4.0, tint: 0xFF6B9D, portalOff: { x: 0, z: 3.8 } },
+  { id:'plot_sky',  x:-25, z: 25, ry:  1.5, h: 4.2, tint: 0x6BAAFF, portalOff: { x: 0, z: 3.8 } },
+  { id:'plot_mint', x: 30, z:-20, ry:  2.5, h: 3.8, tint: 0x7DDB8A, portalOff: { x: 0, z: 3.8 } },
+];
+const OW_FISHING_DOCK_POS = { x: -32, z: 18 };
 const OW_CAR_HOME    = { x: 4, z: -4 };           // 차 주차 위치
 const OW_ROAD_RADIUS = 35;       // 도로 반경 (원형)
 const OW_SYNC_MS = 280;
@@ -24887,6 +24899,7 @@ this.renderer.setSize(__size.w, __size.h, false);
 
     this._buildCherryTrees();
     this._buildOwGlbScenery();
+    this._buildOwHousePlots();
   }
 
   /* ═══ 🧑 오픈월드 아바타 (boystandard / girlstandard) ═══ */
@@ -25003,11 +25016,21 @@ _buildHuman(avatar, heightCm, gender){
     });
   }
 
-  /** 오픈월드 GLB — 집(동일 메쉬·크기만 상이) · 가로등 · 상점 NPC */
+  /** 오픈월드 GLB — 집(동일 메쉬·크기만 상이) · 가로등 · 상점 NPC · 캠프파이어 · 분수 */
   _buildOwGlbScenery(){
     this.lamps = [];
     this._owHouseHub = null;
     if(!window.LMOwGlb) return;
+    const campfireG = new THREE.Group();
+    campfireG.position.set(OW_CAMPFIRE_POS.x, 0, OW_CAMPFIRE_POS.z);
+    this.scene.add(campfireG);
+    this._owCampfireGlb = campfireG;
+    LMOwGlb.attachCampfire(campfireG, 1.85);
+    const fountainG = new THREE.Group();
+    fountainG.position.set(OW_FISHING_DOCK_POS.x, 0, OW_FISHING_DOCK_POS.z);
+    this.scene.add(fountainG);
+    this._owFountainGlb = fountainG;
+    LMOwGlb.attachFountain(fountainG, 3.4);
     (OW_HOUSE_PLACEMENTS || []).forEach((hp) => {
       const house = new THREE.Group();
       house.name = hp.hub ? 'ow_house_hub' : 'ow_house';
@@ -25046,6 +25069,129 @@ _buildHuman(avatar, heightCm, gender){
     this.shopNPC = npc;
     this.scene.add(npc);
     LMOwGlb.attachNpc(npc);
+  }
+
+  _makeHouseSignSprite(text){
+    const c = document.createElement('canvas');
+    c.width = 512; c.height = 96;
+    const ctx = c.getContext('2d');
+    ctx.clearRect(0, 0, c.width, c.height);
+    ctx.font = 'bold 34px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.lineWidth = 6;
+    ctx.strokeStyle = 'rgba(0,0,0,.65)';
+    ctx.strokeText(text, c.width / 2, c.height / 2);
+    ctx.fillStyle = '#fff';
+    ctx.fillText(text, c.width / 2, c.height / 2);
+    const tex = new THREE.CanvasTexture(c);
+    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false }));
+    sp.scale.set(5.2, 1.15, 1);
+    sp.renderOrder = 998;
+    return sp;
+  }
+
+  _buildOwHousePlots(){
+    if(!window.LMOwGlb || this._owHousePlotGroups) return;
+    this._owHousePlotGroups = [];
+    (OW_HOUSE_PLOT_PLACEMENTS || []).forEach((plot) => {
+      const g = new THREE.Group();
+      g.name = 'ow_house_plot';
+      g.position.set(plot.x, 0, plot.z);
+      g.rotation.y = plot.ry != null ? plot.ry : 0;
+      g.userData = { plotId: plot.id, tint: plot.tint, h: plot.h };
+      LMOwGlb.attachHouse(g, plot.h, {
+        url: LMOwGlb.WORLD.purchasableHouse,
+        tint: plot.tint,
+        tintStrength: 0.48
+      });
+      const sign = this._makeHouseSignSprite('분양 중 · 10만P');
+      sign.position.set(0, plot.h + 0.55, 0);
+      g.add(sign);
+      g.userData.signSprite = sign;
+      const portal = new THREE.Group();
+      const po = plot.portalOff || { x: 0, z: 3.8 };
+      portal.position.set(po.x, 0.02, po.z);
+      const ring = new THREE.Mesh(
+        new THREE.RingGeometry(1.15, 1.6, 48),
+        new THREE.MeshBasicMaterial({ color: plot.tint, transparent: true, opacity: 0.72, side: THREE.DoubleSide, depthWrite: false })
+      );
+      ring.rotation.x = -Math.PI / 2;
+      portal.add(ring);
+      const inner = new THREE.Mesh(
+        new THREE.CircleGeometry(1.05, 48),
+        new THREE.MeshBasicMaterial({ color: plot.tint, transparent: true, opacity: 0.2, side: THREE.DoubleSide, depthWrite: false })
+      );
+      inner.rotation.x = -Math.PI / 2;
+      inner.position.y = 0.01;
+      portal.add(inner);
+      const portalLight = new THREE.PointLight(plot.tint, 0.55, 7, 2);
+      portalLight.position.y = 0.55;
+      portal.add(portalLight);
+      g.add(portal);
+      g.userData.portal = portal;
+      g.userData.portalRing = ring;
+      g.userData.portalInner = inner;
+      const cos = Math.cos(plot.ry || 0), sin = Math.sin(plot.ry || 0);
+      g.userData.portalPos = {
+        x: plot.x + po.x * cos - po.z * sin,
+        z: plot.z + po.x * sin + po.z * cos
+      };
+      this.scene.add(g);
+      this._owHousePlotGroups.push(g);
+    });
+    this._syncOwHousePlotLabels();
+  }
+
+  _syncOwHousePlotLabels(){
+    if(!this._owHousePlotGroups) return;
+    const plots = S.owHousePlots || {};
+    this._owHousePlotGroups.forEach((g) => {
+      const data = plots[g.userData.plotId];
+      const owner = data?.owner || null;
+      g.userData.owner = owner;
+      const label = owner ? `${shortNick(owner)}의 집` : '분양 중 · 10만P';
+      if(g.userData.signSprite){
+        const sign = this._makeHouseSignSprite(label);
+        sign.position.copy(g.userData.signSprite.position);
+        g.remove(g.userData.signSprite);
+        if(g.userData.signSprite.material.map) g.userData.signSprite.material.map.dispose();
+        g.userData.signSprite.material.dispose();
+        g.add(sign);
+        g.userData.signSprite = sign;
+      }
+      const portalCol = owner ? 0xAB47BC : (g.userData.tint || 0x7c4dff);
+      if(g.userData.portalRing) g.userData.portalRing.material.color.setHex(portalCol);
+      if(g.userData.portalInner) g.userData.portalInner.material.color.setHex(portalCol);
+    });
+  }
+
+  _tickOwHousePlots(t){
+    if(!this._owHousePlotGroups) return;
+    const hp = this.human?.position;
+    const myNick = S.myEntry?.nick;
+    let nearPlot = null;
+    this._owHousePlotGroups.forEach((g) => {
+      if(g.userData.portalRing){
+        g.userData.portalRing.rotation.z = t * 0.95;
+        g.userData.portalRing.material.opacity = 0.5 + Math.sin(t * 3.2) * 0.22;
+      }
+      if(g.userData.portalInner){
+        g.userData.portalInner.material.opacity = 0.1 + Math.sin(t * 2.6) * 0.08;
+      }
+      if(hp && g.userData.portalPos){
+        const d = Math.hypot(hp.x - g.userData.portalPos.x, hp.z - g.userData.portalPos.z);
+        if(d < 2.4 && (!nearPlot || d < nearPlot.d)){
+          nearPlot = {
+            plotId: g.userData.plotId,
+            owner: g.userData.owner,
+            d,
+            mine: g.userData.owner === myNick
+          };
+        }
+      }
+    });
+    S.ow.mmo.housePlotNear = nearPlot;
   }
 
   _makeEmojiSprite(emoji, scale=0.85){
@@ -25368,7 +25514,21 @@ _buildPet(emoji, color, equipment){
 }
 
   _buildPetalSystem(){
-    // 벚꽃 입자 (THREE.Points)
+    this.petals = null;
+    this._flowerPetals = [];
+    this._flowerPetalHalf = OW_MAP_HALF;
+    if(window.LMOwGlb && typeof LMOwGlb.spawnFlowerPetals === 'function'){
+      LMOwGlb.spawnFlowerPetals(this.scene, 58, { half: OW_MAP_HALF }).then((field) => {
+        this._flowerPetalRoot = field.root;
+        this._flowerPetals = field.petals;
+        this._flowerPetalHalf = field.half;
+      }).catch(() => this._buildPetalPointsFallback());
+    } else {
+      this._buildPetalPointsFallback();
+    }
+  }
+
+  _buildPetalPointsFallback(){
     const N = 250;
     const geo = new THREE.BufferGeometry();
     const positions = new Float32Array(N * 3);
@@ -27705,8 +27865,48 @@ if(S.ow.isDriver && this.companion){
     }
     if(window.OW_PVP && typeof OW_PVP.tick === 'function') OW_PVP.tick(this, dt);
 
-    /* === 벚꽃 / 눈 입자 === */
-    if(this.petals && (S.ow.weather === 'petal' || S.ow.weather === 'sunny' || S.ow.weather === 'snow')){
+    /* === 벚꽃 flower.glb / 눈 입자 === */
+    const petalWeather = S.ow.weather === 'petal' || S.ow.weather === 'sunny' || S.ow.weather === 'snow';
+    if(this._flowerPetals && this._flowerPetals.length && petalWeather){
+      const isSnow = S.ow.weather === 'snow';
+      const half = this._flowerPetalHalf || OW_MAP_HALF;
+      this._flowerPetals.forEach((wrap, i) => {
+        const fall = isSnow ? wrap.userData.speed * 0.35 : wrap.userData.speed;
+        const sway = isSnow ? 0.006 : wrap.userData.sway;
+        wrap.position.y -= fall;
+        wrap.position.x += Math.sin(t * 0.45 + wrap.userData.phase) * sway;
+        wrap.position.z += Math.cos(t * 0.38 + wrap.userData.phase) * sway * 0.7;
+        wrap.rotation.y += 0.012;
+        wrap.rotation.z = Math.sin(t * 0.8 + i * 0.2) * 0.25;
+        if(wrap.children[0]){
+          wrap.children[0].traverse((o) => {
+            if(!o.isMesh) return;
+            const mats = Array.isArray(o.material) ? o.material : [o.material];
+            mats.forEach((m) => {
+              if(!m || !m.color) return;
+              if(!m.userData._owSnowBase && m.userData._owOrigColor){
+                m.userData._owSnowBase = m.userData._owOrigColor.clone();
+              }
+              if(isSnow){
+                if(!m.userData._owSnowBase && m.color) m.userData._owSnowBase = m.color.clone();
+                if(m.userData._owSnowBase) m.color.copy(m.userData._owSnowBase).lerp(new THREE.Color(0xffffff), 0.82);
+              } else if(m.userData._owSnowBase){
+                m.color.copy(m.userData._owSnowBase);
+              }
+            });
+          });
+        }
+        if(wrap.position.y < 0.15){
+          wrap.position.y = 26 + Math.random() * 5;
+          wrap.position.x = (Math.random() - 0.5) * half * 2;
+          wrap.position.z = (Math.random() - 0.5) * half * 2;
+        }
+      });
+      if(this._flowerPetalRoot) this._flowerPetalRoot.visible = true;
+    } else if(this._flowerPetalRoot){
+      this._flowerPetalRoot.visible = false;
+    }
+    if(this.petals && petalWeather){
       const pos = this.petals.geometry.attributes.position.array;
       const sp = this.petals.geometry.userData.speeds;
       const isSnow = S.ow.weather === 'snow';
@@ -27724,10 +27924,12 @@ if(S.ow.isDriver && this.companion){
         }
       }
       this.petals.geometry.attributes.position.needsUpdate = true;
-      this.petals.visible = true;
+      this.petals.visible = !this._flowerPetals?.length;
     } else if(this.petals){
       this.petals.visible = false;
     }
+
+    this._tickOwHousePlots(t);
 
     /* === 물결 === */
     if(this.water){
@@ -28869,6 +29071,7 @@ function owAttackWorldBoss(){
     boss.active = false;
     boss.clearedAt = Date.now();
     owAddReward(25000, { iron_ore: 3, magic_herb: 2 });
+    owBossTryGrantItemLoot({ source: 'expansion_boss', bossKey: boss.bossId + '_' + (S.myEntry?.nick || '') }).then((loot) => { if(loot) render(); });
     setTimeout(()=>{
       ex.boss = _owGenerateWorldBoss(ex.dayKey || _owTodayKey());
       saveOWInventory();
@@ -32764,6 +32967,11 @@ function owBossDefeat(opts){
     owBossCdSet('boss', OW_BOSS_CD_MS);
     if(typeof owMmoToast==='function') owMmoToast(`🏆 ${boss.name} 처치! +25,000P · 전설 재료 · 다음 도전은 1시간 후`);
   }
+  const canLoot = !opts.sharedKill || (opts.myContrib != null ? opts.myContrib > 0 : true);
+  if(canLoot){
+    const bossKey = (opts.clearedAt ? ('dragon_' + opts.clearedAt) : ('dragon_local_' + Date.now())) + '_' + (S.myEntry?.nick || '');
+    owBossTryGrantItemLoot({ source: isZipferKill ? 'world_boss' : 'dragon_boss', bossKey }).then((loot) => { if(loot) render(); });
+  }
   nv.dragonHp = 0;
   S.ow.bossFight = null;
   saveOWInventory(true);
@@ -32940,6 +33148,121 @@ const OW_DROP_QUALITY = {
   unique: { label:'유니크', emoji:'🟠', color:0xff9800, points:5500,  mat:'fish_rare' },
   legend: { label:'전설',   emoji:'🌟', color:0xffd54f, points:13000, mat:'fish_legend' },
 };
+/** 보스 처치 — 펫 장비 / 하우스 가구 드롭 (5~10% · 등급↑ 확률↓) */
+const OW_BOSS_ITEM_LOOT = {
+  chanceMin: 0.05,
+  chanceMax: 0.10,
+  gradeWeight: { normal: 42, rare: 27, epic: 14, unique: 9, legend: 6, myth: 2 },
+  gradeLabel: { normal:'일반', rare:'레어', epic:'에픽', unique:'유니크', legend:'전설', myth:'신화' },
+};
+function owBossLootPickGrade(){
+  const w = OW_BOSS_ITEM_LOOT.gradeWeight;
+  const grades = Object.keys(w);
+  let total = 0;
+  grades.forEach((g) => { total += w[g]; });
+  let r = Math.random() * total;
+  for(const g of grades){
+    r -= w[g];
+    if(r <= 0) return g;
+  }
+  return 'normal';
+}
+function owBossLootPickItem(kind, grade){
+  if(kind === 'equip'){
+    const pool = (EQUIP_SHOP || []).filter((i) => i.grade === grade);
+    if(!pool.length) return null;
+    return pool[Math.floor(Math.random() * pool.length)];
+  }
+  const pool = (FURNITURE_SHOP || []).filter((f) => f.grade === grade && (f.cost || 0) > 0);
+  if(!pool.length) return null;
+  return pool[Math.floor(Math.random() * pool.length)];
+}
+function owBossLootShowDropPopup(loot){
+  const c = S.ow.combat;
+  if(!c || !loot) return;
+  const qMap = { normal:'common', rare:'rare', epic:'epic', unique:'unique', legend:'legend', myth:'legend' };
+  const q = qMap[loot.grade] || 'rare';
+  const kindLabel = loot.kind === 'equip' ? '펫 장비' : '하우스 가구';
+  const drop = {
+    mobKey: 'boss_item_' + Date.now(),
+    emoji: loot.item.emoji,
+    name: `${loot.item.name} · ${kindLabel}`,
+    quality: q,
+    points: 0,
+    until: Date.now() + 3600,
+    boss: true,
+  };
+  c.drop = drop;
+  owCombatSyncDropPopup(c, drop);
+  if(c._dropTimer) clearTimeout(c._dropTimer);
+  c._dropTimer = setTimeout(()=>{
+    if(!S.ow.combat) return;
+    if(S.ow.combat.drop && Date.now() >= S.ow.combat.drop.until){
+      S.ow.combat.drop = null;
+      S.ow.combat._dropTimer = null;
+      owCombatHideDropPopup();
+    }
+  }, 3700);
+}
+async function owBossTryGrantItemLoot(opts){
+  opts = opts || {};
+  const myNick = S.myEntry?.nick;
+  if(!myNick || !S.myPet) return null;
+  if(opts.bossKey){
+    const mw = OWMMODataStore.get();
+    mw.bossItemLootClaims = mw.bossItemLootClaims || {};
+    if(mw.bossItemLootClaims[opts.bossKey]) return null;
+  }
+  const cfg = OW_BOSS_ITEM_LOOT;
+  const roll = cfg.chanceMin + Math.random() * (cfg.chanceMax - cfg.chanceMin);
+  if(Math.random() >= roll) return null;
+  let kind = Math.random() < 0.5 ? 'equip' : 'furn';
+  let grade = owBossLootPickGrade();
+  let item = owBossLootPickItem(kind, grade);
+  if(!item){
+    kind = kind === 'equip' ? 'furn' : 'equip';
+    item = owBossLootPickItem(kind, grade);
+  }
+  if(!item){
+    for(let i = 0; i < 4 && !item; i++){
+      grade = owBossLootPickGrade();
+      item = owBossLootPickItem(kind, grade) || owBossLootPickItem(kind === 'equip' ? 'furn' : 'equip', grade);
+      if(item) kind = item.slot ? 'equip' : 'furn';
+    }
+  }
+  if(!item) return null;
+  try{
+    if(kind === 'equip'){
+      const loot = { id:item.id, slot:item.slot, name:item.name, emoji:item.emoji, grade:item.grade, stats:item.stats };
+      const inv = [...(S.myPet.petInventory || []), loot];
+      await petCol.doc(myNick).update({ petInventory: inv });
+      S.myPet.petInventory = inv;
+    } else {
+      if(!S.myHouse) await initMyHouse();
+      const newItem = { id:item.id, name:item.name, emoji:item.emoji, grade:item.grade, cost:item.cost, type:item.type, w:item.w, h:item.h };
+      const inv = [...(S.myHouse.inventory || []), newItem];
+      await houseCol.doc(myNick).update({ inventory: inv });
+      S.myHouse.inventory = inv;
+    }
+    const gradeLabel = cfg.gradeLabel[grade] || grade;
+    const kindLabel = kind === 'equip' ? '펫 장비' : '하우스 가구';
+    const loot = { kind, item, grade };
+    if(typeof owMmoToast === 'function'){
+      owMmoToast(`🎁 보스 전리품! ${item.emoji} ${item.name} [${gradeLabel}] · ${kindLabel}`);
+    }
+    if(S.ow.combat?.huntMode) owBossLootShowDropPopup(loot);
+    if(opts.bossKey){
+      const mw = OWMMODataStore.get();
+      mw.bossItemLootClaims = mw.bossItemLootClaims || {};
+      mw.bossItemLootClaims[opts.bossKey] = Date.now();
+      OWMMODataStore.touch();
+    }
+    return loot;
+  }catch(e){
+    console.warn('[owBossTryGrantItemLoot]', e);
+    return null;
+  }
+}
 
 /* ── 공동 사냥 (오픈월드 플레이어가 같은 몹을 함께 잡음) ── */
 function owMyNick(){ return S.myEntry?.nick || ''; }
@@ -33844,6 +34167,14 @@ function owCombatOnMobDead(mob, opts){
   const me = owMyNick();
   const iGetLoot = !mob.sharedId || opts.localKill || (opts.sharedKill && opts.killer === me);
   if(iGetLoot && typeof owCombatGrantDrop==='function') owCombatGrantDrop(mob);
+  if(iGetLoot && mob.tier === 'boss'){
+    let bossKey = (mob.sharedId || mob.id) + '_' + me;
+    if(mob.leviathanBoss){
+      const lb = owMmoGetController()?.boss?.getBoss?.();
+      if(lb?.bossId) bossKey = lb.bossId + '_' + me;
+    }
+    owBossTryGrantItemLoot({ source: mob.leviathanBoss ? 'leviathan' : 'field_boss', bossKey }).then((loot) => { if(loot) render(); });
+  }
   owCombatHaptic(35);
 }
 /* ── 드롭/보상 (희귀도 + 반짝임 연출) ── */
@@ -38624,6 +38955,7 @@ class OWWorldBossV2 {
     else if(rank === 2){ pts += 28000; mats.fish_rare = 2; }
     else if(rank === 3){ pts += 14000; mats.magic_herb = 5; }
     owAddReward(pts, mats);
+    owBossTryGrantItemLoot({ source: 'leviathan_claim', bossKey: boss.bossId + '_' + nick }).then((loot) => { if(loot) render(); });
     mw.bossClaims = mw.bossClaims || {};
     mw.bossClaims[boss.bossId] = { at:Date.now(), rank, pts, dmg:myDmg };
     mw.fame = (mw.fame||0) + 40 + (rank <= 3 ? 35 : 12);
@@ -39946,6 +40278,66 @@ function owMapHouseTeleport(nick){
   }
   owMmoGetController().house.visitNearbyFromOW(nick);
 }
+
+async function owBuyHousePlot(plotId){
+  const myNick = S.myEntry?.nick;
+  if(!myNick || !S.myPet) return;
+  const plot = (OW_HOUSE_PLOT_PLACEMENTS || []).find(p => p.id === plotId);
+  if(!plot) return;
+  const existing = S.owHousePlots?.[plotId];
+  if(existing?.owner){
+    alert(`${shortNick(existing.owner)}님이 이미 이 집을 소유 중이에요.`);
+    return;
+  }
+  const myOwned = Object.values(S.owHousePlots || {}).find(p => p.owner === myNick);
+  if(myOwned){
+    alert('이미 오픈월드 집을 소유 중이에요. 한 명당 집 1채만 구매할 수 있어요.');
+    return;
+  }
+  if((S.myPet.points || 0) < OW_HOUSE_PLOT_COST){
+    alert(`포인트 부족! (필요: ${OW_HOUSE_PLOT_COST.toLocaleString()}P)`);
+    return;
+  }
+  if(!confirm(`🏠 이 집을 ${OW_HOUSE_PLOT_COST.toLocaleString()}P에 구매할까요?\n선착순으로 소유됩니다.`)) return;
+  try{
+    await db.runTransaction(async (tx) => {
+      const plotRef = owHousePlotCol.doc(plotId);
+      const petRef = petCol.doc(myNick);
+      const plotSnap = await tx.get(plotRef);
+      if(plotSnap.exists && plotSnap.data().owner) throw new Error('already_owned');
+      const petSnap = await tx.get(petRef);
+      if(!petSnap.exists) throw new Error('no_pet');
+      const pts = petSnap.data().points || 0;
+      if(pts < OW_HOUSE_PLOT_COST) throw new Error('no_points');
+      tx.set(plotRef, { plot_id: plotId, owner: myNick, purchased_at: TS(), cost: OW_HOUSE_PLOT_COST });
+      tx.update(petRef, { points: INC(-OW_HOUSE_PLOT_COST) });
+    });
+    S.myPet.points = (S.myPet.points || 0) - OW_HOUSE_PLOT_COST;
+    if(!S.myHouse) await initMyHouse();
+    owMmoToast(`🏠 ${shortNick(myNick)}의 집이 생겼어요!`);
+    if(__owRenderer) __owRenderer._syncOwHousePlotLabels();
+    render();
+  }catch(e){
+    const msg = e && e.message ? e.message : '';
+    if(msg === 'already_owned') alert('다른 유저가 먼저 구매했어요!');
+    else if(msg === 'no_points') alert('포인트가 부족해요.');
+    else alert('구매에 실패했어요. 다시 시도해 주세요.');
+  }
+}
+
+async function owEnterHousePortal(plotId){
+  const plotData = S.owHousePlots?.[plotId];
+  const owner = plotData?.owner;
+  if(!owner){
+    owMmoToast('아직 주인이 없는 집이에요');
+    return;
+  }
+  if(owner === S.myEntry?.nick){
+    await owMmoGetController().house.visitOwnHouseFromOW();
+  } else {
+    await owMmoGetController().house.visitNearbyFromOW(owner);
+  }
+}
 function owMmoRenderWild3DHUD(){
   if(S.screen !== 'openworld' || !S.ow.mmo?.wildNear) return '';
   const w = owMmoGetController().wildTame.getWild();
@@ -39961,6 +40353,15 @@ function owMmoRenderMapInteractHUD(){
   const farm = S.ow.mmo?.mapFarmNear;
   if(farm != null){
     html += `<button type="button" class="ow-campfire-bar" data-a="ow_mapFarmAct" data-slot="${farm}">🌾 밭 ${farm+1} — 심기/수확</button>`;
+  }
+  const plot = S.ow.mmo?.housePlotNear;
+  if(plot){
+    if(plot.owner){
+      const label = plot.mine ? '내 집' : `${shortNick(plot.owner)}의 집`;
+      html += `<button type="button" class="ow-campfire-bar" style="top:auto;bottom:calc(248px + env(safe-area-inset-bottom))" data-a="ow_enterHousePortal" data-plot="${esc(plot.plotId)}">🌀 ${esc(label)} · 입장</button>`;
+    } else {
+      html += `<button type="button" class="ow-campfire-bar" style="top:auto;bottom:calc(248px + env(safe-area-inset-bottom))" data-a="ow_buyHousePlot" data-plot="${esc(plot.plotId)}">🏠 집 구매 (${OW_HOUSE_PLOT_COST.toLocaleString()}P)</button>`;
+    }
   }
   const house = S.ow.mmo?.mapHouseNear;
   if(house && !house.mine){
@@ -40138,6 +40539,14 @@ function owMmoInitSubscriptions(){
     S.ow.mmo.houseTradeSync = doc.exists ? (doc.data().listings || []) : [];
     if(S.screen === 'openworld' && S.ow.mmo?.showWorldHub) render();
   }, ()=>{}));
+  __owMmoUnsubs.push(owHousePlotCol.onSnapshot(snap=>{
+    S.owHousePlots = {};
+    snap.docs.forEach((d) => { S.owHousePlots[d.id] = d.data(); });
+    if(__owRenderer && typeof __owRenderer._syncOwHousePlotLabels === 'function'){
+      __owRenderer._syncOwHousePlotLabels();
+    }
+    if(S.screen === 'openworld') render();
+  }, ()=>{}));
 }
 
 function owMmoLeaveCleanup(){
@@ -40150,6 +40559,7 @@ function owMmoLeaveCleanup(){
   S.ow.mmo.petScoutHint = null;
   S.ow.mmo._petExpReadyNotified = false;
   S.ow.mmo.houseHubNear = false;
+  S.ow.mmo.housePlotNear = null;
   S.ow.mmo.partyBroadcast = null;
   S.ow.mmo.mountState = null;
   S.ow.mmo.driftActive = false;
