@@ -194,6 +194,12 @@
         this.renderer.setSize(w, h, false);
         this._ownedRenderer = true;
       }
+      this._savedRendererState = (!this._ownedRenderer && this.renderer) ? {
+        outputEncoding: this.renderer.outputEncoding,
+        shadowEnabled: this.renderer.shadowMap.enabled,
+        toneMapping: this.renderer.toneMapping,
+        toneMappingExposure: this.renderer.toneMappingExposure,
+      } : null;
       this.renderer.shadowMap.enabled = true;
       if (THREE.sRGBEncoding) this.renderer.outputEncoding = THREE.sRGBEncoding;
 
@@ -1094,9 +1100,19 @@
     _restoreOwAfterInterior(owRd) {
       if (!owRd) return;
       if (owRd.renderer) {
+        /* 집 진입 때 바꾼 공유 렌더러 설정(outputEncoding 등)을 원복.
+           원복하지 않으면 오픈월드 전체 밝기/감마가 달라진다. */
+        const sr = this._savedRendererState;
+        if (sr) {
+          if (sr.outputEncoding !== undefined) owRd.renderer.outputEncoding = sr.outputEncoding;
+          if (sr.toneMapping !== undefined) owRd.renderer.toneMapping = sr.toneMapping;
+          if (sr.toneMappingExposure !== undefined) owRd.renderer.toneMappingExposure = sr.toneMappingExposure;
+          owRd.renderer.shadowMap.enabled = sr.shadowEnabled;
+        }
         owRd.renderer.setClearColor(0xffe4f0, 1);
         if (typeof global.owApplyRendererPerf === 'function') global.owApplyRendererPerf(owRd);
       }
+      this._savedRendererState = null;
       if (owRd.scene && owRd.human) {
         if (!owRd.human.parent) owRd.scene.add(owRd.human);
         owRd.human.visible = true;
@@ -1125,6 +1141,10 @@
       this._isSitting = false;
 
       if (this.scene) {
+        /* 집 안 아바타는 캐시된 GLB의 복제본으로 지오메트리/머티리얼/
+           텍스처를 다른 아바타와 공유한다. dispose 대상에서 빼기 위해
+           순회 전에 씬에서 분리한다. (안 그러면 오픈월드 아바타가 깨짐) */
+        if (this.human && this.human.parent) this.human.parent.remove(this.human);
         this.scene.traverse((o) => {
           if (o.geometry) o.geometry.dispose();
           const mats = o.material ? (Array.isArray(o.material) ? o.material : [o.material]) : [];

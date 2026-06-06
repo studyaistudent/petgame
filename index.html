@@ -4382,7 +4382,7 @@ body.ow-mode{ overscroll-behavior:none; overflow:hidden; }
 }
 .ow-hi-social{
   position:absolute;left:12px;right:12px;
-  bottom:calc(14px + env(safe-area-inset-bottom));z-index:24;
+  bottom:calc(14px + env(safe-area-inset-bottom));z-index:26;
   pointer-events:none;
 }
 .ow-hi-social>*{ pointer-events:auto; }
@@ -4394,6 +4394,9 @@ body.ow-mode{ overscroll-behavior:none; overflow:hidden; }
   position:relative;bottom:auto;left:auto;transform:none;
   justify-content:center;max-width:100%;
 }
+/* 모바일에서 채팅 패널이 열리면 카메라 버튼보다 위에 떠서 겹침을 방지 */
+.ow-root.ow-simple-hud.ow-root-house-interior .ow-hi-social{ z-index:28; }
+.ow-root.ow-simple-hud.ow-root-house-interior .ow-hi-cam{ z-index:25; }
 body.ow-hi-dragging, body.ow-hi-dragging #ow-canvas{ cursor:grabbing!important; }
 .ow-hi-stat-line{ color:#81d4fa; font-size:10px; font-weight:700; }
 .ow-hi-stat-badge{
@@ -26384,7 +26387,12 @@ if(S.ow.inCar && S.ow.cameraMode === 'first'){
   _setupClick(){
     const raycaster = new THREE.Raycaster();
     const mouse = new THREE.Vector2();
+    /* ★ 집 내부에서는 같은 ow-canvas 를 집 모듈이 직접 제어한다.
+       오픈월드용 탭/드래그 핸들러가 함께 발동하면 가구 선택·이동이
+       충돌해 동작하지 않으므로, 집 내부일 때는 전부 무시한다. */
+    const inHouse = ()=> !!(S.ow.houseInterior?.active || (window.OWHouseInterior && OWHouseInterior.isActive()));
     const onTap = (cx, cy)=>{
+      if(inHouse()) return;
       if(S.ow.inCar) return;     // 차 운전 중에는 클릭 이동 불가
       if(S.ow.mmo?.photoSession?.active) return;
       /* ★ 보스전 중에는 화면 탭으로 공격 (engaged 보스 포함) */
@@ -26422,10 +26430,12 @@ if(S.ow.inCar && S.ow.cameraMode === 'first'){
     const TAP_TIME = 400; // ms
 
     this.canvas.addEventListener('mousedown', e=>{
+      if(inHouse()) return;
       dragStartX = e.clientX; dragStartY = e.clientY;
       dragStartTime = Date.now(); isDragging = false;
     });
     this.canvas.addEventListener('mousemove', e=>{
+      if(inHouse()) return;
       if(dragStartTime === 0) return;
       const dx = e.clientX - dragStartX, dy = e.clientY - dragStartY;
       if(!isDragging && Math.hypot(dx, dy) > DRAG_THRESHOLD){
@@ -26448,6 +26458,7 @@ if(S.ow.inCar && S.ow.cameraMode === 'first'){
       }
     });
     this.canvas.addEventListener('mouseup', e=>{
+      if(inHouse()) return;
       const elapsed = Date.now() - dragStartTime;
       const dist = Math.hypot(e.clientX - dragStartX, e.clientY - dragStartY);
       if(!isDragging && elapsed < TAP_TIME){
@@ -26459,12 +26470,14 @@ if(S.ow.inCar && S.ow.cameraMode === 'first'){
     /* 터치 이벤트 */
     let touchStartX = 0, touchStartY = 0, touchStartTime = 0, touchDragging = false;
     this.canvas.addEventListener('touchstart', e=>{
+      if(inHouse()) return;
       if(e.touches[0]){
         touchStartX = e.touches[0].clientX; touchStartY = e.touches[0].clientY;
         touchStartTime = Date.now(); touchDragging = false;
       }
     }, { passive: true });
     this.canvas.addEventListener('touchmove', e=>{
+      if(inHouse()) return;
       if(touchStartTime === 0 || !e.touches[0]) return;
       const cx = e.touches[0].clientX;
       const cy = e.touches[0].clientY;
@@ -26488,6 +26501,7 @@ if(S.ow.inCar && S.ow.cameraMode === 'first'){
       }
     }, { passive: true });
     this.canvas.addEventListener('touchend', e=>{
+      if(inHouse()) return;
       const elapsed = Date.now() - touchStartTime;
       if(!touchDragging && elapsed < TAP_TIME && e.changedTouches[0]){
         onTap(e.changedTouches[0].clientX, e.changedTouches[0].clientY);
@@ -26496,6 +26510,7 @@ if(S.ow.inCar && S.ow.cameraMode === 'first'){
     }, { passive: true });
 
     this.canvas.addEventListener('wheel', (e)=>{
+      if(inHouse()) return;
       if(S.screen !== 'openworld') return;
       e.preventDefault();
       const z0 = S.ow.camZoom != null ? S.ow.camZoom : 0.58;
@@ -41946,7 +41961,14 @@ function rOWHouseInteriorUI(){
   const sitting = !!hi.sitting;
   const hiChatOpen = !hiSimpleHud || !!S.ow.hudChatOpen;
   const socialBottom = panel ? 'calc(118px + env(safe-area-inset-bottom))' : 'calc(14px + env(safe-area-inset-bottom))';
-  const camBottom = panel ? (hiSimpleHud ? 'calc(72px + env(safe-area-inset-bottom))' : 'calc(210px + env(safe-area-inset-bottom))') : (hiSimpleHud ? 'calc(64px + env(safe-area-inset-bottom))' : 'calc(108px + env(safe-area-inset-bottom))');
+  /* 모바일(simple HUD)에서 채팅·이모티콘 패널이 열리면 카메라 버튼이
+     그 위에 겹쳐 채팅 입력이 불편하므로, 채팅이 열렸을 땐 카메라 버튼을
+     소셜 패널 위로 충분히 올린다. */
+  const camBottom = panel
+    ? (hiSimpleHud ? 'calc(72px + env(safe-area-inset-bottom))' : 'calc(210px + env(safe-area-inset-bottom))')
+    : (hiSimpleHud
+        ? (hiChatOpen ? 'calc(204px + env(safe-area-inset-bottom))' : 'calc(64px + env(safe-area-inset-bottom))')
+        : 'calc(108px + env(safe-area-inset-bottom))');
   const socialCls = hiChatOpen ? (hiSimpleHud ? ' ow-hi-social-open' : '') : '';
   const socialPanel = hiChatOpen ? `<div class="ow-hi-social${socialCls}" style="bottom:${socialBottom}">
     <div class="ow-emote-bar">

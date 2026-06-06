@@ -58,6 +58,43 @@
   const loadFailWarned = new Set();
   let loader = null;
 
+  /* ──────────────────────────────────────────────────────────
+     캐시된 GLB(gltf.scene)는 단 하나의 객체다. 이를 여러 아바타에
+     그대로 add 하면 Three.js가 직전 부모에서 자동 제거하므로,
+     아바타를 새로 만들 때마다 기존 아바타(내 캐릭터 등)의 모델이
+     "도난"당해 사라진다. → 항상 독립 복제본을 부여한다.
+     스킨드 메시는 일반 clone()으로는 스켈레톤이 깨지므로
+     three.js SkeletonUtils.clone 과 동일한 알고리즘으로 복제한다.
+     (지오메트리/머티리얼/텍스처는 참조 공유 → 복제본 dispose 금지)
+     ────────────────────────────────────────────────────────── */
+  function _parallelTraverse(a, b, cb) {
+    cb(a, b);
+    const an = a.children, bn = b.children;
+    for (let i = 0; i < an.length; i++) {
+      if (bn[i]) _parallelTraverse(an[i], bn[i], cb);
+    }
+  }
+  function cloneSkinned(source) {
+    const sourceLookup = new Map();
+    const cloneLookup = new Map();
+    const clone = source.clone(true);
+    _parallelTraverse(source, clone, (s, c) => {
+      sourceLookup.set(c, s);
+      cloneLookup.set(s, c);
+    });
+    clone.traverse((node) => {
+      if (!node.isSkinnedMesh) return;
+      const srcMesh = sourceLookup.get(node);
+      if (!srcMesh || !srcMesh.skeleton) return;
+      const srcBones = srcMesh.skeleton.bones;
+      node.skeleton = srcMesh.skeleton.clone();
+      node.bindMatrix.copy(srcMesh.bindMatrix);
+      node.skeleton.bones = srcBones.map((b) => cloneLookup.get(b) || b);
+      node.bind(node.skeleton, node.bindMatrix);
+    });
+    return clone;
+  }
+
   function formatLoadError(err) {
     if (!err) return 'unknown';
     if (typeof err === 'string') return err;
@@ -345,13 +382,23 @@
     const prev = wrapper.getObjectByName('ow_avatar_model');
     if (prev) {
       wrapper.remove(prev);
-      disposeObject3D(prev);
+      /* 모델은 캐시된 GLB의 복제본이며 지오메트리/머티리얼/텍스처를
+         원본과 공유한다. 여기서 dispose 하면 같은 GLB를 쓰는 다른
+         아바타(내 캐릭터·다른 유저·집 안 아바타)가 깨지므로 dispose 하지 않는다. */
     }
   }
 
   function attachModel(wrapper, scene, animations, srcUrl) {
     removeAvatarModel(wrapper);
-    const model = scene;
+    /* 캐시된 gltf.scene 을 그대로 쓰면 부모 이동으로 인해 도난당한다.
+       항상 독립 복제본을 만들어 부여한다. */
+    let model;
+    try {
+      model = cloneSkinned(scene);
+    } catch (e) {
+      console.warn('[LMOwAvatar] skinned clone 실패, 원본 사용', e);
+      model = scene;
+    }
     model.name = 'ow_avatar_model';
     model.userData.owSrc = srcUrl;
     wrapper.add(model);
