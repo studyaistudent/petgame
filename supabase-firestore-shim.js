@@ -134,6 +134,7 @@
     lm_ow_world_boss: { pk: 'doc_key', dataBlob: true },
     lm_ow_house_trade: { pk: 'doc_key', dataBlob: true },
     lm_ow_house_plots: { pk: 'plot_id', known: ['plot_id', 'owner', 'purchased_at', 'cost', 'extra'] },
+    lm_ow_house_decor: { pk: 'owner', known: ['owner', 'plot_id', 'inventory', 'placements', 'extra'] },
   };
 
   const ORDER_MAP = {
@@ -155,6 +156,7 @@
     'lm_ow_world_boss',
     'lm_ow_house_trade',
     'lm_ow_house_plots',
+    'lm_ow_house_decor',
   ]);
 
   /** Firestore timestamp = 활동 시각(updated_at) */
@@ -170,6 +172,7 @@
     lm_ow_world_boss: 'updated_at',
     lm_ow_house_trade: 'updated_at',
     lm_ow_house_plots: 'purchased_at',
+    lm_ow_house_decor: 'updated_at',
     lm_ow_world_events: 'started_at',
     lm_game: 'updated_at',
   };

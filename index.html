@@ -4108,6 +4108,50 @@ body.ow-mode{ overscroll-behavior:none; overflow:hidden; }
 }
 /* 사냥·결투 중 상단 우측 정보 pill 숨김 → 전투 메뉴와 겹침 방지 */
 .ow-root-combat .ow-info-stack-r{ display:none!important; }
+/* 오픈월드 분양 집 3D 인테리어 */
+.ow-house-interior-mode .ow-bottom-bar,
+.ow-house-interior-mode .ow-action-stack,
+.ow-house-interior-mode .ow-action-stack-r,
+.ow-house-interior-mode .ow-chat-bar,
+.ow-house-interior-mode .ow-mmo-social-bar,
+.ow-house-interior-mode .ow-hunt-toggle,
+.ow-house-interior-mode .ow-near-list{ display:none!important; }
+.ow-hi-panel{
+  position:absolute;left:0;right:0;bottom:0;z-index:24;
+  padding:10px 12px calc(12px + env(safe-area-inset-bottom));
+  background:linear-gradient(0deg,rgba(18,12,28,.92),rgba(18,12,28,.55) 70%,transparent);
+  pointer-events:none;
+}
+.ow-hi-panel>*{ pointer-events:auto; }
+.ow-hi-top{
+  position:absolute;left:12px;right:12px;top:calc(52px + env(safe-area-inset-top));z-index:24;
+  display:flex;align-items:center;justify-content:space-between;gap:8px;pointer-events:none;
+}
+.ow-hi-top>*{ pointer-events:auto; }
+.ow-hi-inv{
+  display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;
+  -webkit-overflow-scrolling:touch;
+}
+.ow-hi-inv-btn{
+  flex:0 0 auto;min-width:64px;padding:8px 6px;border-radius:12px;
+  border:2px solid rgba(255,255,255,.15);background:rgba(255,255,255,.08);
+  color:#fff;font-size:11px;text-align:center;cursor:pointer;
+}
+.ow-hi-inv-btn.on{ border-color:#42a5f5;background:rgba(66,165,245,.25); }
+.ow-hi-inv-btn .cnt{ display:block;font-size:10px;opacity:.75;margin-top:2px; }
+.ow-hi-tools{ display:flex;gap:8px;margin-top:8px;flex-wrap:wrap; }
+.ow-hi-tools button{
+  flex:1;min-width:72px;padding:10px 8px;border:none;border-radius:10px;
+  background:rgba(255,255,255,.12);color:#fff;font-weight:700;font-size:12px;
+}
+.ow-hi-tools button.primary{ background:linear-gradient(135deg,#42a5f5,#7e57c2); }
+.ow-hi-tools button.danger{ background:rgba(229,83,122,.85); }
+.ow-shop-tabs{ display:flex;gap:6px;margin-bottom:12px; }
+.ow-shop-tab{
+  flex:1;padding:8px;border:none;border-radius:10px;background:rgba(255,255,255,.1);
+  color:#fff;font-weight:700;font-size:12px;cursor:pointer;
+}
+.ow-shop-tab.on{ background:linear-gradient(135deg,#ff8fab,#ffb3d9);color:#3d1a2e; }
 .ow-combat-mini.end{ background:rgba(211,47,47,.7); }
 .ow-combat-left{
   position:absolute; left:max(env(safe-area-inset-left),16px); bottom:max(env(safe-area-inset-bottom),26px);
@@ -4258,6 +4302,7 @@ body.ow-mode{ overscroll-behavior:none; overflow:hidden; }
 <script src="lm-fbx-texture-manifest.js?v=3"></script>
 <script src="lm-glb-catalog.js?v=80"></script>
 <script src="lm-ow-glb.js?v=24"></script>
+<script src="lm-ow-house-interior.js?v=3"></script>
 <script src="lm-golem-manifest.js?v=3"></script>
 <script src="lm-ow-avatar.js?v=14"></script>
 <script src="lm-glb-runtime.js?v=114"></script>
@@ -4349,6 +4394,7 @@ const owMmoTerritoryCol = db.collection("lm_ow_territories");
 const owMmoBossCol      = db.collection("lm_ow_world_boss");
 const owMmoHouseTradeCol = db.collection("lm_ow_house_trade");
 const owHousePlotCol = db.collection("lm_ow_house_plots");
+const owHouseDecorCol = db.collection("lm_ow_house_decor");
 const OW_MMO_ECONOMY_DOC = "global";
 const OW_MMO_BOSS_DOC    = "active";
 const OW_MMO_GLOBAL_EVENT_DOC = "global_active";
@@ -5994,7 +6040,7 @@ let S={
   /* 던전 배틀 상태 */
   dungeonState:null,
   /* ★ 신규 */
-  myHouse:null, houseEntries:[], owHousePlots:{},
+  myHouse:null, houseEntries:[], owHousePlots:{}, owOwHouseDecor:null,
   myGifts:[], unreadGifts:0,
   visitingHouse:null,
   equipTab:'shop',
@@ -6042,6 +6088,8 @@ let S={
     tradeLocked:false,
     tradeRecvLocked:false,
     showShop:false,
+    shopTab:'main',
+    houseInterior:null,
     showCraft:false,
     showBackpack:false,
     showTrade:false,
@@ -17385,7 +17433,8 @@ function owSyncOwRootStateClasses(){
   const lifeCls = S.ow.mmo?.lifeGame ? ' ow-root-life-game' : '';
   const flyCls = S.ow.mmo?.mountState?.flying ? ' ow-root-mount-fly' : '';
   const combatCls = (S.ow.combat?.huntMode || S.ow.pvpDuel || S.ow.bossFight?.active) ? ' ow-root-combat' : '';
-  root.className = `${voidCls}${photoCls}${lifeCls}${flyCls}${combatCls}`.trim();
+  const hiCls = (S.ow.houseInterior?.active || (window.OWHouseInterior && OWHouseInterior.isActive())) ? ' ow-root-house-interior' : '';
+  root.className = `${voidCls}${photoCls}${lifeCls}${flyCls}${combatCls}${hiCls}`.trim();
 }
 function renderOpenWorldUIPass(){
   if(S.pvpBattle && document.querySelector('.pvp-modal')) return;
@@ -21653,8 +21702,16 @@ function attachEvents(){
       else if(a==="ow_storyChoose"){ owStoryChoose(el.dataset.opt); }
       else if(a==="ow_storySceneNext"){ owStorySceneNext(); }
       else if(a==="ow_storySceneClose"){ owStorySceneClose(); }
-      else if(a==="ow_openShop"){ owOpenShop(); }
+      else if(a==="ow_openShop"){ owOpenShop(el.dataset.tab); }
       else if(a==="ow_closeShop"){ owCloseShop(); }
+      else if(a==="ow_shopTab"){ S.ow.shopTab = el.dataset.tab || 'main'; renderOpenWorldUIPass(); }
+      else if(a==="ow_buyFurniture"){ owBuyFurniture(el.dataset.id); }
+      else if(a==="ow_hiExit"){ if(window.OWHouseInterior) OWHouseInterior.exit(); }
+      else if(a==="ow_hiEditOn"){ if(window.OWHouseInterior) OWHouseInterior.setEditMode(true); }
+      else if(a==="ow_hiEditOff"){ if(window.OWHouseInterior) OWHouseInterior.setEditMode(false); }
+      else if(a==="ow_hiSelectItem"){ if(window.OWHouseInterior) OWHouseInterior.selectPlaceItem(el.dataset.id); }
+      else if(a==="ow_hiRotate"){ if(window.OWHouseInterior) OWHouseInterior.rotateSelected(parseInt(el.dataset.deg,10)||45); }
+      else if(a==="ow_hiRemove"){ if(window.OWHouseInterior) OWHouseInterior.removeSelected(); }
       else if(a==="ow_buyRod"){ owBuyRod(); }
       else if(a==="ow_buyWeapon"){ owBuyWeapon(el.dataset.k); }
       else if(a==="ow_equipWeapon"){ owEquipWeapon(el.dataset.k); }
@@ -28378,10 +28435,15 @@ function owUpdateFeatureLayer(rd, dt, t){
     if(!rd?.scene || !S.ow?.active || __owRenderer !== rd) return;
   }
   const humanPos = rd?.human?.position;
+  const treasureById = rd._owTreasureById;
+  if(!treasureById || treasureById._day !== fs.dayKey){
+    rd._owTreasureById = { _day: fs.dayKey };
+    (fs.treasures || []).forEach(tr => { rd._owTreasureById[tr.id] = tr; });
+  }
   for(const mesh of __owFeatureLayer.meshes){
     const tid = mesh.userData.treasureId;
     if(tid){
-      const tr = (fs.treasures || []).find(x => x.id === tid);
+      const tr = rd._owTreasureById[tid];
       const collected = !!fs.treasureCollected?.[tid];
       mesh.visible = !collected;
       if(collected) continue;
@@ -28766,6 +28828,9 @@ function enterOpenWorld(){
   });
 }
 function leaveOpenWorld(){
+  if(window.OWHouseInterior && OWHouseInterior.isActive()){
+    try{ OWHouseInterior.exit(); }catch(e){}
+  }
   if(S.ow) S.ow.active = false;
   __owLastTradeUiFp = '';
   __owLastTradeReqId = null;
@@ -28864,6 +28929,45 @@ function leaveOpenWorld(){
   render();
 }
 
+let __owLoopLastT = 0;
+let __owLoopFrame = 0;
+const __OW_FRAME_BUDGET_MS = 14;
+function owResumeOpenWorldLoop(){
+  if(__owRaf){ cancelAnimationFrame(__owRaf); __owRaf = null; }
+  if(!S.ow?.active || !__owRenderer?.scene) return;
+  __owLoopLastT = performance.now();
+  __owLoopFrame = 0;
+  const loop = ()=>{
+    if(!S.ow?.active || !__owRenderer?.scene){
+      __owRaf = null;
+      return;
+    }
+    const rd = __owRenderer;
+    const frameStart = performance.now();
+    const now = frameStart;
+    const dt = Math.min(0.05, (now - __owLoopLastT) / 1000);
+    __owLoopLastT = now;
+    try{
+      if(S.ow.active && __owRenderer === rd && rd?.scene){
+        rd.update(dt);
+        __owLoopFrame++;
+        const elapsed = performance.now() - frameStart;
+        if(elapsed < __OW_FRAME_BUDGET_MS && (__owLoopFrame & 1) === 0 && S.ow.active && __owRenderer === rd){
+          owUpdateFeatureLayer(rd, dt, now * 0.001);
+        }
+      }
+    }catch(e){
+      console.error('[OpenWorld update error]', e);
+    }
+    if(S.ow?.active && __owRenderer?.scene){
+      __owRaf = requestAnimationFrame(loop);
+    } else {
+      __owRaf = null;
+    }
+  };
+  loop();
+}
+
 function initOpenWorld3D(){
   const canvas = document.getElementById('ow-canvas');
   if(!canvas){
@@ -28933,39 +29037,7 @@ function initOpenWorld3D(){
   }catch(e){}
 
   S.ow.active = true;
-
-  let lastT = performance.now();
-
-  const loop = ()=>{
-    if(!S.ow?.active || !__owRenderer?.scene){
-      __owRaf = null;
-      return;
-    }
-    const rd = __owRenderer;
-
-    const now = performance.now();
-    const dt = Math.min(0.05, (now - lastT) / 1000);
-    lastT = now;
-
-    try{
-      if(S.ow.active && __owRenderer === rd && rd?.scene){
-        rd.update(dt);
-        if(S.ow.active && __owRenderer === rd){
-          owUpdateFeatureLayer(rd, dt, now * 0.001);
-        }
-      }
-    }catch(e){
-      console.error('[OpenWorld update error]', e);
-    }
-
-    if(S.ow?.active && __owRenderer?.scene){
-      __owRaf = requestAnimationFrame(loop);
-    } else {
-      __owRaf = null;
-    }
-  };
-
-  loop();
+  owResumeOpenWorldLoop();
 
   window.removeEventListener('resize', _owResize);
   window.addEventListener('resize', _owResize);
@@ -30136,20 +30208,31 @@ function owCancelFishing(){
 }
 
 /* ─── 호숫가 상점 ─── */
-function owOpenShop(){
-  if(!__owRenderer) return;
-  const petPos = __owRenderer.pet.position;
-  const d = Math.hypot(petPos.x - OW_SHOP_POS.x, petPos.z - OW_SHOP_POS.z);
-  if(d > OW_PROXIMITY * 1.5){
-    __owRenderer.humanTarget = new THREE.Vector3(OW_SHOP_POS.x + 2, 0, OW_SHOP_POS.z);
-    alert('🏪 상점으로 이동 중입니다.');
-    return;
+function owOpenShop(tab){
+  const inInterior = S.ow.houseInterior?.active || (window.OWHouseInterior && OWHouseInterior.isActive());
+  if(!inInterior){
+    if(!__owRenderer) return;
+    const petPos = __owRenderer.pet.position;
+    const d = Math.hypot(petPos.x - OW_SHOP_POS.x, petPos.z - OW_SHOP_POS.z);
+    if(d > OW_PROXIMITY * 1.5){
+      __owRenderer.humanTarget = new THREE.Vector3(OW_SHOP_POS.x + 2, 0, OW_SHOP_POS.z);
+      alert('🏪 상점으로 이동 중입니다.');
+      return;
+    }
   }
   owCloseAllPanels();
   S.ow.showShop = true;
-  render();
+  const redraw = ()=> inInterior ? renderOpenWorldUIPass() : render();
+  if(tab === 'furniture'){
+    S.ow.shopTab = 'furniture';
+    if(S.myEntry?.nick) owLoadHouseDecor(S.myEntry.nick).then(redraw);
+    else redraw();
+    return;
+  }
+  if(!inInterior) S.ow.shopTab = 'main';
+  redraw();
 }
-function owCloseShop(){ S.ow.showShop = false; render(); }
+function owCloseShop(){ S.ow.showShop = false; if(S.ow.houseInterior?.active) renderOpenWorldUIPass(); else render(); }
 function owWeaponGlbId(key){
   const w = OW_WEAPON_SHOP[key];
   return w ? w.glbId : null;
@@ -31383,6 +31466,11 @@ function rOpenWorldScreen(){
 // rOpenWorldScreen 내부에 있던 UI 생성 로직을 분리한 함수
 function rOpenWorldUIOnly(){
   owEnsureFeatureState(false);
+  if(S.ow.houseInterior?.active || (window.OWHouseInterior && OWHouseInterior.isActive())){
+    let modalUI = '';
+    if(S.ow.showShop) modalUI = rOWShopModal();
+    return rOWHouseInteriorUI() + modalUI;
+  }
   const phase = S.ow.timeOfDay || 0;
   const timeLabel = phase < 0.18 ? '🌅 새벽' : phase < 0.4 ? '☀️ 낮' : phase < 0.55 ? '🌇 황혼' : phase < 0.7 ? '🌆 저녁' : '🌙 한밤';
   const weatherLabel = S.ow.weather === 'petal' ? '🌸 페스티벌' : (S.ow.weather === 'rain' ? '🌧️ 비' : '🌸 벚꽃');
@@ -31664,13 +31752,29 @@ function rOWExpansionModal(){
 }
 
 function rOWShopModal(){
+  const tab = S.ow.shopTab || 'main';
+  const tabs = `<div class="ow-shop-tabs">
+    <button type="button" class="ow-shop-tab${tab==='main'?' on':''}" data-a="ow_shopTab" data-tab="main">🎣 일반</button>
+    <button type="button" class="ow-shop-tab${tab==='furniture'?' on':''}" data-a="ow_shopTab" data-tab="furniture">🪑 가구</button>
+  </div>`;
+  if(tab === 'furniture'){
+    return `<div class="ow-modal ow-modal-front" data-a="ow_closeShop">
+      <div class="ow-modal-card" onclick="event.stopPropagation()">
+        <div class="ow-modal-head">
+          <div class="ow-modal-title">🪑 오픈월드 가구 상점</div>
+          <button class="preview-modal-close" data-a="ow_closeShop">✕</button>
+        </div>
+        <div class="ow-modal-body">${tabs}${rOWFurnitureShopSection()}</div>
+      </div>
+    </div>`;
+  }
   return `<div class="ow-modal" data-a="ow_closeShop">
     <div class="ow-modal-card" onclick="event.stopPropagation()">
       <div class="ow-modal-head">
         <div class="ow-modal-title">🏪 호숫가 낚시 상점</div>
         <button class="preview-modal-close" data-a="ow_closeShop">✕</button>
       </div>
-      <div class="ow-modal-body">
+      <div class="ow-modal-body">${tabs}
         <div class="ow-shop-item">
           <span class="e">🎣</span>
           <div style="flex:1">
@@ -31768,8 +31872,11 @@ function rOWShopModal(){
             </div>`;
           }).join('');
         })()}
+        <div style="margin-top:12px;text-align:center">
+          <button type="button" class="ow-action-btn" style="width:100%;max-width:280px" data-a="ow_shopTab" data-tab="furniture">🪑 오픈월드 가구 상점 (19종)</button>
+        </div>
         <div style="margin-top:12px;font-size:11.5px;color:rgba(255,255,255,.6);text-align:center">
-          💡 호수 근처에서 🎣 낚시 · 물약은 좌측 HP/MP 바 아래 🧪/💙 버튼으로 사용
+          💡 호수 근처에서 🎣 낚시 · 분양 집 꾸미기는 🪑 가구 탭
         </div>
       </div>
     </div>
@@ -38435,29 +38542,31 @@ class OWHouseHubBridge {
     });
     return out.sort((a,b)=>a.d-b.d).slice(0,5);
   }
-  async visitOwnHouseFromOW(){
-    if(!S.myHouse) await initMyHouse();
-    if(S.ow) S.ow.active = false;
+  async visitOwnHouseFromOW(plotId){
+    const myNick = S.myEntry?.nick;
+    plotId = plotId || owGetMyOwHousePlotId();
+    if(!plotId || !myNick){
+      owMmoToast('오픈월드 집이 없어요');
+      return;
+    }
     const mw = OWMMODataStore.get();
     mw.houseLink.visits = (mw.houseLink.visits||0) + 1;
     mw.houseLink.lastGuestAt = Date.now();
-    this.syncExhibition();
     OWMMODataStore.touch();
-    leaveOpenWorld();
-    S.tab = 'lm_house';
-    render();
-    owMmoToast('🏠 하우스로 이동');
+    await owEnterOwHouseInterior(plotId, myNick, true);
   }
-  async visitNearbyFromOW(nick){
+  async visitNearbyFromOW(nick, plotId){
     if(!nick) return;
-    if(nick === S.myEntry?.nick) return this.visitOwnHouseFromOW();
-    if(S.ow) S.ow.active = false;
+    if(nick === S.myEntry?.nick) return this.visitOwnHouseFromOW(plotId);
+    if(!plotId){
+      const ent = Object.entries(S.owHousePlots || {}).find(([, d]) => d.owner === nick);
+      plotId = ent ? ent[0] : null;
+    }
+    if(!plotId) return;
     const mw = OWMMODataStore.get();
     mw.houseLink.hubRep = (mw.houseLink.hubRep||0) + 2;
     OWMMODataStore.touch();
-    leaveOpenWorld();
-    await visitHouse(nick);
-    owMmoToast(`🏠 ${shortNick(nick)}님 집 방문`);
+    await owEnterOwHouseInterior(plotId, nick, false);
   }
   async leaveGuestbookOnHouse(houseNick, msg){
     if(!houseNick || !msg) return;
@@ -40569,6 +40678,185 @@ function owMapHouseTeleport(nick){
   owMmoGetController().house.visitNearbyFromOW(nick);
 }
 
+function owGetMyOwHousePlotId(){
+  const myNick = S.myEntry?.nick;
+  if(!myNick) return null;
+  const ent = Object.entries(S.owHousePlots || {}).find(([, d]) => d.owner === myNick);
+  return ent ? ent[0] : null;
+}
+
+async function owLoadHouseDecor(owner){
+  if(!owner) return { inventory: {}, placements: [] };
+  try{
+    const snap = await owHouseDecorCol.doc(owner).get();
+    if(snap.exists){
+      const d = snap.data() || {};
+      const decor = {
+        inventory: d.inventory && typeof d.inventory === 'object' ? d.inventory : {},
+        placements: Array.isArray(d.placements) ? d.placements : [],
+        plot_id: d.plot_id || null,
+      };
+      S.owOwHouseDecor = { owner, ...decor };
+      return decor;
+    }
+  }catch(e){}
+  return { inventory: {}, placements: [] };
+}
+
+let __owDecorSaveTimer = null;
+function owSaveHouseDecor(owner, plotId, decor){
+  if(!owner) return;
+  const payload = {
+    owner,
+    plot_id: plotId || null,
+    inventory: decor?.inventory || {},
+    placements: decor?.placements || [],
+    updated_at: TS(),
+  };
+  S.owOwHouseDecor = { owner, plot_id: plotId, inventory: payload.inventory, placements: payload.placements };
+  if(__owDecorSaveTimer) clearTimeout(__owDecorSaveTimer);
+  __owDecorSaveTimer = setTimeout(()=>{
+    owHouseDecorCol.doc(owner).set(payload, { merge: true }).catch(()=>{});
+  }, 450);
+}
+
+async function owEnterOwHouseInterior(plotId, owner, canEdit){
+  if(!window.OWHouseInterior) { alert('인테리어 모듈 로드 실패'); return; }
+  const plot = (OW_HOUSE_PLOT_PLACEMENTS || []).find(p => p.id === plotId);
+  const decor = await owLoadHouseDecor(owner);
+  if(!decor.plot_id && plotId){
+    decor.plot_id = plotId;
+    owSaveHouseDecor(owner, plotId, decor);
+  }
+  try{
+    await OWHouseInterior.enter({
+      plotId,
+      owner,
+      canEdit: !!canEdit,
+      plotTint: plot?.tint || 0xffb3d9,
+      decor,
+    });
+    owMmoToast(canEdit ? '🏠 내 오픈월드 집 — 바닥 탭 이동 · 파란 문 나가기' : `🏠 ${shortNick(owner)}님의 집`);
+  }catch(e){
+    console.error('[OWHouseInterior]', e);
+    alert('집 내부 로딩에 실패했어요.');
+  }
+}
+
+async function owBuyFurniture(itemId){
+  const item = window.OWHouseInterior?.getItem?.(itemId);
+  const myNick = S.myEntry?.nick;
+  if(!item || !myNick || !S.myPet) return;
+  const plotId = owGetMyOwHousePlotId();
+  if(!plotId){
+    alert('오픈월드 집 분양 후 가구를 구매할 수 있어요.');
+    return;
+  }
+  if((S.myPet.points || 0) < item.cost){
+    alert(`포인트 부족! (필요: ${item.cost.toLocaleString()}P)`);
+    return;
+  }
+  try{
+    await db.runTransaction(async (tx) => {
+      const petRef = petCol.doc(myNick);
+      const decorRef = owHouseDecorCol.doc(myNick);
+      const petSnap = await tx.get(petRef);
+      if(!petSnap.exists) throw new Error('no_pet');
+      const pts = petSnap.data().points || 0;
+      if(pts < item.cost) throw new Error('no_points');
+      const decorSnap = await tx.get(decorRef);
+      const cur = decorSnap.exists ? (decorSnap.data() || {}) : {};
+      const inv = cur.inventory && typeof cur.inventory === 'object' ? { ...cur.inventory } : {};
+      inv[itemId] = (inv[itemId] || 0) + 1;
+      tx.update(petRef, { points: INC(-item.cost) });
+      tx.set(decorRef, {
+        owner: myNick,
+        plot_id: plotId,
+        inventory: inv,
+        placements: Array.isArray(cur.placements) ? cur.placements : [],
+        updated_at: TS(),
+      }, { merge: true });
+    });
+    S.myPet.points = (S.myPet.points || 0) - item.cost;
+    const decor = await owLoadHouseDecor(myNick);
+    const inst = OWHouseInterior.getInstance?.();
+    if(inst && inst.active && inst.owner === myNick){
+      inst.decor = decor;
+    }
+    owMmoToast(`${item.emoji} ${item.name} 구매!`);
+    renderOpenWorldUIPass();
+  }catch(e){
+    const msg = e && e.message ? e.message : '';
+    if(msg === 'no_points') alert('포인트가 부족해요.');
+    else if(msg && String(msg).indexOf('PGRST205') >= 0) alert('가구 DB 테이블이 없어요.\nSupabase SQL Editor에서 supabase_lm_ow_house_decor.sql 을 실행해 주세요.');
+    else alert('구매에 실패했어요.');
+  }
+}
+
+function rOWFurnitureShopSection(){
+  if(!window.OWHouseInterior?.CATALOG) return '';
+  const plotId = owGetMyOwHousePlotId();
+  const decor = S.owOwHouseDecor || {};
+  const inv = decor.inventory || {};
+  const pts = S.myPet?.points || 0;
+  const rows = OWHouseInterior.CATALOG.map((item) => {
+    const owned = inv[item.id] || 0;
+    const canBuy = !!plotId && pts >= item.cost;
+    return `<div class="ow-shop-item">
+      <span class="e">${item.emoji}</span>
+      <div style="flex:1;min-width:0">
+        <div class="nm">${esc(item.name)}</div>
+        <div class="ds">${item.cost.toLocaleString()}P · 보유 ${owned}개</div>
+      </div>
+      <button data-a="ow_buyFurniture" data-id="${esc(item.id)}" ${canBuy?'':'disabled'}>${item.cost.toLocaleString()}P</button>
+    </div>`;
+  }).join('');
+  const hint = plotId
+    ? '<p style="font-size:11px;opacity:.7;margin:0 0 10px">구매한 가구는 내 집 → 꾸미기 모드에서 배치할 수 있어요.</p>'
+    : '<p style="font-size:11.5px;color:#ef9a9a;margin:0 0 10px">⚠️ 집 분양 후 구매 가능 (오픈월드 분양 포털)</p>';
+  return hint + rows;
+}
+
+function rOWHouseInteriorUI(){
+  const hi = S.ow.houseInterior;
+  if(!hi?.active) return '';
+  const isMine = hi.canEdit;
+  const ownerLabel = isMine ? '내 오픈월드 집' : `${shortNick(hi.owner)}님의 집`;
+  const inst = window.OWHouseInterior?.getInstance?.();
+  const decor = inst?.getDecor?.() || S.owOwHouseDecor || { inventory: {} };
+  const inv = decor.inventory || {};
+  let panel = '';
+  if(isMine && hi.editMode){
+    const items = (window.OWHouseInterior?.CATALOG || []).filter(c => (inv[c.id] || 0) > 0);
+    const invHtml = items.length
+      ? items.map(c => {
+          const on = hi.selectedItem === c.id ? ' on' : '';
+          return `<button type="button" class="ow-hi-inv-btn${on}" data-a="ow_hiSelectItem" data-id="${esc(c.id)}">${c.emoji}<span class="cnt">×${inv[c.id]}</span></button>`;
+        }).join('')
+      : '<span style="font-size:12px;opacity:.75">보유 가구 없음 — 🏪 상점에서 구매</span>';
+    panel = `<div class="ow-hi-panel">
+      <div style="font-size:12px;opacity:.85;margin-bottom:6px">👆 바닥 탭 = 배치 · 가구 탭 = 선택</div>
+      <div class="ow-hi-inv">${invHtml}</div>
+      <div class="ow-hi-tools">
+        <button type="button" data-a="ow_hiRotate" data-deg="-45">↺ 45°</button>
+        <button type="button" data-a="ow_hiRotate" data-deg="45">↻ 45°</button>
+        <button type="button" class="danger" data-a="ow_hiRemove" ${hi.selectedPlacement?'':'disabled'}>🗑 회수</button>
+        <button type="button" class="primary" data-a="ow_hiEditOff">완료</button>
+      </div>
+    </div>`;
+  } else if(isMine){
+    panel = `<div class="ow-hi-panel"><div class="ow-hi-tools">
+      <button type="button" class="primary" data-a="ow_hiEditOn">🪑 꾸미기</button>
+      <button type="button" data-a="ow_openShop" data-tab="furniture">🏪 가구 구매</button>
+    </div></div>`;
+  }
+  return `<div class="ow-hi-top">
+    <button class="ow-back-btn" data-a="ow_hiExit">← 나가기</button>
+    <div class="ow-info-pill"><span class="ip-icon">🏠</span> ${esc(ownerLabel)}</div>
+    <div class="ow-info-pill gold"><span class="ip-icon">💰</span> ${(S.myPet?.points||0).toLocaleString()}P</div>
+  </div>${panel}`;
+}
+
 async function owBuyHousePlot(plotId){
   const myNick = S.myEntry?.nick;
   if(!myNick || !S.myPet) return;
@@ -40603,6 +40891,12 @@ async function owBuyHousePlot(plotId){
     });
     S.myPet.points = (S.myPet.points || 0) - OW_HOUSE_PLOT_COST;
     if(!S.myHouse) await initMyHouse();
+    try{
+      await owHouseDecorCol.doc(myNick).set({
+        owner: myNick, plot_id: plotId, inventory: {}, placements: [], updated_at: TS(),
+      }, { merge: true });
+      S.owOwHouseDecor = { owner: myNick, plot_id: plotId, inventory: {}, placements: [] };
+    }catch(e){}
     S.ow.housePlotBuyModal = null;
     S.ow.housePlotBuyDismissed = null;
     owMmoToast(`🏠 ${shortNick(myNick)}의 집이 생겼어요!`);
@@ -40631,9 +40925,9 @@ async function owEnterHousePortal(plotId){
   S.ow.housePlotBuyModal = null;
   try{
     if(owner === S.myEntry?.nick){
-      await owMmoGetController().house.visitOwnHouseFromOW();
+      await owMmoGetController().house.visitOwnHouseFromOW(plotId);
     } else {
-      await owMmoGetController().house.visitNearbyFromOW(owner);
+      await owMmoGetController().house.visitNearbyFromOW(owner, plotId);
     }
   } finally {
     S.ow._housePlotEntering = false;
