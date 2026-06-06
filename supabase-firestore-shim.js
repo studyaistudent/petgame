@@ -508,51 +508,115 @@
     return __sbRestClient;
   }
 
-  /** 테이블당 Realtime 채널 1개 — 동시 구독 폭주·조기 close 경고 완화 */
+  /** 테이블당 Realtime 채널 1개 — WebSocket 실패 시 REST 폴링 폴백 */
   const __rtChannels = new Map();
+  const __rtWarnedTables = new Set();
   let __rtStaggerMs = 0;
+  let __rtPollOnly = false;
+
+  function pollIntervalFor(table) {
+    if (table === 'lm_openworld_players') return 2000;
+    if (table === 'lm_openworld_events' || table === 'lm_ow_world_events') return 2500;
+    if (table === 'lm_mafia_rooms' || table === 'lm_chat') return 3000;
+    return 5000;
+  }
+
+  function rtNotifyCallbacks(entry, table) {
+    entry.callbacks.forEach((fn) => {
+      try {
+        fn();
+      } catch (e) {
+        console.error('[supabase]', table, e);
+      }
+    });
+  }
+
+  function startPollFallback(entry, table) {
+    if (entry.pollTimer || entry.dead) return;
+    const ms = pollIntervalFor(table);
+    if (!__rtWarnedTables.has(table)) {
+      __rtWarnedTables.add(table);
+      console.warn('[supabase realtime]', table, '→ REST polling (' + ms + 'ms) — WebSocket unavailable');
+    }
+    entry.pollTimer = setInterval(() => rtNotifyCallbacks(entry, table), ms);
+  }
+
+  function stopPollFallback(entry) {
+    if (!entry.pollTimer) return;
+    clearInterval(entry.pollTimer);
+    entry.pollTimer = null;
+  }
+
+  function teardownRtEntry(client, entry) {
+    entry.dead = true;
+    stopPollFallback(entry);
+    if (!entry.channel) return;
+    try {
+      if (entry.subscribed) entry.channel.unsubscribe();
+      else if (!entry.subscribing) client.removeChannel(entry.channel);
+    } catch (_) {
+      try {
+        client.removeChannel(entry.channel);
+      } catch (_2) {}
+    }
+    entry.channel = null;
+  }
 
   function subscribeRealtime(client, table, filter, listener) {
     const key = filter ? `doc:${table}:${filter}` : `col:${table}`;
     let entry = __rtChannels.get(key);
     if (!entry) {
-      const chName = ('lm-' + key).replace(/[^a-zA-Z0-9:_-]/g, '_').slice(0, 100);
-      const opts = { event: '*', schema: 'public', table };
-      if (filter) opts.filter = filter;
       const callbacks = new Set();
-      const channel = client.channel(chName).on('postgres_changes', opts, () => {
-        callbacks.forEach((fn) => {
-          try {
-            fn();
-          } catch (e) {
-            console.error('[supabase realtime]', table, e);
-          }
-        });
-      });
-      entry = { channel, callbacks, subscribed: false };
+      entry = { channel: null, callbacks, subscribed: false, subscribing: false, pollTimer: null, dead: false };
       __rtChannels.set(key, entry);
-      const delay = __rtStaggerMs;
-      __rtStaggerMs += 50;
-      setTimeout(() => {
-        channel.subscribe((status, err) => {
-          if (status === 'SUBSCRIBED') entry.subscribed = true;
-          else if (status === 'CHANNEL_ERROR' && err) console.warn('[supabase realtime]', table, err.message || err);
-        });
-      }, delay);
+
+      if (__rtPollOnly) {
+        startPollFallback(entry, table);
+      } else {
+        const chName = ('lm-' + key).replace(/[^a-zA-Z0-9:_-]/g, '_').slice(0, 100);
+        const opts = { event: '*', schema: 'public', table };
+        if (filter) opts.filter = filter;
+        const channel = client.channel(chName).on('postgres_changes', opts, () => rtNotifyCallbacks(entry, table));
+        entry.channel = channel;
+        const delay = __rtStaggerMs;
+        __rtStaggerMs += 120;
+        setTimeout(() => {
+          if (entry.dead) return;
+          entry.subscribing = true;
+          channel.subscribe((status, err) => {
+            entry.subscribing = false;
+            if (entry.dead) {
+              try {
+                client.removeChannel(channel);
+              } catch (_) {}
+              return;
+            }
+            if (status === 'SUBSCRIBED') {
+              entry.subscribed = true;
+              stopPollFallback(entry);
+              return;
+            }
+            if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+              __rtPollOnly = true;
+              if (err && !__rtWarnedTables.has(table)) {
+                __rtWarnedTables.add(table);
+                console.warn('[supabase realtime]', table, err.message || err);
+              }
+              startPollFallback(entry, table);
+            }
+          });
+        }, delay);
+        setTimeout(() => {
+          if (!entry.dead && !entry.subscribed && !entry.pollTimer) startPollFallback(entry, table);
+        }, 9000);
+      }
     }
     entry.callbacks.add(listener);
     return () => {
       entry.callbacks.delete(listener);
       if (entry.callbacks.size === 0) {
         __rtChannels.delete(key);
-        try {
-          if (entry.subscribed) entry.channel.unsubscribe();
-          else client.removeChannel(entry.channel);
-        } catch (_) {
-          try {
-            client.removeChannel(entry.channel);
-          } catch (_2) {}
-        }
+        teardownRtEntry(client, entry);
       }
     };
   }
@@ -1013,5 +1077,5 @@
     return ref.update(patch);
   };
 
-  global.__lmShimVersion = '10';
+  global.__lmShimVersion = '11';
 })(typeof window !== 'undefined' ? window : globalThis);
