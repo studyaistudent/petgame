@@ -511,11 +511,16 @@
   }
 
   const __tableMissingWarned = new Set();
+  const __tableMissingDead = new Set();
 
   function isTableMissingError(e) {
     const code = e && (e.code || e.details);
     const msg = String((e && e.message) || e || '');
-    return code === 'PGRST205' || msg.indexOf('Could not find the table') >= 0;
+    return code === 'PGRST205' || msg.indexOf('Could not find the table') >= 0 || msg.indexOf('PGRST205') >= 0;
+  }
+
+  function isTableDead(table) {
+    return __tableMissingDead.has(table);
   }
 
   function warnTableMissing(table) {
@@ -525,6 +530,19 @@
       ? ' — Supabase SQL Editor에서 supabase_lm_ow_house_plots.sql 실행'
       : '';
     console.warn('[supabase]', table, '테이블 없음' + hint);
+  }
+
+  function markTableMissingDead(table) {
+    if (__tableMissingDead.has(table)) return;
+    __tableMissingDead.add(table);
+    warnTableMissing(table);
+    for (const [key, entry] of __rtChannels.entries()) {
+      if (key === `col:${table}` || key.startsWith(`doc:${table}:`)) {
+        entry.dead = true;
+        stopPollFallback(entry);
+        teardownRtEntry(getRestClient(), entry);
+      }
+    }
   }
 
   /** 테이블당 Realtime 채널 1개 — WebSocket 실패 시 REST 폴링 폴백 */
@@ -551,7 +569,7 @@
   }
 
   function startPollFallback(entry, table) {
-    if (entry.pollTimer || entry.dead) return;
+    if (entry.pollTimer || entry.dead || isTableDead(table)) return;
     const ms = pollIntervalFor(table);
     if (!__rtWarnedTables.has(table)) {
       __rtWarnedTables.add(table);
@@ -582,6 +600,7 @@
   }
 
   function subscribeRealtime(client, table, filter, listener) {
+    if (isTableDead(table)) return () => {};
     const key = filter ? `doc:${table}:${filter}` : `col:${table}`;
     let entry = __rtChannels.get(key);
     if (!entry) {
@@ -626,7 +645,9 @@
           });
         }, delay);
         setTimeout(() => {
-          if (!entry.dead && !entry.subscribed && !entry.pollTimer) startPollFallback(entry, table);
+          if (!entry.dead && !entry.subscribed && !entry.pollTimer && !isTableDead(table)) {
+            startPollFallback(entry, table);
+          }
         }, 9000);
       }
     }
@@ -725,6 +746,7 @@
     }
 
     async _fetchRows() {
+      if (isTableDead(this._table)) return [];
       let q = this._db._client.from(this._table).select('*');
       for (const f of this._filters) {
         const col = this._camelField(f.field);
@@ -742,7 +764,13 @@
       if (this._limitN) q = q.limit(this._limitN);
       else if (this._table === 'lm_openworld_players') q = q.limit(64);
       const { data, error } = await q;
-      if (error) throw error;
+      if (error) {
+        if (isTableMissingError(error)) {
+          markTableMissingDead(this._table);
+          return [];
+        }
+        throw error;
+      }
       let rows = data || [];
       for (const f of this._filters) {
         if (f.op === 'array-contains') {
@@ -774,6 +802,10 @@
       let failDelay = 0;
 
       const exec = async () => {
+        if (isTableDead(table)) {
+          cb(new QuerySnapshot(this._db, this._table, []));
+          return;
+        }
         if (inflight) {
           queued = true;
           return;
@@ -785,7 +817,7 @@
           cb(new QuerySnapshot(this._db, this._table, rows));
         } catch (e) {
           if (isTableMissingError(e)) {
-            warnTableMissing(table);
+            markTableMissingDead(table);
             cb(new QuerySnapshot(this._db, this._table, []));
             return;
           }
@@ -824,10 +856,17 @@
     }
 
     async get() {
+      if (isTableDead(this._table)) return new DocumentSnapshot(this._table, this.id, null);
       const m = meta(this._table);
       const pkVal = this.id;
       const { data, error } = await this._db._client.from(this._table).select('*').eq(m.pk, pkVal).maybeSingle();
-      if (error) throw error;
+      if (error) {
+        if (isTableMissingError(error)) {
+          markTableMissingDead(this._table);
+          return new DocumentSnapshot(this._table, this.id, null);
+        }
+        throw error;
+      }
       return new DocumentSnapshot(this._table, this.id, data);
     }
 
@@ -931,6 +970,10 @@
       const debounceMs = this._table === 'lm_openworld_players' ? 200 : 0;
 
       const exec = async () => {
+        if (isTableDead(this._table)) {
+          cb(new DocumentSnapshot(this._table, this.id, null));
+          return;
+        }
         if (inflight) {
           queued = true;
           return;
@@ -941,7 +984,7 @@
           failDelay = 0;
         } catch (e) {
           if (isTableMissingError(e)) {
-            warnTableMissing(this._table);
+            markTableMissingDead(this._table);
             cb(new DocumentSnapshot(this._table, this.id, null));
             return;
           }
@@ -1106,5 +1149,6 @@
     return ref.update(patch);
   };
 
-  global.__lmShimVersion = '12';
+  global.__lmShimVersion = '13';
+  global.__lmIsTableDead = isTableDead;
 })(typeof window !== 'undefined' ? window : globalThis);

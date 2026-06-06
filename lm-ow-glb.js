@@ -838,13 +838,19 @@
     return NPC_TARGET_H.default != null ? NPC_TARGET_H.default : 1.55;
   }
 
+  const OW_BRIGHT_NPC_IDS = ['herbalist', 'guard_capt', 'wanderer'];
+
   /** npcId: OW_MMO_NPCS id · group.userData.npcId 도 사용 */
   function attachNpc(group, npcId) {
     const id = npcId || (group && group.userData && group.userData.npcId) || null;
     const urls = resolveNpcUrls(id);
     const h = resolveNpcHeight(id);
+    const brightenNpc = id && OW_BRIGHT_NPC_IDS.indexOf(id) >= 0;
     return attachModel(group, urls, h, 'ow_glb_model', { polishMaterials: true })
       .then((model) => {
+        if (brightenNpc && global.LMGlb && typeof global.LMGlb.polishOwNpcGlbModel === 'function') {
+          global.LMGlb.polishOwNpcGlbModel(model, id);
+        }
         if (group && group.userData && group.userData.sprite) {
           group.userData.sprite.visible = false;
         }
