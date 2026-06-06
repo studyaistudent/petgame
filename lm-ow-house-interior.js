@@ -18,6 +18,8 @@
     { id: 'chair_3', name: '의자 3', emoji: '🪑', cost: 12500, glb: '오픈월드/house/의자3.glb', h: 0.92, cat: 'seat', stats: { hp: 5, def: 3, mp: 2 } },
     { id: 'wood_bed', name: '나무 침대', emoji: '🛏️', cost: 20000, glb: '오픈월드/house/나무침대.glb', h: 0.75, cat: 'bed', stats: { hp: 15, mp: 5 } },
     { id: 'pink_bed', name: '핑크 침대', emoji: '🌸', cost: 28000, glb: '오픈월드/house/핑크침대.glb', h: 0.78, cat: 'bed', stats: { hp: 20, mp: 8, def: 2 } },
+    { id: 'table_1', name: '테이블 1', emoji: '🪵', cost: 10000, glb: '오픈월드/house/테이블1.glb', h: 0.78, cat: 'table', stats: { hp: 5, mp: 4, def: 2 } },
+    { id: 'table_2', name: '테이블 2', emoji: '🪵', cost: 14000, glb: '오픈월드/house/테이블2.glb', h: 0.8, cat: 'table', stats: { hp: 7, mp: 6, atk: 2 } },
     { id: 'magic_desk', name: '마법 책상', emoji: '📚', cost: 12000, glb: '오픈월드/house/마법책상.glb', h: 0.82, cat: 'table', stats: { mp: 10, atk: 2 } },
     { id: 'deluxe_magic_desk', name: '고급 마법 책상', emoji: '🔮', cost: 25000, glb: '오픈월드/house/고급마법책상.glb', h: 0.9, cat: 'table', stats: { mp: 18, atk: 4, def: 2 } },
     { id: 'dressing_table', name: '화장대', emoji: '💄', cost: 16500, glb: '오픈월드/house/화장대.glb', h: 0.85, cat: 'table', stats: { mp: 8, eva: 2 } },
@@ -46,6 +48,14 @@
   function getItemStats(id) {
     const item = getItem(id);
     return item && item.stats ? { ...item.stats } : {};
+  }
+
+  /** CapsuleGeometry — three r128 이하 호환 (CylinderGeometry 폴백) */
+  function hiCapsuleGeometry(THREE, radius, length, capSeg, radialSeg) {
+    if (typeof THREE.CapsuleGeometry === 'function') {
+      return new THREE.CapsuleGeometry(radius, length, capSeg || 4, radialSeg || 8);
+    }
+    return new THREE.CylinderGeometry(radius, radius, length + radius * 2, radialSeg || 12);
   }
 
   function sumPlacementStats(decor) {
@@ -282,19 +292,24 @@
       const heightCm = global.getMyHeightCm ? global.getMyHeightCm() : 180;
       let human = null;
 
-      if (global.__owRenderer && typeof global.__owRenderer._buildHuman === 'function') {
-        human = global.__owRenderer._buildHuman(avatar, heightCm, gender);
-      } else if (global.LMOwAvatar && typeof global.LMOwAvatar.createWrapper === 'function') {
-        human = global.LMOwAvatar.createWrapper(
-          global.LMOwAvatar.resolveGender(avatar, gender),
-          { avatar, gender }
-        );
+      try {
+        if (global.__owRenderer && typeof global.__owRenderer._buildHuman === 'function') {
+          human = global.__owRenderer._buildHuman(avatar, heightCm, gender);
+        } else if (global.LMOwAvatar && typeof global.LMOwAvatar.createWrapper === 'function') {
+          human = global.LMOwAvatar.createWrapper(
+            global.LMOwAvatar.resolveGender(avatar, gender),
+            { avatar, gender }
+          );
+        }
+      } catch (e) {
+        console.warn('[OWHouseInterior] avatar build failed, using placeholder', e);
+        human = null;
       }
 
       if (!human) {
         human = new THREE.Group();
         const body = new THREE.Mesh(
-          new THREE.CapsuleGeometry(0.28, 0.9, 6, 12),
+          hiCapsuleGeometry(THREE, 0.28, 0.9, 6, 12),
           new THREE.MeshStandardMaterial({ color: 0xffc1e3, roughness: 0.55 })
         );
         body.position.y = 0.75;
@@ -550,7 +565,7 @@
         }
         if (!g.userData.mesh) {
           const body = new THREE.Mesh(
-            new THREE.CapsuleGeometry(0.26, 0.85, 6, 12),
+            hiCapsuleGeometry(THREE, 0.26, 0.85, 6, 12),
             new THREE.MeshStandardMaterial({ color: 0xb3e5fc, roughness: 0.55 })
           );
           body.position.y = 0.72;

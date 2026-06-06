@@ -3872,9 +3872,8 @@ body.ow-mode #app{
 }
 .ow-root-combat .ow-simple-dock,
 .ow-root-combat .ow-simple-sheet{ display:none!important; }
-.ow-root.ow-simple-hud.ow-house-interior-mode .ow-hi-social{ display:none; }
-.ow-root.ow-simple-hud.ow-house-interior-mode .ow-hi-social.ow-hi-social-open{ display:block; }
-.ow-root.ow-simple-hud.ow-house-interior-mode .ow-hi-stat-panel[style*="position:absolute"]{
+.ow-root.ow-simple-hud.ow-root-house-interior .ow-hi-social:not(.ow-hi-social-open){ display:none!important; }
+.ow-root.ow-simple-hud.ow-root-house-interior .ow-hi-stat-panel[style*="position:absolute"]{
   font-size:10px;padding:6px 10px;
 }
 .ow-hi-chat-fab{
@@ -4454,7 +4453,7 @@ body.ow-hi-dragging, body.ow-hi-dragging #ow-canvas{ cursor:grabbing!important; 
 <script src="lm-fbx-texture-manifest.js?v=3"></script>
 <script src="lm-glb-catalog.js?v=80"></script>
 <script src="lm-ow-glb.js?v=24"></script>
-<script src="lm-ow-house-interior.js?v=10"></script>
+<script src="lm-ow-house-interior.js?v=12"></script>
 <script src="lm-golem-manifest.js?v=3"></script>
 <script src="lm-ow-avatar.js?v=14"></script>
 <script src="lm-glb-runtime.js?v=114"></script>
@@ -21258,6 +21257,10 @@ function attachEvents(){
       const el = __ev.target.closest("[data-a]");
       if(!el) return;
       const a=el.dataset.a;
+      if(S.screen==='openworld' && S.ow?.hudMenuOpen){
+        const keepMenu = new Set(['ow_toggleHudMenu','ow_toggleHudChat','ow_toggleStatPanel']);
+        if(!keepMenu.has(a)) S.ow.hudMenuOpen = false;
+      }
       /* 모달 내부 클릭 — 배경(닫기 핸들러)로 이벤트 전파 차단 */
       if(a==="modalInnerClick"){ __ev.stopPropagation(); return; }
       __ev.stopPropagation();
@@ -29067,6 +29070,8 @@ function enterOpenWorld(){
     S.ow.camZoom = owIsTouchDevice() ? 0 : 0.58;
   }
   owEnsureFeatureState(false);
+  S.ow.hudMenuOpen = false;
+  S.ow.hudChatOpen = false;
   try{
     const saved = lmgGetItem('ow_statPanelPos');
     if(saved) S.ow.statPanelPos = JSON.parse(saved);
@@ -41357,7 +41362,6 @@ function rOWHouseInteriorUI(){
     ? `<div class="ow-hi-visitors">👥 함께 있는 방문자 ${visitorCnt}명</div>`
     : '';
   const sitting = !!hi.sitting;
-  const simpleHud = owShouldSimpleHud();
   const hiChatOpen = !simpleHud || !!S.ow.hudChatOpen;
   const socialBottom = panel ? 'calc(118px + env(safe-area-inset-bottom))' : 'calc(14px + env(safe-area-inset-bottom))';
   const camBottom = panel ? (simpleHud ? 'calc(72px + env(safe-area-inset-bottom))' : 'calc(210px + env(safe-area-inset-bottom))') : (simpleHud ? 'calc(64px + env(safe-area-inset-bottom))' : 'calc(108px + env(safe-area-inset-bottom))');
