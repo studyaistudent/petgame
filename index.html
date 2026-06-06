@@ -3997,24 +3997,49 @@ body.ow-mode{ overscroll-behavior:none; overflow:hidden; }
 .ow-hunt-toggle small{ font-size:9px; font-weight:700; }
 .ow-hunt-toggle:active{ transform:scale(.92); }
 
-/* 사냥·PVP 결투: 하단 메뉴/채팅/이모트 숨겨 전투 버튼과 겹침 방지 */
+/* 사냥·PVP·보스전: 하단 메뉴/채팅 숨김 → 전투 버튼과 겹침 방지 */
 .ow-root-combat .ow-bottom-bar,
 .ow-root-combat .ow-chat-bar,
 .ow-root-combat .ow-emote-bar,
-.ow-root-combat .ow-near-list{ opacity:0!important; pointer-events:none!important; }
+.ow-root-combat .ow-near-list,
+.ow-root-combat .ow-cam-zoom-panel,
+.ow-root-combat .ow-hunt-toggle{
+  display:none!important; pointer-events:none!important;
+}
 .ow-combat-dock{
   position:absolute; left:0; right:0;
-  bottom:max(env(safe-area-inset-bottom),12px);
-  display:flex; align-items:flex-end; justify-content:space-between;
-  padding:0 max(12px,env(safe-area-inset-right)) 0 max(12px,env(safe-area-inset-left));
-  gap:10px; pointer-events:none; z-index:14;
+  bottom:max(env(safe-area-inset-bottom),10px);
+  display:flex; justify-content:center;
+  padding:0 max(10px,env(safe-area-inset-right)) 0 max(10px,env(safe-area-inset-left));
+  pointer-events:none; z-index:16;
 }
+.ow-combat-pad{
+  pointer-events:auto; width:min(100%,560px);
+  display:flex; flex-direction:column; gap:8px;
+  padding:8px 10px 6px;
+  background:rgba(8,6,16,.48);
+  border:1px solid rgba(255,255,255,.14); border-radius:18px;
+  -webkit-backdrop-filter:blur(10px); backdrop-filter:blur(10px);
+  box-shadow:0 8px 24px rgba(0,0,0,.35);
+}
+.ow-combat-row-skills{
+  display:flex; justify-content:center; align-items:center; gap:8px; flex-wrap:nowrap;
+}
+.ow-combat-row-main{
+  display:flex; align-items:center; gap:8px; width:100%;
+}
+.ow-combat-def{ display:flex; gap:8px; flex-shrink:0; }
+.ow-combat-spacer{ flex:1; min-width:6px; }
 .ow-combat-dock .ow-combat-left,
 .ow-combat-dock .ow-combat-right{
   position:static; bottom:auto; left:auto; right:auto; transform:none;
   pointer-events:auto; flex-shrink:0;
 }
-.ow-combat-dock .ow-combat-right{ flex:1; justify-content:flex-end; min-width:0; }
+.ow-root-combat .ow-boss-actions{
+  left:50%; right:auto; transform:translateX(-50%);
+  flex-direction:row; align-items:flex-end; gap:14px;
+  bottom:max(env(safe-area-inset-bottom),14px);
+}
 
 /* 몹 이름표 + HP bar (3D 투영 오버레이) */
 #ow-mob-layer{ font-family:inherit; }
@@ -4132,13 +4157,14 @@ body.ow-mode{ overscroll-behavior:none; overflow:hidden; }
   .ow-combat-left,.ow-combat-right{ bottom:max(env(safe-area-inset-bottom),16px); gap:9px; }
   .ow-combat-skills{ gap:7px; }
   .ow-root-combat .ow-combat-dock{
-    bottom:calc(10px + env(safe-area-inset-bottom));
-    padding:0 8px;
-    gap:6px;
+    bottom:calc(8px + env(safe-area-inset-bottom));
+    padding:0 6px;
   }
+  .ow-root-combat .ow-combat-pad{ padding:6px 8px 5px; gap:6px; border-radius:16px; }
   .ow-root-combat .ow-combat-dock .ow-cbtn{ width:50px; height:50px; font-size:17px; }
   .ow-root-combat .ow-combat-dock .ow-cbtn.atk{ width:58px; height:58px; font-size:21px; }
-  .ow-root-combat .ow-combat-dock .ow-combat-skills{ gap:5px; }
+  .ow-root-combat .ow-combat-row-skills{ gap:6px; }
+  .ow-root-combat .ow-combat-def{ gap:6px; }
   .ow-root-combat .ow-cam-zoom-panel{
     top:calc(40px + env(safe-area-inset-top));
     right:max(6px,env(safe-area-inset-right));
@@ -4149,10 +4175,11 @@ body.ow-mode{ overscroll-behavior:none; overflow:hidden; }
   .ow-root-combat .ow-combat-dock .ow-cbtn{ width:46px; height:46px; font-size:15px; }
   .ow-root-combat .ow-combat-dock .ow-cbtn.atk{ width:52px; height:52px; font-size:19px; }
   .ow-root-combat .ow-combat-dock .ow-cbtn small{ font-size:8px; }
+  .ow-root-combat .ow-combat-row-skills{ gap:5px; }
   /* 사냥 메뉴: 하단 전투 도크 위 가로 툴바 */
   .ow-root-combat .ow-combat-top{
     top:auto;
-    bottom:calc(76px + env(safe-area-inset-bottom));
+    bottom:calc(148px + env(safe-area-inset-bottom));
     left:max(8px,env(safe-area-inset-left));
     right:max(8px,env(safe-area-inset-right));
     max-width:none; align-items:stretch;
@@ -4169,6 +4196,22 @@ body.ow-mode{ overscroll-behavior:none; overflow:hidden; }
     width:min(210px,56vw);
   }
   .ow-root-combat .ow-stat-toggle-btn{ width:auto; min-width:58px; padding:6px 10px; font-size:11px; }
+}
+@media (orientation:landscape) and (max-height:520px){
+  .ow-root-combat .ow-combat-top{
+    top:calc(max(env(safe-area-inset-top),8px) + 40px);
+    bottom:auto; right:max(8px,env(safe-area-inset-right)); left:auto;
+    max-width:min(240px,42vw);
+  }
+  .ow-root-combat .ow-combat-dock{ bottom:calc(6px + env(safe-area-inset-bottom)); }
+  .ow-root-combat .ow-combat-pad{ padding:5px 8px 4px; gap:5px; }
+  .ow-root-combat .ow-combat-dock .ow-cbtn{ width:44px; height:44px; font-size:15px; }
+  .ow-root-combat .ow-combat-dock .ow-cbtn.atk{ width:50px; height:50px; font-size:18px; }
+  .ow-root-combat .ow-left-stats,
+  .ow-root-combat .ow-stat-toggle-btn{
+    top:calc(max(env(safe-area-inset-top),8px) + 40px);
+    bottom:auto;
+  }
 }
 /* ── 3D GLB 모델 선택 ── */
 .glb-picker-overlay .glb-picker-modal{
@@ -4221,7 +4264,7 @@ body.ow-mode{ overscroll-behavior:none; overflow:hidden; }
 <script src="lm-ow-mp-sync.js?v=6"></script>
 <script src="lm-ow-pvp.js?v=5"></script>
 <script src="vendor/supabase.js?v=1"></script>
-<script src="supabase-firestore-shim.js?v=13"></script>
+<script src="supabase-firestore-shim.js?v=14"></script>
 <script>
 (function bootCheck(){
   const msgs=[];
@@ -17332,6 +17375,17 @@ function render(){
   }
   attachEvents();
   lmSyncGlobalModals();
+  if(S.screen === 'openworld') owSyncOwRootStateClasses();
+}
+function owSyncOwRootStateClasses(){
+  const root = document.getElementById('ow-root');
+  if(!root) return;
+  const voidCls = S.ow._voidUi ? 'ow-void-mode' : '';
+  const photoCls = S.ow.mmo?.photoSession?.active ? ' ow-root-photo-mode' : '';
+  const lifeCls = S.ow.mmo?.lifeGame ? ' ow-root-life-game' : '';
+  const flyCls = S.ow.mmo?.mountState?.flying ? ' ow-root-mount-fly' : '';
+  const combatCls = (S.ow.combat?.huntMode || S.ow.pvpDuel || S.ow.bossFight?.active) ? ' ow-root-combat' : '';
+  root.className = `${voidCls}${photoCls}${lifeCls}${flyCls}${combatCls}`.trim();
 }
 function renderOpenWorldUIPass(){
   if(S.pvpBattle && document.querySelector('.pvp-modal')) return;
@@ -17378,6 +17432,7 @@ function renderOpenWorldUIPass(){
     if(S.preview){
       setTimeout(()=>{ if(S.screen==='openworld' && S.preview) initPreview3D(); }, 60);
     }
+    owSyncOwRootStateClasses();
 }
 function getHTML(){
   if (S.screen === 'openworld') {
@@ -26136,11 +26191,35 @@ upsertOtherPet(nick, data){
       });
     });
   }
-  _applyGolemGlbToGroup(g, gltf, targetH, tintColor, scaleMul){
+  _snapGolemModelFeet(model){
+    if(!model) return;
+    model.updateMatrixWorld(true);
+    const box = new THREE.Box3();
+    model.traverse((o)=>{
+      if(!o.isMesh && !o.isSkinnedMesh) return;
+      try{ box.expandByObject(o, true); }catch(e){ box.expandByObject(o); }
+    });
+    if(!box.isEmpty()) model.position.y = -box.min.y;
+    model.updateMatrixWorld(true);
+  }
+  _applyGolemGlbToGroup(g, gltf, targetH, tintColor, scaleMul, holder){
     while(g.children.length) g.remove(g.children[0]);
     const model = gltf.scene;
     model.name = 'ow_golem_glb';
-    this._fitOwGlbModel(model, targetH);
+    let sy;
+    if(holder && holder.golemBaseScale > 0){
+      model.position.set(0, 0, 0);
+      model.rotation.set(0, 0, 0);
+      model.scale.setScalar(holder.golemBaseScale);
+      this._snapGolemModelFeet(model);
+      sy = holder.golemBaseScale;
+    } else {
+      sy = this._fitOwGlbModel(model, targetH);
+      if(holder && sy > 0){
+        holder.golemBaseScale = sy;
+        holder.golemBaseTargetH = targetH;
+      }
+    }
     if(window.LMGlb && LMGlb.polishOwGlbModel) LMGlb.polishOwGlbModel(model);
     this._tintGolemModel(model, tintColor);
     g.add(model);
@@ -26161,18 +26240,40 @@ upsertOtherPet(nick, data){
       holder.golemAnimUntil = 0;
     }
   }
+  _golemAnimFallback(animKey){
+    if(animKey === 'walk' || animKey === 'run' || animKey === 'dead') return 'walk';
+    if(animKey === 'hit') return 'attack';
+    if(animKey === 'attack' || animKey === 'skill01' || animKey === 'skill03' || animKey === 'combo') return 'attack';
+    return 'walk';
+  }
+  _preloadGolemAnims(keys){
+    const manifest = window.OW_GOLEM_MANIFEST;
+    if(!manifest || !window.LMOwGlb || !LMOwGlb.loadGlb) return;
+    (keys || []).forEach((k)=>{
+      const url = manifest.urls[k];
+      if(url) LMOwGlb.loadGlb(url).catch(()=>{});
+    });
+  }
   _loadGolemAnim(holder, animKey, holdMs, opts){
     const manifest = window.OW_GOLEM_MANIFEST;
     if(!holder || !holder.group || !manifest || !manifest.urls[animKey] || !window.LMOwGlb || !LMOwGlb.loadGlb) return false;
     holder.golemFailed = holder.golemFailed || {};
-    if(holder.golemFailed[animKey]) return false;
-    if(holder.golemLoading) return false;
+    if(holder.golemFailed[animKey]){
+      const fb = this._golemAnimFallback(animKey);
+      if(fb !== animKey && !holder.golemFailed[fb]) return this._loadGolemAnim(holder, fb, holdMs, opts);
+      return false;
+    }
+    if(holder.golemLoading){
+      holder.golemPendingAnim = { animKey, holdMs, opts };
+      return false;
+    }
     opts = opts || {};
     const g = holder.group;
     const url = manifest.urls[animKey];
     const targetH = opts.targetH != null ? opts.targetH
+      : (holder.golemBaseTargetH != null ? holder.golemBaseTargetH
       : (holder.def && holder.def.glbHeight != null ? holder.def.glbHeight
-      : (holder.cfg && holder.cfg.glbHeight != null ? holder.cfg.glbHeight : OW_GOLEM_BOSS_HEIGHT));
+      : (holder.cfg && holder.cfg.glbHeight != null ? holder.cfg.glbHeight : OW_GOLEM_BOSS_HEIGHT)));
     const tint = opts.tintColor != null ? opts.tintColor
       : (holder.def && holder.def.color != null ? holder.def.color
       : (holder.cfg && holder.cfg.color != null ? holder.cfg.color : manifest.bossTints.default));
@@ -26180,10 +26281,14 @@ upsertOtherPet(nick, data){
     holder.golemLoading = animKey;
     LMOwGlb.loadGlb(url).then((gltf)=>{
       if(!holder.group || holder.golemLoading !== animKey) return;
-      this._applyGolemGlbToGroup(g, gltf, targetH, tint, scaleMul);
+      this._applyGolemGlbToGroup(g, gltf, targetH, tint, scaleMul, holder);
       const ret = opts.returnAnim != null ? opts.returnAnim
         : (holder.dead ? null : this._golemMoveAnim(holder));
       this._setGolemAnimState(holder, animKey, holdMs, ret);
+      holder.golemLoading = null;
+      const pending = holder.golemPendingAnim;
+      holder.golemPendingAnim = null;
+      if(pending && pending.animKey !== animKey) this._loadGolemAnim(holder, pending.animKey, pending.holdMs, pending.opts);
     }).catch((err)=>{
       holder.golemLoading = null;
       holder.golemFailed[animKey] = true;
@@ -26192,6 +26297,8 @@ upsertOtherPet(nick, data){
         holder._golemFailLog[animKey] = true;
         console.warn('[OW] Golem GLB 로드 실패:', url, err);
       }
+      const fb = this._golemAnimFallback(animKey);
+      if(fb !== animKey && !holder.golemFailed[fb]) this._loadGolemAnim(holder, fb, holdMs, opts);
     });
     return true;
   }
@@ -26352,7 +26459,10 @@ upsertOtherPet(nick, data){
     if(def.wild) mob.wildCapture = true;
     if(def.treasureGuard){ mob.treasureGuard = true; mob.treasureId = def.treasureId; }
     this.mobs.push(mob);
-    if(useGolem) this._loadGolemMobAnim(mob, 'walk', 0);
+    if(useGolem){
+      this._preloadGolemAnims(['walk','run','attack','skill01','skill03','combo','hit']);
+      this._loadGolemMobAnim(mob, 'walk', 0);
+    }
     return mob;
   }
   _mkRing(x,z,color,radius,opacity){
@@ -26480,7 +26590,7 @@ upsertOtherPet(nick, data){
   _mobAttack(mob, dist){
     const patterns = mob.def.patterns||[];
     let pat='melee';
-    if(patterns.length && Math.random()<0.65) pat = patterns[Math.floor(Math.random()*patterns.length)];
+    if(patterns.length) pat = patterns[Math.floor(Math.random()*patterns.length)];
     if(mob.golemMob && window.OW_GOLEM_MANIFEST){
       const ak = this._pickGolemAttackAnim(mob, pat);
       const hold = (OW_GOLEM_MANIFEST.animHoldMs && OW_GOLEM_MANIFEST.animHoldMs[ak]) || 900;
@@ -26561,7 +26671,7 @@ upsertOtherPet(nick, data){
             if(mob.golemAnim !== ret && !mob.golemLoading) this._loadGolemMobAnim(mob, ret, 0);
           } else if(!mob.golemAnimUntil && !mob.golemLoading){
             const want = this._golemMoveAnim(mob);
-            const busyRe = this._isGolemWorldBoss(mob) ? /^(skill|combo)/ : /^(attack|skill|combo)/;
+            const busyRe = this._isGolemWorldBoss(mob) ? /^(skill|combo|attack|hit)/ : /^(attack|skill|combo|hit)/;
             if(mob.golemAnim !== want && mob.golemAnim !== 'hit' && !String(mob.golemAnim||'').match(busyRe))
               this._loadGolemMobAnim(mob, want, 0);
           }
@@ -26978,6 +27088,7 @@ upsertOtherPet(nick, data){
       dead:false, deadScale:1, engaged:!atPos, useGlb:true, golemMob:true,
       golemAnim:null, golemLoading:null, golemAnimUntil:0,
     };
+    this._preloadGolemAnims(['walk','run','attack','skill01','skill03','combo','hit','dead']);
     this._loadGolemBossAnim(this._boss, 'walk', 0);
     this._camShakeUntil = Date.now()+250;
   }
@@ -26990,7 +27101,15 @@ upsertOtherPet(nick, data){
   }
   bossHit(){
     if(!this._boss) return;
-    this._boss.hitUntil = Date.now()+170;
+    const b = this._boss;
+    b.hitUntil = Date.now()+170;
+    if(b.golemMob && !b.dead && !b.golemLoading){
+      const busy = String(b.golemAnim||'').match(/^(skill|combo)/);
+      if(!busy && b.golemAnim !== 'hit'){
+        const hold = (window.OW_GOLEM_MANIFEST && OW_GOLEM_MANIFEST.animHoldMs && OW_GOLEM_MANIFEST.animHoldMs.hit) || 420;
+        this._loadGolemBossAnim(b, 'hit', hold);
+      }
+    }
   }
   spawnBossDmg(value, crit){
     if(!this._boss) return;
@@ -27038,11 +27157,11 @@ upsertOtherPet(nick, data){
         const ret = b.golemReturnAnim || 'walk';
         if(b.golemAnim !== ret && !b.golemLoading) this._loadGolemBossAnim(b, ret, 0);
       } else if(!b.golemAnimUntil && !b.golemLoading && b.engaged !== false && b.golemAnim !== 'walk'){
-        if(!String(b.golemAnim||'').match(/^(skill|combo|dead)/)) this._loadGolemBossAnim(b, 'walk', 0);
+        if(!String(b.golemAnim||'').match(/^(skill|combo|attack|hit|dead)/)) this._loadGolemBossAnim(b, 'walk', 0);
       }
     }
     if(!b.dead && b.engaged !== false && S.ow.bossFight?.active && Date.now() > b.nextAtk){
-      b.nextAtk = Date.now() + 3200 + Math.random()*1600;
+      b.nextAtk = Date.now() + 2000 + Math.random()*1200;
       b.lungeUntil = Date.now()+420;
       if(b.golemMob && window.OW_GOLEM_MANIFEST){
         const ak = OW_GOLEM_MANIFEST.pickBossAttack ? OW_GOLEM_MANIFEST.pickBossAttack() : 'skill01';
@@ -31204,7 +31323,7 @@ function rOpenWorldScreen(){
   const photoCls = S.ow.mmo?.photoSession?.active ? ' ow-root-photo-mode' : '';
   const lifeCls = S.ow.mmo?.lifeGame ? ' ow-root-life-game' : '';
   const flyCls = S.ow.mmo?.mountState?.flying ? ' ow-root-mount-fly' : '';
-  const combatCls = (S.ow.combat?.huntMode || S.ow.pvpDuel) ? ' ow-root-combat' : '';
+  const combatCls = (S.ow.combat?.huntMode || S.ow.pvpDuel || S.ow.bossFight?.active) ? ' ow-root-combat' : '';
   return `
     <div id="ow-root" class="${voidCls.trim()}${photoCls}${lifeCls}${flyCls}${combatCls}">
       <canvas id="ow-canvas"></canvas>
@@ -34837,16 +34956,19 @@ function rOWPvpCombatHud(){
       <div class="ow-combat-hp-track"><span style="width:${hpPct}%"></span></div>
     </div>
     <div class="ow-combat-dock">
-      <div class="ow-combat-left">
-        <button type="button" class="ow-cbtn dodge" data-a="ow_combatDodge">🌀<small>회피</small><i class="ow-cd" id="ow-cd-dodge"></i></button>
-      </div>
-      <div class="ow-combat-right">
-        <div class="ow-combat-skills">
+      <div class="ow-combat-pad">
+        <div class="ow-combat-row-skills">
           <button type="button" class="ow-cbtn s1" data-a="ow_combatSkill" data-n="1">⚡<small>강타</small><i class="ow-cd" id="ow-cd-s1"></i></button>
           <button type="button" class="ow-cbtn s2" data-a="ow_combatSkill" data-n="2">🔥<small>화염</small><i class="ow-cd" id="ow-cd-s2"></i></button>
           <button type="button" class="ow-cbtn s3" data-a="ow_combatSkill" data-n="3">💥<small>충격</small><i class="ow-cd" id="ow-cd-s3"></i></button>
         </div>
-        <button type="button" class="ow-cbtn atk" data-a="ow_combatAttack">⚔️<small>공격</small></button>
+        <div class="ow-combat-row-main">
+          <div class="ow-combat-def">
+            <button type="button" class="ow-cbtn dodge" data-a="ow_combatDodge">🌀<small>회피</small><i class="ow-cd" id="ow-cd-dodge"></i></button>
+          </div>
+          <span class="ow-combat-spacer"></span>
+          <button type="button" class="ow-cbtn atk" data-a="ow_combatAttack">⚔️<small>공격</small></button>
+        </div>
       </div>
     </div>
   </div>`;
@@ -34876,17 +34998,20 @@ function rOWCombatHud(){
       </div>
     </div>
     <div class="ow-combat-dock">
-      <div class="ow-combat-left">
-        <button type="button" class="ow-cbtn dodge" data-a="ow_combatDodge">🌀<small>회피</small><i class="ow-cd" id="ow-cd-dodge"></i></button>
-        <button type="button" class="ow-cbtn guard" data-a="ow_combatGuard">🛡️<small>가드</small></button>
-      </div>
-      <div class="ow-combat-right">
-        <div class="ow-combat-skills">
+      <div class="ow-combat-pad">
+        <div class="ow-combat-row-skills">
           <button type="button" class="ow-cbtn s1" data-a="ow_combatSkill" data-n="1">⚡<small>강타</small><i class="ow-cd" id="ow-cd-s1"></i></button>
           <button type="button" class="ow-cbtn s2" data-a="ow_combatSkill" data-n="2">🔥<small>화염</small><i class="ow-cd" id="ow-cd-s2"></i></button>
           <button type="button" class="ow-cbtn s3" data-a="ow_combatSkill" data-n="3">💥<small>충격</small><i class="ow-cd" id="ow-cd-s3"></i></button>
         </div>
-        <button type="button" class="ow-cbtn atk" data-a="ow_combatAttack">⚔️<small>공격</small></button>
+        <div class="ow-combat-row-main">
+          <div class="ow-combat-def">
+            <button type="button" class="ow-cbtn dodge" data-a="ow_combatDodge">🌀<small>회피</small><i class="ow-cd" id="ow-cd-dodge"></i></button>
+            <button type="button" class="ow-cbtn guard" data-a="ow_combatGuard">🛡️<small>가드</small></button>
+          </div>
+          <span class="ow-combat-spacer"></span>
+          <button type="button" class="ow-cbtn atk" data-a="ow_combatAttack">⚔️<small>공격</small></button>
+        </div>
       </div>
     </div>
   </div>`;

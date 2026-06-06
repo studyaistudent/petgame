@@ -585,18 +585,20 @@
   }
 
   function teardownRtEntry(client, entry) {
+    if (!entry || entry.tearingDown) return;
+    entry.tearingDown = true;
     entry.dead = true;
     stopPollFallback(entry);
-    if (!entry.channel) return;
-    try {
-      if (entry.subscribed) entry.channel.unsubscribe();
-      else if (!entry.subscribing) client.removeChannel(entry.channel);
-    } catch (_) {
-      try {
-        client.removeChannel(entry.channel);
-      } catch (_2) {}
-    }
+    const ch = entry.channel;
     entry.channel = null;
+    entry.subscribed = false;
+    entry.subscribing = false;
+    if (ch) {
+      try {
+        client.removeChannel(ch);
+      } catch (_) {}
+    }
+    entry.tearingDown = false;
   }
 
   function subscribeRealtime(client, table, filter, listener) {
@@ -605,7 +607,7 @@
     let entry = __rtChannels.get(key);
     if (!entry) {
       const callbacks = new Set();
-      entry = { channel: null, callbacks, subscribed: false, subscribing: false, pollTimer: null, dead: false };
+      entry = { channel: null, callbacks, subscribed: false, subscribing: false, pollTimer: null, dead: false, tearingDown: false };
       __rtChannels.set(key, entry);
 
       if (__rtPollOnly) {
@@ -619,22 +621,18 @@
         const delay = __rtStaggerMs;
         __rtStaggerMs += 120;
         setTimeout(() => {
-          if (entry.dead) return;
+          if (entry.dead || entry.tearingDown) return;
           entry.subscribing = true;
           channel.subscribe((status, err) => {
             entry.subscribing = false;
-            if (entry.dead) {
-              try {
-                client.removeChannel(channel);
-              } catch (_) {}
-              return;
-            }
+            if (entry.dead || entry.tearingDown) return;
             if (status === 'SUBSCRIBED') {
               entry.subscribed = true;
               stopPollFallback(entry);
               return;
             }
             if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+              if (entry.dead || entry.tearingDown) return;
               __rtPollOnly = true;
               if (err && !__rtWarnedTables.has(table)) {
                 __rtWarnedTables.add(table);
@@ -645,7 +643,8 @@
           });
         }, delay);
         setTimeout(() => {
-          if (!entry.dead && !entry.subscribed && !entry.pollTimer && !isTableDead(table)) {
+          if (entry.dead || entry.tearingDown) return;
+          if (!entry.subscribed && !entry.pollTimer && !isTableDead(table)) {
             startPollFallback(entry, table);
           }
         }, 9000);
@@ -1149,6 +1148,6 @@
     return ref.update(patch);
   };
 
-  global.__lmShimVersion = '13';
+  global.__lmShimVersion = '14';
   global.__lmIsTableDead = isTableDead;
 })(typeof window !== 'undefined' ? window : globalThis);

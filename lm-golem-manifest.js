@@ -22,9 +22,9 @@
     dead: glb('Dead'),
   };
 
-  const attackPool = ['attack', 'skill01', 'skill03', 'combo'];
-  /** 월드 보스(지퍼리드·레비아탄) — Skill_01 / Skill_03 / Triple_Combo 만 */
-  const bossAttackPool = ['skill01', 'skill03', 'combo'];
+  const attackPool = ['attack', 'skill01', 'skill03', 'combo', 'skill01', 'skill03', 'combo'];
+  /** 월드 보스 — 스킬·콤보 위주 (기본 공격 포함) */
+  const bossAttackPool = ['skill01', 'skill03', 'combo', 'attack', 'skill01', 'skill03', 'combo'];
   const bossMoveAnim = 'walk';
   const bossDeadAnim = 'dead';
 
@@ -32,12 +32,20 @@
     if (pat === 'slam') return 'skill03';
     if (pat === 'charge') return 'combo';
     if (pat === 'projectile') return 'skill01';
-    if (pat === 'melee') return 'attack';
-    return attackPool[Math.floor(Math.random() * attackPool.length)];
+    if (pat === 'melee') return Math.random() < 0.55 ? 'attack' : 'skill01';
+    const r = Math.random();
+    if (r < 0.3) return 'combo';
+    if (r < 0.55) return 'skill03';
+    if (r < 0.8) return 'skill01';
+    return 'attack';
   }
 
   function pickBossAttack() {
-    return bossAttackPool[Math.floor(Math.random() * bossAttackPool.length)];
+    const r = Math.random();
+    if (r < 0.28) return 'combo';
+    if (r < 0.52) return 'skill03';
+    if (r < 0.78) return 'skill01';
+    return 'attack';
   }
 
   /** 레비아탄·지퍼리드 등 월드 보스 틴트 */
@@ -57,12 +65,14 @@
     pickBossAttack,
     bossTints,
     animHoldMs: {
-      attack: 880,
-      skill01: 920,
-      skill03: 1000,
-      combo: 1100,
-      hit: 520,
+      attack: 820,
+      skill01: 960,
+      skill03: 1040,
+      combo: 1180,
+      hit: 480,
       dead: 0,
+      walk: 0,
+      run: 0,
     },
   };
 })(typeof window !== 'undefined' ? window : globalThis);
