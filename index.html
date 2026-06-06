@@ -3784,6 +3784,105 @@ body.ow-mode #app{
   .ow-mmo-social-bar{ bottom:calc(142px + env(safe-area-inset-bottom)); }
 }
 
+/* ═══════════════════ 📱 심플 HUD (모바일 기본) ═══════════════════ */
+.ow-simple-dock{
+  position:absolute;left:50%;transform:translateX(-50%);
+  bottom:calc(10px + env(safe-area-inset-bottom));z-index:15;
+  display:flex;align-items:center;gap:10px;pointer-events:auto;
+  padding:6px 12px;border-radius:999px;
+  background:rgba(8,10,24,.72);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);
+  border:1px solid rgba(255,255,255,.16);box-shadow:0 8px 28px rgba(0,0,0,.42);
+}
+.ow-simple-dock-btn{
+  width:46px;height:46px;border:none;border-radius:50%;cursor:pointer;
+  background:rgba(255,255,255,.1);color:#fff;font-size:20px;
+  display:flex;align-items:center;justify-content:center;
+  border:1px solid rgba(255,255,255,.14);transition:background .15s,transform .12s;
+}
+.ow-simple-dock-btn.on{background:rgba(66,165,245,.42);border-color:rgba(129,212,250,.55);}
+.ow-simple-dock-btn.hunt{background:linear-gradient(135deg,#ff7043,#bf360c);border-color:rgba(255,183,77,.4);}
+.ow-simple-dock-btn:active{transform:scale(.9);}
+.ow-simple-sheet{
+  position:absolute;inset:0;z-index:14;pointer-events:auto;
+  background:rgba(0,0,0,.45);display:flex;align-items:flex-end;
+  animation:owSimpleFade .18s ease;
+}
+@keyframes owSimpleFade{from{opacity:0}to{opacity:1}}
+.ow-simple-sheet-inner{
+  width:100%;max-height:min(72vh,520px);overflow-y:auto;
+  background:linear-gradient(180deg,rgba(22,18,36,.97),rgba(14,12,26,.98));
+  border-radius:20px 20px 0 0;padding:14px 14px calc(18px + env(safe-area-inset-bottom));
+  border-top:1px solid rgba(255,255,255,.14);
+  box-shadow:0 -12px 40px rgba(0,0,0,.5);
+}
+.ow-simple-sheet-head{
+  display:flex;align-items:center;justify-content:space-between;
+  font-size:15px;font-weight:800;color:#fff;margin-bottom:10px;
+}
+.ow-simple-sheet-head button{
+  border:none;background:rgba(255,255,255,.1);color:#fff;
+  width:32px;height:32px;border-radius:50%;font-size:16px;cursor:pointer;
+}
+.ow-simple-info-row{
+  display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px;
+  font-size:11px;font-weight:700;color:rgba(255,255,255,.88);
+}
+.ow-simple-info-row span{
+  padding:5px 9px;border-radius:10px;background:rgba(255,255,255,.08);
+  border:1px solid rgba(255,255,255,.1);
+}
+.ow-simple-grid{
+  display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px;
+}
+.ow-simple-grid .ow-action-btn{
+  width:100%;justify-content:center;padding:11px 6px;font-size:11px;
+  border-radius:12px;min-width:0;
+}
+.ow-simple-zoom{
+  display:flex;align-items:center;gap:10px;padding:10px 12px;
+  background:rgba(255,255,255,.06);border-radius:12px;color:#fff;font-size:12px;font-weight:700;
+}
+.ow-simple-zoom input[type=range]{flex:1;accent-color:#ffb74d;}
+.ow-root.ow-simple-hud .ow-info-stack-r,
+.ow-root.ow-simple-hud .ow-bottom-bar,
+.ow-root.ow-simple-hud .ow-cam-zoom-panel,
+.ow-root.ow-simple-hud .ow-hunt-toggle,
+.ow-root.ow-simple-hud .ow-stat-toggle-btn{ display:none!important; }
+.ow-root.ow-simple-hud .ow-top-bar{ padding:max(env(safe-area-inset-top),8px) 10px 0; }
+.ow-root.ow-simple-hud .ow-info-pill{ padding:6px 10px; font-size:11px; }
+.ow-root.ow-simple-hud .ow-left-stats{
+  right:max(10px,env(safe-area-inset-right));
+  bottom:calc(72px + env(safe-area-inset-bottom));
+  width:min(240px,72vw);
+}
+.ow-root.ow-simple-hud .ow-near-list{ bottom:calc(68px + env(safe-area-inset-bottom)); }
+.ow-root.ow-simple-hud .ow-mmo-toast{ bottom:calc(72px + env(safe-area-inset-bottom)); max-width:88vw; font-size:11px; }
+.ow-root.ow-simple-hud .ow-wboss-ptr{
+  top:max(calc(env(safe-area-inset-top) + 44px),52px);
+  font-size:11px;padding:6px 12px;max-width:92vw;white-space:normal;text-align:center;
+}
+.ow-root.ow-simple-hud .ow-emote-bar{
+  position:absolute;left:50%;transform:translateX(-50%);
+  bottom:calc(118px + env(safe-area-inset-bottom));z-index:14;
+}
+.ow-root.ow-simple-hud .ow-chat-bar.ow-simple-chat{
+  position:absolute;left:10px;right:10px;
+  bottom:calc(64px + env(safe-area-inset-bottom));z-index:14;
+  transform:none;width:auto;
+}
+.ow-root-combat .ow-simple-dock,
+.ow-root-combat .ow-simple-sheet{ display:none!important; }
+.ow-root.ow-simple-hud.ow-house-interior-mode .ow-hi-social{ display:none; }
+.ow-root.ow-simple-hud.ow-house-interior-mode .ow-hi-social.ow-hi-social-open{ display:block; }
+.ow-root.ow-simple-hud.ow-house-interior-mode .ow-hi-stat-panel[style*="position:absolute"]{
+  font-size:10px;padding:6px 10px;
+}
+.ow-hi-chat-fab{
+  width:38px;height:38px;border:none;border-radius:50%;
+  background:rgba(66,165,245,.35);color:#fff;font-size:17px;cursor:pointer;
+  border:1px solid rgba(129,212,250,.4);
+}
+
 /* ═══════════════════ 📖 연계 시나리오 (에피소드) ═══════════════════ */
 .ow-story-pill{
   background:linear-gradient(135deg,rgba(124,77,255,.42),rgba(255,91,174,.32))!important;
@@ -4146,6 +4245,59 @@ body.ow-mode{ overscroll-behavior:none; overflow:hidden; }
 }
 .ow-hi-tools button.primary{ background:linear-gradient(135deg,#42a5f5,#7e57c2); }
 .ow-hi-tools button.danger{ background:rgba(229,83,122,.85); }
+.ow-hi-cam{
+  position:absolute;right:12px;bottom:calc(108px + env(safe-area-inset-bottom));z-index:24;
+  display:flex;flex-direction:column;gap:6px;pointer-events:none;
+}
+.ow-hi-cam>*{ pointer-events:auto; }
+.ow-hi-cam-row{ display:flex;gap:6px;justify-content:center; }
+.ow-hi-cam button{
+  width:44px;height:44px;border:none;border-radius:12px;
+  background:rgba(18,12,28,.78);color:#fff;font-size:18px;font-weight:800;
+  border:1px solid rgba(255,255,255,.18);cursor:pointer;
+}
+.ow-hi-cam button:active{ background:rgba(66,165,245,.35); }
+.ow-hi-visitors{
+  font-size:11px;opacity:.8;text-align:center;padding:4px 8px;
+  background:rgba(18,12,28,.55);border-radius:8px;
+}
+.ow-hi-social{
+  position:absolute;left:12px;right:12px;
+  bottom:calc(14px + env(safe-area-inset-bottom));z-index:24;
+  pointer-events:none;
+}
+.ow-hi-social>*{ pointer-events:auto; }
+.ow-hi-social .ow-chat-bar{
+  position:relative;bottom:auto;left:auto;right:auto;transform:none;
+  width:100%;margin-top:6px;
+}
+.ow-hi-social .ow-emote-bar{
+  position:relative;bottom:auto;left:auto;transform:none;
+  justify-content:center;max-width:100%;
+}
+body.ow-hi-dragging, body.ow-hi-dragging #ow-canvas{ cursor:grabbing!important; }
+.ow-hi-stat-line{ color:#81d4fa; font-size:10px; font-weight:700; }
+.ow-hi-stat-badge{
+  display:block;font-size:9px;line-height:1.35;margin-top:3px;
+  color:#b3e5fc;font-weight:700;
+}
+.ow-hi-stat-panel{
+  margin:0 12px 6px;padding:8px 10px;border-radius:10px;
+  background:rgba(18,12,28,.72);border:1px solid rgba(129,212,250,.22);
+  font-size:11px;line-height:1.5;color:rgba(255,255,255,.9);
+}
+.ow-hi-stat-panel b{ color:#81d4fa; }
+.ow-hi-stat-chips{ display:flex;flex-wrap:wrap;gap:4px;margin-top:4px; }
+.ow-hi-stat-chip{
+  padding:2px 7px;border-radius:99px;font-size:10px;font-weight:700;
+  background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);
+}
+.ow-hi-stat-chip.hp{ color:#ef9a9a; }
+.ow-hi-stat-chip.mp{ color:#90caf9; }
+.ow-hi-stat-chip.atk{ color:#f48fb1; }
+.ow-hi-stat-chip.def{ color:#ce93d8; }
+.ow-hi-stat-chip.eva{ color:#80cbc4; }
+.ow-shop-stat{ font-size:10px;color:#81d4fa;font-weight:700;margin-top:2px; }
 .ow-shop-tabs{ display:flex;gap:6px;margin-bottom:12px; }
 .ow-shop-tab{
   flex:1;padding:8px;border:none;border-radius:10px;background:rgba(255,255,255,.1);
@@ -4302,7 +4454,7 @@ body.ow-mode{ overscroll-behavior:none; overflow:hidden; }
 <script src="lm-fbx-texture-manifest.js?v=3"></script>
 <script src="lm-glb-catalog.js?v=80"></script>
 <script src="lm-ow-glb.js?v=24"></script>
-<script src="lm-ow-house-interior.js?v=5"></script>
+<script src="lm-ow-house-interior.js?v=10"></script>
 <script src="lm-golem-manifest.js?v=3"></script>
 <script src="lm-ow-avatar.js?v=14"></script>
 <script src="lm-glb-runtime.js?v=114"></script>
@@ -17434,7 +17586,8 @@ function owSyncOwRootStateClasses(){
   const flyCls = S.ow.mmo?.mountState?.flying ? ' ow-root-mount-fly' : '';
   const combatCls = (S.ow.combat?.huntMode || S.ow.pvpDuel || S.ow.bossFight?.active) ? ' ow-root-combat' : '';
   const hiCls = (S.ow.houseInterior?.active || (window.OWHouseInterior && OWHouseInterior.isActive())) ? ' ow-root-house-interior' : '';
-  root.className = `${voidCls}${photoCls}${lifeCls}${flyCls}${combatCls}${hiCls}`.trim();
+  const simpleCls = owShouldSimpleHud() ? ' ow-simple-hud' : '';
+  root.className = `${voidCls}${photoCls}${lifeCls}${flyCls}${combatCls}${hiCls}${simpleCls}`.trim();
 }
 function renderOpenWorldUIPass(){
   if(S.pvpBattle && document.querySelector('.pvp-modal')) return;
@@ -21712,6 +21865,11 @@ function attachEvents(){
       else if(a==="ow_hiSelectItem"){ if(window.OWHouseInterior) OWHouseInterior.selectPlaceItem(el.dataset.id); }
       else if(a==="ow_hiRotate"){ if(window.OWHouseInterior) OWHouseInterior.rotateSelected(parseInt(el.dataset.deg,10)||45); }
       else if(a==="ow_hiRemove"){ if(window.OWHouseInterior) OWHouseInterior.removeSelected(); }
+      else if(a==="ow_hiZoomIn"){ if(window.OWHouseInterior) OWHouseInterior.adjustCameraZoom(-0.45); }
+      else if(a==="ow_hiZoomOut"){ if(window.OWHouseInterior) OWHouseInterior.adjustCameraZoom(0.45); }
+      else if(a==="ow_hiCamLeft"){ if(window.OWHouseInterior) OWHouseInterior.adjustCameraYaw(-0.28); }
+      else if(a==="ow_hiCamRight"){ if(window.OWHouseInterior) OWHouseInterior.adjustCameraYaw(0.28); }
+      else if(a==="ow_hiToggleSit"){ if(window.OWHouseInterior) OWHouseInterior.toggleSit(); }
       else if(a==="ow_buyRod"){ owBuyRod(); }
       else if(a==="ow_buyWeapon"){ owBuyWeapon(el.dataset.k); }
       else if(a==="ow_equipWeapon"){ owEquipWeapon(el.dataset.k); }
@@ -21777,7 +21935,7 @@ function attachEvents(){
       else if(a==="ow_mmoPetRecall"){ if(owMmoGetController().petExp.recallExpedition()) render(); else render(); }
       else if(a==="ow_mmoPetCompanion"){ owMmoGetController().petExp.toggleCompanion(); render(); }
       else if(a==="ow_mmoHouseVisit"){ owMmoGetController().house.visitOwnHouseFromOW(); }
-      else if(a==="ow_mmoHouseVisitOther"){ owMmoGetController().house.visitNearbyFromOW(el.dataset.nick); }
+      else if(a==="ow_mmoHouseVisitOther"){ owMmoGetController().house.visitNearbyFromOW(el.dataset.nick, el.dataset.plot || null); }
       else if(a==="ow_mmoHouseGuest"){ owMmoGetController().house.leaveGuestbookOnHouse(el.dataset.nick, el.dataset.msg); }
       else if(a==="ow_mmoHouseExhibit"){ owMmoGetController().house.syncExhibition(); render(); }
       else if(a==="ow_mmoHouseParty"){ owMmoGetController().house.broadcastPartyInvite(); render(); }
@@ -21862,6 +22020,8 @@ function attachEvents(){
       else if(a==="ow_bossAttack"){ owBossAttackTap(); }
       else if(a==="ow_bossFlee"){ owBossFlee(); }
       else if(a==="ow_toggleStatPanel"){ owToggleStatPanel(); }
+      else if(a==="ow_toggleHudMenu"){ owToggleHudMenu(); }
+      else if(a==="ow_toggleHudChat"){ owToggleHudChat(); }
       else if(a==="ow_combatToggleHunt"){ owCombatToggleHunt(); }
       else if(a==="ow_combatAttack"){ owCombatAttack(); }
       else if(a==="ow_combatSkill"){ owCombatSkill(parseInt(el.dataset.n,10)); }
@@ -26131,7 +26291,27 @@ if(S.ow.inCar && S.ow.cameraMode === 'first'){
 
 // 3. OpenWorldRenderer 내부 upsertOtherPet의 펫 호출부 수정
 upsertOtherPet(nick, data){
+  const hv = data.houseVisit;
+  const hiInst = window.OWHouseInterior?.getInstance?.();
+  if(hv && hiInst?.active && hiInst.owner === hv.owner && hiInst.plotId === hv.plotId){
+    const p = this.otherPetsByNick.get(nick);
+    if(p){
+      p.visible = false;
+      if(p.userData.companion) p.userData.companion.visible = false;
+    }
+    return;
+  }
+  if(hv && hv.plotId){
+    const portal = owGetHousePlotPortalPos(hv.plotId);
+    if(portal){
+      data = { ...data, x: portal.x, z: portal.z, state: 'idle' };
+    }
+  }
   let p = this.otherPetsByNick.get(nick);
+  if(p){
+    p.visible = true;
+    if(p.userData.companion) p.userData.companion.visible = true;
+  }
   if(!p){
     const avatar = data.avatar || DEFAULT_AVATAR;
     const heightCm = data.heightCm || 180;
@@ -28621,7 +28801,77 @@ function owAddFishingBadge(root, project, pos, bodyH, phase, key){
   const el = __owOverlayTake(key || ('fish:' + phase), 'ow-fishing-badge');
   __owOverlayPlace(el, sp, root, owFishingBadgeText(phase));
 }
+function updateHiOverlays(inst){
+  const root = document.getElementById('ow-overlays');
+  if(!root || !inst?.active || !inst.camera || !inst.human || !inst.canvas) return;
+  const W = inst.canvas.clientWidth, H = inst.canvas.clientHeight;
+  const project = (vec)=>{
+    __owProjVec.copy(vec);
+    __owProjVec.project(inst.camera);
+    return { x: (__owProjVec.x + 1) * 0.5 * W, y: (-__owProjVec.y + 1) * 0.5 * H, z: __owProjVec.z };
+  };
+  const myNick = S.myEntry?.nick;
+  if(myNick){
+    const bodyH = inst.human.userData?.lmBodyHeight || 1.72;
+    __owProjVec.copy(inst.human.position);
+    __owProjVec.y += bodyH * 1.04 + 0.08;
+    const sp = project(__owProjVec);
+    if(sp.z < 1){
+      const nm = __owOverlayTake('hi:me:name', 'ow-nameplate');
+      __owOverlayPlace(nm, sp, root, (S.myPet?.petEmoji || '🐾') + ' ' + shortNick(myNick));
+    }
+  }
+  if(S.ow.emoteKind && Date.now() < (S.ow.emoteUntil || 0)){
+    const bodyH = inst.human.userData?.lmBodyHeight || 1.72;
+    __owProjVec.copy(inst.human.position);
+    __owProjVec.y += bodyH * 1.35;
+    const sp = project(__owProjVec);
+    if(sp.z < 1){
+      const ef = __owOverlayTake('hi:me:emote', 'ow-mmo-emote-float');
+      __owOverlayPlace(ef, sp, root, owEmoteDef(S.ow.emoteKind).emoji);
+    }
+  }
+  if(S.ow.chatMsg && Date.now() < S.ow.chatExpire){
+    __owProjVec.copy(inst.human.position);
+    __owProjVec.y += 2.1;
+    const p = project(__owProjVec);
+    if(p.z < 1){
+      const b = __owOverlayTake('hi:me:chat', 'ow-bubble');
+      __owOverlayPlace(b, p, root, S.ow.chatMsg);
+    }
+  }
+  inst._otherVisitors?.forEach((g, nick)=>{
+    const bodyH = g.userData.mesh?.userData?.lmBodyHeight || 1.72;
+    __owProjVec.copy(g.position);
+    __owProjVec.y += bodyH * 1.04 + 0.08;
+    const sp = project(__owProjVec);
+    if(sp.z < 1){
+      const nm = __owOverlayTake('hi:u:' + nick + ':name', 'ow-nameplate');
+      __owOverlayPlace(nm, sp, root, (g.userData.emoji || '🐾') + ' ' + shortNick(nick));
+    }
+    if(g.userData.emoteKind && Date.now() < (g.userData.emoteUntil || 0)){
+      __owProjVec.copy(g.position);
+      __owProjVec.y += bodyH * 1.35;
+      const ep = project(__owProjVec);
+      if(ep.z < 1){
+        const ef = __owOverlayTake('hi:u:' + nick + ':emote', 'ow-mmo-emote-float');
+        __owOverlayPlace(ef, ep, root, owEmoteDef(g.userData.emoteKind).emoji);
+      }
+    }
+    if(g.userData.chatMsg && Date.now() < (g.userData.chatExpire || 0)){
+      __owProjVec.copy(g.position);
+      __owProjVec.y += 2.1;
+      const cp = project(__owProjVec);
+      if(cp.z < 1){
+        const b = __owOverlayTake('hi:u:' + nick + ':chat', 'ow-bubble');
+        __owOverlayPlace(b, cp, root, g.userData.chatMsg);
+      }
+    }
+  });
+  __owOverlayHideUnused(root);
+}
 function updateOWOverlays(rd){
+  if(owIsInHouseInterior()) return;
   const root = document.getElementById('ow-overlays');
   if(!root) return;
   const W = rd.canvas.clientWidth, H = rd.canvas.clientHeight;
@@ -28717,6 +28967,26 @@ function updateOWOverlays(rd){
 function owIsTouchDevice(){
   return ('ontouchstart' in window) || (navigator.maxTouchPoints||0) > 0;
 }
+function owIsMobileHud(){
+  if(window.matchMedia && window.matchMedia('(max-width:720px)').matches) return true;
+  return owIsTouchDevice() && window.innerWidth <= 900;
+}
+function owShouldSimpleHud(){
+  if(S.ow && S.ow.hudSimple === false) return false;
+  return owIsMobileHud();
+}
+function owToggleHudMenu(){
+  S.ow.hudMenuOpen = !S.ow.hudMenuOpen;
+  if(S.ow.hudMenuOpen) S.ow.hudChatOpen = false;
+  if(S.screen === 'openworld') renderOpenWorldUIPass();
+  else render();
+}
+function owToggleHudChat(){
+  S.ow.hudChatOpen = !S.ow.hudChatOpen;
+  if(S.ow.hudChatOpen) S.ow.hudMenuOpen = false;
+  if(S.screen === 'openworld') renderOpenWorldUIPass();
+  else render();
+}
 function owTryLockLandscape(){
   if(!owIsTouchDevice()) return;
   const lock = ()=>{ try{ if(screen.orientation && screen.orientation.lock) screen.orientation.lock('landscape').catch(()=>{}); }catch(e){} };
@@ -28800,9 +29070,11 @@ function enterOpenWorld(){
   try{
     const saved = lmgGetItem('ow_statPanelPos');
     if(saved) S.ow.statPanelPos = JSON.parse(saved);
-    S.ow.statPanelHidden = localStorage.getItem('lm_ow_stat_hidden') === '1';
+    const savedHidden = localStorage.getItem('lm_ow_stat_hidden');
+    if(savedHidden !== null) S.ow.statPanelHidden = savedHidden === '1';
+    else S.ow.statPanelHidden = owIsMobileHud();
   }catch(e){
-    S.ow.statPanelHidden = false;
+    S.ow.statPanelHidden = owIsMobileHud();
   }
   try{ if(typeof owMaybeShowStoryIntro === 'function') owMaybeShowStoryIntro(); }catch(e){}
 
@@ -29624,7 +29896,12 @@ function owApplyEmoteOnHuman(human, kind){
   }
 }
 function owTriggerEmote(kind){
-  const h = __owRenderer && __owRenderer.human;
+  const h = owGetActiveOwHuman();
+  if(!h) return;
+  if(owIsInHouseInterior() && OWHouseInterior.isSitting?.()){
+    owMmoToast('일어난 뒤 이모티콘을 사용해 주세요');
+    return;
+  }
   owApplyEmoteOnHuman(h, kind);
   const e = owEmoteDef(kind);
   const now = Date.now();
@@ -29633,10 +29910,10 @@ function owTriggerEmote(kind){
   S.ow.emoteUntil = now + 2800;
   S.ow.chatMsg = e.text;
   S.ow.chatExpire = now + 2800;
-  owSendChat(e.text);
   owPushOWPositionNow();
   owQuestProgress('social', 1);
-  render();
+  if(owIsInHouseInterior()) renderOpenWorldUIPass();
+  else render();
 }
 async function owCollectTreasure(treasureId){
   return owTreasureOpenChest(treasureId);
@@ -29716,8 +29993,30 @@ function owOpenFeatureTreasure(){
   if(!near){ alert('오늘의 보물을 아직 찾지 못했어요.'); return; }
   owCollectTreasure(near.id);
 }
+function owGetHousePlotPortalPos(plotId){
+  const plot = (OW_HOUSE_PLOT_PLACEMENTS || []).find(p => p.id === plotId);
+  if(!plot) return null;
+  const po = plot.portalOff || { x: 0, z: 3.8 };
+  const cos = Math.cos(plot.ry || 0), sin = Math.sin(plot.ry || 0);
+  return {
+    x: plot.x + po.x * cos - po.z * sin,
+    z: plot.z + po.x * sin + po.z * cos,
+  };
+}
 function owGetLocalSyncWorldPos(rd){
   if(!rd) return null;
+  const hiInst = window.OWHouseInterior?.getInstance?.();
+  if(hiInst?.active && hiInst.human){
+    const portal = owGetHousePlotPortalPos(hiInst.plotId);
+    if(portal){
+      return { x: portal.x, z: portal.z, rotY: hiInst.humanRotY ?? hiInst.human.rotation.y };
+    }
+    return {
+      x: hiInst.human.position.x,
+      z: hiInst.human.position.z,
+      rotY: hiInst.humanRotY ?? hiInst.human.rotation.y,
+    };
+  }
   const tmp = new THREE.Vector3();
   const race = typeof _owGetExpandedState === 'function' ? _owGetExpandedState()?.race : null;
   if(race?.active && S.ow.inCar && rd.car){
@@ -29732,6 +30031,18 @@ function owGetLocalSyncWorldPos(rd){
     return { x: tmp.x, z: tmp.z, rotY: rd.humanRotY ?? rd.human.rotation.y };
   }
   return null;
+}
+function owBuildHouseVisitPayload(){
+  const hiInst = window.OWHouseInterior?.getInstance?.();
+  if(!hiInst?.active || !hiInst.human) return null;
+  return {
+    plotId: hiInst.plotId,
+    owner: hiInst.owner,
+    x: +hiInst.human.position.x.toFixed(2),
+    z: +hiInst.human.position.z.toFixed(2),
+    rotY: +(hiInst.humanRotY ?? hiInst.human.rotation.y).toFixed(2),
+    sitting: !!(hiInst._isSitting || OWHouseInterior.isSitting?.()),
+  };
 }
 function owMaybePushOWPositionOnMove(rd){
   if(S.screen !== 'openworld' || !S.myEntry?.nick || !rd) return;
@@ -29771,6 +30082,7 @@ function owBuildOWPositionPayload(){
     mountActive: S.ow.mmo?.ridingMount || 'foot',
     mountPassengerOf: S.ow.mmo?.mountPassengerOf || '',
     mountPassengers: (S.ow.mmo?.mountPassengers || []).slice(),
+    houseVisit: owBuildHouseVisitPayload(),
     ...mpExtra,
     x: world ? +world.x.toFixed(2) : (mpExtra.x ?? 0),
     z: world ? +world.z.toFixed(2) : (mpExtra.z ?? 0),
@@ -29807,12 +30119,14 @@ function subscribeOWPlayers(){
   __owUnsub = owCol.onSnapshot(snap=>{
     const now = Date.now();
     const seen = new Set();
+    const remoteRows = [];
     snap.forEach(doc=>{
       const d = doc.data();
       if(!d.nick || d.nick === myNick) return;
       // 30초 이상 비활성 → 제거
       if(d.ts && (now - d.ts > 30000)) return;
       seen.add(d.nick);
+      remoteRows.push(d);
       if(__owRenderer) __owRenderer.upsertOtherPet(d.nick, d);
     });
     if(__owRenderer){
@@ -29822,6 +30136,18 @@ function subscribeOWPlayers(){
         if(!seen.has(nick)) toRemove.push(nick);
       });
       toRemove.forEach(n=>__owRenderer.removeOtherPet(n));
+    }
+    if(window.OWHouseInterior && OWHouseInterior.isActive()){
+      OWHouseInterior.syncVisitors(remoteRows);
+      const vc = remoteRows.filter(d => {
+        const hv = d.houseVisit;
+        const hi = S.ow.houseInterior;
+        return hv && hi && hv.owner === hi.owner && hv.plotId === hi.plotId;
+      }).length;
+      if(S.ow.houseInterior.visitorCount !== vc){
+        S.ow.houseInterior.visitorCount = vc;
+        if(S.screen === 'openworld') renderOpenWorldUIPass();
+      }
     }
     // 상태 패널 갱신용
     S.ow.players = Array.from(seen);
@@ -29987,11 +30313,23 @@ function subscribeOWTrade(){
 }
 
 /* ─── 채팅 메시지 보내기 ─── */
+function owGetActiveOwHuman(){
+  const hiInst = window.OWHouseInterior?.getInstance?.();
+  if(hiInst?.active && hiInst.human) return hiInst.human;
+  return __owRenderer?.human || null;
+}
+function owIsInHouseInterior(){
+  return !!(window.OWHouseInterior && OWHouseInterior.isActive());
+}
 function owSendChat(text){
   if(!text || !text.trim()) return;
   S.ow.chatMsg = text.trim().slice(0, 60);
   S.ow.chatExpire = Date.now() + 3500;
   owQuestProgress('social', 1);
+  if(owIsInHouseInterior()){
+    owPushOWPositionNow();
+    renderOpenWorldUIPass();
+  }
 }
 
 function owResetCarCtrl(){
@@ -30659,19 +30997,45 @@ function owFmtStatBonusLine(b){
   if(b.eva) parts.push(`EVA+${Math.round(b.eva)}%`);
   return parts.join(' · ');
 }
+function getOwHouseDecorData(){
+  const myNick = S.myEntry?.nick;
+  if(!myNick) return { placements: [], owner: null };
+  const inst = window.OWHouseInterior?.getInstance?.();
+  if(inst?.active && inst.owner === myNick && inst.getDecor) return inst.getDecor();
+  const decor = S.owOwHouseDecor;
+  if(decor && (!decor.owner || decor.owner === myNick)) return decor;
+  return { placements: [], owner: myNick };
+}
+function getOwHouseDecorStats(){
+  const decor = getOwHouseDecorData();
+  const st = window.OWHouseInterior?.sumPlacementStats
+    ? OWHouseInterior.sumPlacementStats(decor)
+    : { hp:0, mp:0, atk:0, def:0, eva:0 };
+  const placements = decor?.placements || [];
+  return { ...st, count: placements.length };
+}
 function getHouseFurnitureScore(){
   const furn = S.myHouse?.furniture || [];
   const st = S.myPet ? getFurnitureStatsForPet(S.myPet) : { hp:0, mp:0, atk:0, def:0, eva:0 };
-  const count = furn.length;
+  const ow = getOwHouseDecorStats();
+  const count = furn.length + ow.count;
+  const atk = (st.atk || 0) + (ow.atk || 0);
+  const def = (st.def || 0) + (ow.def || 0);
+  const hp = (st.hp || 0) + (ow.hp || 0);
+  const mp = (st.mp || 0) + (ow.mp || 0);
+  const eva = Math.min(35, (st.eva || 0) + (ow.eva || 0));
   return {
-    atk: st.atk || 0, def: st.def || 0, hp: st.hp || 0, mp: st.mp || 0, eva: st.eva || 0,
+    atk, def, hp, mp, eva,
     count,
-    score: count * 12 + (st.atk||0) + (st.def||0) + Math.floor((st.hp||0) / 5) + Math.floor((st.mp||0) / 8),
+    owCount: ow.count,
+    houseCount: furn.length,
+    score: count * 12 + atk + def + Math.floor(hp / 5) + Math.floor(mp / 8),
   };
 }
 function owApplyOWStatBonuses(){
   const ex = owGetExploreStatBonus();
   const life = owGetLifeStatBonus();
+  const furn = getHouseFurnitureScore();
   const tier = typeof owMmoGetController === 'function' ? owMmoGetController().season.calcTier() : (OWMMODataStore.get().endgame?.seasonTier || 0);
   const mw = OWMMODataStore.get();
   if(mw.endgame) mw.endgame.seasonTier = tier;
@@ -30679,13 +31043,14 @@ function owApplyOWStatBonuses(){
   if(!c) return;
   const baseHp = 1000, baseMp = 1000, baseAtk = 100;
   const cookActive = c.cookBuffUntil && Date.now() < c.cookBuffUntil;
-  let maxHp = baseHp + ex.hp + life.hp + tier * 80;
+  let maxHp = baseHp + ex.hp + life.hp + tier * 80 + (furn.hp || 0);
   if(cookActive) maxHp = Math.floor(maxHp * 2);
   c.maxHp = maxHp;
-  c.maxMp = baseMp + ex.mp + life.mp + tier * 40;
-  c.defBonus = ex.def + life.def + tier * 5;
+  c.maxMp = baseMp + ex.mp + life.mp + tier * 40 + (furn.mp || 0);
+  c.defBonus = ex.def + life.def + tier * 5 + (furn.def || 0);
   c.atkBonus = (c.atkBonus||0);
-  c._owStatAtk = baseAtk + ex.atk + life.atk + tier * 15 + (cookActive ? (c.cookBuffAtk||0) : 0);
+  c._owStatAtk = baseAtk + ex.atk + life.atk + tier * 15 + (furn.atk || 0) + (cookActive ? (c.cookBuffAtk||0) : 0);
+  c._owFurnBonus = furn;
   c._owExploreBonus = ex;
   c._owLifeBonus = life;
   c._owSeasonTier = tier;
@@ -31463,8 +31828,9 @@ function rOpenWorldScreen(){
   const lifeCls = S.ow.mmo?.lifeGame ? ' ow-root-life-game' : '';
   const flyCls = S.ow.mmo?.mountState?.flying ? ' ow-root-mount-fly' : '';
   const combatCls = (S.ow.combat?.huntMode || S.ow.pvpDuel || S.ow.bossFight?.active) ? ' ow-root-combat' : '';
+  const simpleCls = (typeof owShouldSimpleHud === 'function' && owShouldSimpleHud()) ? ' ow-simple-hud' : '';
   return `
-    <div id="ow-root" class="${voidCls.trim()}${photoCls}${lifeCls}${flyCls}${combatCls}">
+    <div id="ow-root" class="${voidCls.trim()}${photoCls}${lifeCls}${flyCls}${combatCls}${simpleCls}">
       <canvas id="ow-canvas"></canvas>
       <div id="ow-overlays" style="position:absolute;inset:0;pointer-events:none;z-index:6"></div>
       <div id="ow-ui-root">
@@ -31473,6 +31839,69 @@ function rOpenWorldScreen(){
       <div class="ow-rotate-hint"><div class="ow-rotate-ico">📱</div><div>가로로 돌려서 플레이하세요</div></div>
     </div>
   `;
+}
+
+function rOWSimpleDock(){
+  if(!owShouldSimpleHud()) return '';
+  const menuOn = !!S.ow.hudMenuOpen;
+  const chatOn = !!S.ow.hudChatOpen;
+  const showHunt = !S.ow.inCar && !S.ow.fishingPhase && !S.ow.combat?.huntMode && !S.ow.pvpDuel
+    && !(typeof owAnyPanelOpen==='function' && owAnyPanelOpen()) && !S.ow.bossFight?.active;
+  const camZ = S.ow.camZoom != null ? S.ow.camZoom : 0.58;
+  let menuSheet = '';
+  if(menuOn){
+    const phase = S.ow.timeOfDay || 0;
+    const timeLabel = phase < 0.18 ? '🌅 새벽' : phase < 0.4 ? '☀️ 낮' : phase < 0.55 ? '🌇 황혼' : phase < 0.7 ? '🌆 저녁' : '🌙 한밤';
+    const questCount = (S.ow.featureState?.quests || []).length;
+    const questDone = (S.ow.featureState?.quests || []).filter(q => q.claimed).length;
+    const eventInfo = S.ow.featureState?.worldEvent;
+    const eventLabel = eventInfo ? (eventInfo.label || '랜덤 축제') : '대기중';
+    const nvHud = _owGetNovelState();
+    const gridBtns = !S.ow.inCar ? `
+      <button class="ow-action-btn primary" data-a="ow_openShop">🏪 상점</button>
+      <button class="ow-action-btn" data-a="ow_fish" ${S.ow.fishingPhase?'disabled':''}>🎣 낚시</button>
+      <button class="ow-action-btn" data-a="ow_openBackpack">🎒 가방</button>
+      <button class="ow-action-btn" data-a="ow_toggleMat">${S.ow.onMat?'🧺 정리':'🧺 돗자리'}</button>
+      <button class="ow-action-btn gold" data-a="ow_openFeatureHub">🌟 기능</button>
+      <button class="ow-action-btn" data-a="ow_openWorldHub">🌍 월드</button>
+      <button class="ow-action-btn ${S.ow.hasCar?'gold':''}" data-a="ow_toggleCar" ${!S.ow.hasCar?'disabled':''}>🚗 탑승</button>`
+      : `
+      <button class="ow-action-btn danger" data-a="ow_toggleCar">🚪 하차</button>
+      <button class="ow-action-btn" data-a="ow_toggleCamera">${S.ow.cameraMode==='first'?'🎥 3인칭':'🎥 1인칭'}</button>
+      <button class="ow-action-btn gold" data-a="ow_openFeatureHub">🌟 기능</button>
+      <button class="ow-action-btn" data-a="ow_openWorldHub">🌍 월드</button>`;
+    menuSheet = `<div class="ow-simple-sheet" data-a="ow_toggleHudMenu">
+      <div class="ow-simple-sheet-inner" onclick="event.stopPropagation()">
+        <div class="ow-simple-sheet-head"><span>☰ 메뉴</span><button type="button" data-a="ow_toggleHudMenu">✕</button></div>
+        <div class="ow-simple-info-row">
+          <span>${timeLabel}</span>
+          <span>👥 ${S.ow.players?.length||0}</span>
+          <span>🧭 ${questDone}/${questCount}</span>
+          <span>${owBaitWormIconHtml(12)} ${S.ow.bait||0}</span>
+          <span>✨ ${esc(eventLabel)}</span>
+          <span>🎖️ ${nvHud.hunterRank || owCalcHunterRank()}</span>
+        </div>
+        <div class="ow-simple-grid">${gridBtns}</div>
+        ${!S.ow.inCar ? `<div class="ow-simple-zoom"><label for="ow_cam_zoom">🔍 줌</label><input type="range" id="ow_cam_zoom" min="0" max="1.25" step="0.02" value="${Math.min(1.25, camZ)}"/></div>` : ''}
+      </div>
+    </div>`;
+  }
+  let chatBlock = '';
+  if(chatOn){
+    chatBlock = `${typeof rOWEmoteBar === 'function' ? rOWEmoteBar() : ''}
+    <div class="ow-chat-bar ow-simple-chat">
+      <label for="ow_chat_input" class="sr-only">오픈월드 채팅</label>
+      <input id="ow_chat_input" class="ow-chat-input" placeholder="채팅 메시지..." maxlength="60"/>
+      <button class="ow-chat-send" data-a="ow_sendChat">전송</button>
+    </div>`;
+  }
+  return `${menuSheet}${chatBlock}
+    <div class="ow-simple-dock">
+      <button type="button" class="ow-simple-dock-btn${menuOn?' on':''}" data-a="ow_toggleHudMenu" title="메뉴">☰</button>
+      <button type="button" class="ow-simple-dock-btn${chatOn?' on':''}" data-a="ow_toggleHudChat" title="채팅">💬</button>
+      <button type="button" class="ow-simple-dock-btn" data-a="ow_toggleStatPanel" title="스탯">📊</button>
+      ${showHunt ? `<button type="button" class="ow-simple-dock-btn hunt" data-a="ow_combatToggleHunt" title="사냥">⚔️</button>` : ''}
+    </div>`;
 }
 
 // rOpenWorldScreen 내부에 있던 UI 생성 로직을 분리한 함수
@@ -31597,6 +32026,29 @@ const driveUI = (S.ow.inCar && S.ow.isDriver) ? `
   const rankHud = `<div class="ow-info-pill"><span class="ip-icon">🎖️</span> ${nvHud.hunterRank || owCalcHunterRank()}</div>`;
   const voidStyle = S.ow._voidUi ? 'filter:contrast(1.1) saturate(0.7);' : '';
   const camZ = S.ow.camZoom != null ? S.ow.camZoom : 0.58;
+  const simpleHud = owShouldSimpleHud();
+  const topRight = simpleHud ? '' : `
+      <div class="ow-info-stack-r">
+        <div class="ow-time-badge">${timeLabel}</div>
+        <div class="ow-info-pill"><span class="ip-icon">👥</span> ${S.ow.players?.length||0}</div>
+        <div class="ow-info-pill"><span class="ip-icon">🧭</span> ${questDone}/${questCount}</div>
+        <div class="ow-info-pill">${owBaitWormIconHtml(14)} ${S.ow.bait||0} · 🎣${S.ow.hasRod?'✅':'❌'}</div>
+        <div class="ow-info-pill gold"><span class="ip-icon">✨</span> ${eventText}</div>
+        ${syncHud}${rankHud}
+      </div>`;
+  const classicChat = simpleHud ? '' : `
+    <div class="ow-chat-bar">
+      <label for="ow_chat_input" class="sr-only">오픈월드 채팅 메시지</label>
+      <input id="ow_chat_input" class="ow-chat-input" placeholder="채팅 메시지... (3초간 표시)" maxlength="60"/>
+      <button class="ow-chat-send" data-a="ow_sendChat">전송</button>
+    </div>`;
+  const classicEmote = simpleHud ? '' : (typeof rOWEmoteBar === 'function' ? rOWEmoteBar() : '');
+  const classicZoom = (!S.ow.inCar && !simpleHud) ? `<div class="ow-cam-zoom-panel" title="🔍 줌 · 화면 드래그=좌우·상하 시선">
+      <label for="ow_cam_zoom">🔍</label>
+      <input type="range" id="ow_cam_zoom" min="0" max="1.25" step="0.02" value="${Math.min(1.25, camZ)}"/>
+    </div>` : '';
+  const classicBottom = simpleHud ? '' : `<div class="ow-bottom-bar">${normalActions}</div>`;
+  const classicHunt = simpleHud ? '' : ((!S.ow.inCar && !S.ow.fishingPhase && !S.ow.combat?.huntMode && !S.ow.pvpDuel && !(typeof owAnyPanelOpen==='function'&&owAnyPanelOpen()) && !S.ow.bossFight?.active) ? `<button type="button" class="ow-hunt-toggle" data-a="ow_combatToggleHunt">⚔️<small>사냥</small></button>` : '');
 
   return `
     <div class="ow-top-bar" style="${voidStyle}">
@@ -31605,33 +32057,20 @@ const driveUI = (S.ow.inCar && S.ow.isDriver) ? `
         <div class="ow-info-pill"><span class="ip-icon">🧑</span> ${esc(shortNick(S.myEntry?.nick||''))}</div>
         <div class="ow-info-pill gold"><span class="ip-icon">💰</span> ${(S.myPet?.points||0).toLocaleString()}P</div>
       </div>
-      <div class="ow-info-stack-r">
-        <div class="ow-time-badge">${timeLabel}</div>
-        <div class="ow-info-pill"><span class="ip-icon">👥</span> ${S.ow.players?.length||0}</div>
-        <div class="ow-info-pill"><span class="ip-icon">🧭</span> ${questDone}/${questCount}</div>
-        <div class="ow-info-pill">${owBaitWormIconHtml(14)} ${S.ow.bait||0} · 🎣${S.ow.hasRod?'✅':'❌'}</div>
-        <div class="ow-info-pill gold"><span class="ip-icon">✨</span> ${eventText}</div>
-        ${syncHud}${rankHud}
-      </div>
+      ${topRight}
     </div>
     ${S.ow._voidUi ? '<div class="ow-glitch-banner" style="position:absolute;top:52px;left:50%;transform:translateX(-50%);z-index:12;pointer-events:none;max-width:90vw">🚪 보이드/붉은 게이트 — UI 붕괴 (3D 단서만)</div>' : ''}
     ${typeof owMmoHudExtras === 'function' ? owMmoHudExtras() : ''}
     ${typeof rOWLeftStats === 'function' ? rOWLeftStats() : ''}
-    ${typeof rOWEmoteBar === 'function' ? rOWEmoteBar() : ''}
+    ${classicEmote}
     ${typeof rOWRace3DHUD === 'function' ? rOWRace3DHUD() : ''}
     ${typeof rOWCookBuffBanner === 'function' ? rOWCookBuffBanner() : ''}
     ${typeof rOWFireworkBanner === 'function' ? rOWFireworkBanner() : ''}
     ${nearList}
-    ${!S.ow.inCar ? `<div class="ow-cam-zoom-panel" title="🔍 줌 · 화면 드래그=좌우·상하 시선">
-      <label for="ow_cam_zoom">🔍</label>
-      <input type="range" id="ow_cam_zoom" min="0" max="1.25" step="0.02" value="${Math.min(1.25, camZ)}"/>
-    </div>` : ''}
-    <div class="ow-chat-bar">
-      <label for="ow_chat_input" class="sr-only">오픈월드 채팅 메시지</label>
-      <input id="ow_chat_input" class="ow-chat-input" placeholder="채팅 메시지... (3초간 표시)" maxlength="60"/>
-      <button class="ow-chat-send" data-a="ow_sendChat">전송</button>
-    </div>
-    <div class="ow-bottom-bar">${normalActions}</div>
+    ${classicZoom}
+    ${classicChat}
+    ${classicBottom}
+    ${simpleHud ? rOWSimpleDock() : ''}
     ${driveUI}${fishOverlay}${tradeReqUI}${modalUI}${pvpReqUI}
     ${typeof rOwlLifeGameOverlay === 'function' ? rOwlLifeGameOverlay() : ''}
     ${typeof owMmoRenderWildCaptureOverlay === 'function' ? owMmoRenderWildCaptureOverlay() : ''}
@@ -31640,7 +32079,7 @@ const driveUI = (S.ow.inCar && S.ow.isDriver) ? `
     ${typeof rOWPvpCountdown === 'function' ? rOWPvpCountdown() : ''}
     ${typeof rOWPvpCombatHud === 'function' ? rOWPvpCombatHud() : ''}
     ${typeof rOWCombatHud === 'function' ? rOWCombatHud() : ''}
-    ${(!S.ow.inCar && !S.ow.fishingPhase && !S.ow.combat?.huntMode && !S.ow.pvpDuel && !(typeof owAnyPanelOpen==='function'&&owAnyPanelOpen()) && !S.ow.bossFight?.active) ? `<button type="button" class="ow-hunt-toggle" data-a="ow_combatToggleHunt">⚔️<small>사냥</small></button>` : ''}
+    ${classicHunt}
   `;
 }
 
@@ -38527,12 +38966,30 @@ class OWHouseHubBridge {
   getNearbyOpenHouses(){
     if(!__owRenderer?.human) return [];
     const me = __owRenderer.human.position;
+    const myNick = S.myEntry?.nick;
     const out = [];
+    const seen = new Set();
     __owRenderer.otherPetsByNick.forEach((p, nick)=>{
+      if(nick === myNick || seen.has(nick)) return;
       const h = (S.houseEntries||[]).find(x=>x.nick===nick);
       if(h && h.isOpen === false) return;
       const d = Math.hypot(p.position.x - me.x, p.position.z - me.z);
-      if(d < 28) out.push({ nick, emoji: p.userData?.emoji||'🏠', d });
+      if(d < 28){
+        seen.add(nick);
+        const plotEnt = Object.entries(S.owHousePlots || {}).find(([, pd]) => pd.owner === nick);
+        out.push({ nick, emoji: p.userData?.emoji||'🏠', d, plotId: plotEnt ? plotEnt[0] : null });
+      }
+    });
+    Object.entries(S.owHousePlots || {}).forEach(([plotId, pd]) => {
+      if(!pd.owner || pd.owner === myNick || seen.has(pd.owner)) return;
+      const plot = (OW_HOUSE_PLOT_PLACEMENTS || []).find(p => p.id === plotId);
+      if(!plot) return;
+      const d = Math.hypot(me.x - plot.x, me.z - plot.z);
+      if(d < 80){
+        seen.add(pd.owner);
+        const p = __owRenderer.otherPetsByNick.get(pd.owner);
+        out.push({ nick: pd.owner, emoji: p?.userData?.emoji || '🏠', d, plotId });
+      }
     });
     return out.sort((a,b)=>a.d-b.d).slice(0,5);
   }
@@ -38556,7 +39013,10 @@ class OWHouseHubBridge {
       const ent = Object.entries(S.owHousePlots || {}).find(([, d]) => d.owner === nick);
       plotId = ent ? ent[0] : null;
     }
-    if(!plotId) return;
+    if(!plotId){
+      owMmoToast('해당 유저의 오픈월드 집이 없어요');
+      return;
+    }
     const mw = OWMMODataStore.get();
     mw.houseLink.hubRep = (mw.houseLink.hubRep||0) + 2;
     OWMMODataStore.touch();
@@ -38762,7 +39222,7 @@ function owMmoRenderHouseHubPanel(mw, ctrl){
     <div class="ow-house-trade-row">
       <span>${n.emoji}</span>
       <span style="flex:1">${esc(shortNick(n.nick))} · ${Math.round(n.d)}m</span>
-      <button class="preview-btn-buy" style="padding:4px 8px;font-size:10px" data-a="ow_mmoHouseVisitOther" data-nick="${esc(n.nick)}">🌀 텔레포트</button>
+      <button class="preview-btn-buy" style="padding:4px 8px;font-size:10px" data-a="ow_mmoHouseVisitOther" data-nick="${esc(n.nick)}" data-plot="${esc(n.plotId||'')}">🏠 입장</button>
     </div>`).join('') : '<div style="font-size:11px;opacity:.5">근처 오픈월드 유저 없음</div>';
   return `
     <div class="ow-mmo-card">
@@ -38774,7 +39234,7 @@ function owMmoRenderHouseHubPanel(mw, ctrl){
     </div>
     <div class="ow-mmo-card">
       <div style="font-weight:800">🖼️ 전시관 · 점수 ${hl.exhibitionScore||ex.score||0}</div>
-      <div style="font-size:11px;opacity:.75">하우스 가구 ${ex.count}개 · ATK+${ex.atk} DEF+${ex.def} HP+${ex.hp} · PVP ATK+${Math.round((owGetHouseExhibitionBuffs().atk-1)*100)}%</div>
+      <div style="font-size:11px;opacity:.75">가구 ${ex.count}개 (오픈월드집 ${ex.owCount||0}) · ${esc(owFmtStatBonusLine(ex)||'스탯 없음')} · PVP ATK+${Math.round((owGetHouseExhibitionBuffs().atk-1)*100)}%</div>
     </div>
     <div class="ow-mmo-card">
       <div style="font-weight:800">🌱 농장 · 날씨/황혼 성장 보정</div>
@@ -40734,7 +41194,12 @@ async function owEnterOwHouseInterior(plotId, owner, canEdit){
       plotTint: plot?.tint || 0xffb3d9,
       decor,
     });
-    owMmoToast(canEdit ? '🏠 내 오픈월드 집 — 바닥 탭 이동 · 파란 문 나가기' : `🏠 ${shortNick(owner)}님의 집`);
+    if(canEdit && typeof owApplyOWStatBonuses === 'function') owApplyOWStatBonuses();
+    const placed = canEdit ? getOwHouseDecorStats() : null;
+    const placedLine = placed?.count && owFmtStatBonusLine(placed) ? ' · ' + owFmtStatBonusLine(placed) : '';
+    owMmoToast(canEdit
+      ? ('🏠 내 오픈월드 집 — 바닥 탭 이동 · 왼쪽 파란 문 나가기' + placedLine)
+      : `🏠 ${shortNick(owner)}님의 집 방문`);
   }catch(e){
     console.error('[OWHouseInterior]', e);
     alert('집 내부 로딩에 실패했어요.');
@@ -40791,28 +41256,44 @@ async function owBuyFurniture(itemId){
   }
 }
 
+function rOWHouseStatChips(st){
+  if(!st) return '';
+  const chips = [];
+  if(st.hp) chips.push(`<span class="ow-hi-stat-chip hp">HP+${st.hp}</span>`);
+  if(st.mp) chips.push(`<span class="ow-hi-stat-chip mp">MP+${st.mp}</span>`);
+  if(st.atk) chips.push(`<span class="ow-hi-stat-chip atk">ATK+${st.atk}</span>`);
+  if(st.def) chips.push(`<span class="ow-hi-stat-chip def">DEF+${st.def}</span>`);
+  if(st.eva) chips.push(`<span class="ow-hi-stat-chip eva">EVA+${st.eva}%</span>`);
+  return chips.length ? `<div class="ow-hi-stat-chips">${chips.join('')}</div>` : '';
+}
 function rOWFurnitureShopSection(){
   if(!window.OWHouseInterior?.CATALOG) return '';
   const plotId = owGetMyOwHousePlotId();
   const decor = S.owOwHouseDecor || {};
   const inv = decor.inventory || {};
   const pts = S.myPet?.points || 0;
+  const placedSt = getOwHouseDecorStats();
   const rows = OWHouseInterior.CATALOG.map((item) => {
     const owned = inv[item.id] || 0;
     const canBuy = !!plotId && pts >= item.cost;
+    const statLine = item.stats ? fmtFurnitureStats(item.stats) : '';
     return `<div class="ow-shop-item">
       <span class="e">${item.emoji}</span>
       <div style="flex:1;min-width:0">
         <div class="nm">${esc(item.name)}</div>
         <div class="ds">${item.cost.toLocaleString()}P · 보유 ${owned}개</div>
+        ${statLine ? `<div class="ow-shop-stat">배치 시 ${esc(statLine)}</div>` : ''}
       </div>
       <button data-a="ow_buyFurniture" data-id="${esc(item.id)}" ${canBuy?'':'disabled'}>${item.cost.toLocaleString()}P</button>
     </div>`;
   }).join('');
+  const placedBanner = placedSt.count
+    ? `<div class="ow-hi-stat-panel" style="margin:0 0 10px"><b>🏠 집 안 배치 보너스</b> · ${placedSt.count}개${rOWHouseStatChips(placedSt)}</div>`
+    : '';
   const hint = plotId
-    ? '<p style="font-size:11px;opacity:.7;margin:0 0 10px">구매한 가구는 내 집 → 꾸미기 모드에서 배치할 수 있어요.</p>'
+    ? '<p style="font-size:11px;opacity:.7;margin:0 0 10px">가구를 집에 배치하면 스탯이 올라가요. 꾸미기 모드에서 배치하세요.</p>'
     : '<p style="font-size:11.5px;color:#ef9a9a;margin:0 0 10px">⚠️ 집 분양 후 구매 가능 (오픈월드 분양 포털)</p>';
-  return hint + rows;
+  return placedBanner + hint + rows;
 }
 
 function rOWHouseInteriorUI(){
@@ -40823,17 +41304,40 @@ function rOWHouseInteriorUI(){
   const inst = window.OWHouseInterior?.getInstance?.();
   const decor = inst?.getDecor?.() || S.owOwHouseDecor || { inventory: {} };
   const inv = decor.inventory || {};
+  const placedSt = isMine
+    ? (window.OWHouseInterior?.sumPlacementStats ? OWHouseInterior.sumPlacementStats(decor) : getOwHouseDecorStats())
+    : (window.OWHouseInterior?.sumPlacementStats ? OWHouseInterior.sumPlacementStats(decor) : { hp:0, mp:0, atk:0, def:0, eva:0, count:0 });
+  const placedCnt = (decor.placements || []).length;
+  let selectedStatHtml = '';
+  if(isMine && hi.editMode && hi.selectedPlacement){
+    const sel = (decor.placements || []).find(p => p.id === hi.selectedPlacement);
+    const selItem = sel && window.OWHouseInterior?.getItem?.(sel.itemId);
+    if(selItem?.stats){
+      selectedStatHtml = `<div class="ow-hi-stat-panel" style="margin-bottom:6px">선택 가구 <b>${esc(selItem.emoji)} ${esc(selItem.name)}</b> · ${esc(fmtFurnitureStats(selItem.stats))}</div>`;
+    }
+  } else if(isMine && hi.editMode && hi.selectedItem){
+    const selItem = window.OWHouseInterior?.getItem?.(hi.selectedItem);
+    if(selItem?.stats){
+      selectedStatHtml = `<div class="ow-hi-stat-panel" style="margin-bottom:6px">배치 예정 <b>${esc(selItem.emoji)} ${esc(selItem.name)}</b> · ${esc(fmtFurnitureStats(selItem.stats))}</div>`;
+    }
+  }
+  const simpleHud = owShouldSimpleHud();
+  const statBanner = (simpleHud && !hi.editMode) ? '' : (placedCnt
+    ? `<div class="ow-hi-stat-panel" style="position:absolute;left:12px;right:12px;top:calc(96px + env(safe-area-inset-top));z-index:23;pointer-events:none"><b>📊 배치 스탯 합계</b> · ${placedCnt}개${rOWHouseStatChips(placedSt)}</div>`
+    : (isMine ? `<div class="ow-hi-stat-panel" style="position:absolute;left:12px;right:12px;top:calc(96px + env(safe-area-inset-top));z-index:23;pointer-events:none">가구를 배치하면 <b>HP/MP/ATK/DEF/EVA</b> 스탯이 올라가요</div>` : ''));
   let panel = '';
   if(isMine && hi.editMode){
     const items = (window.OWHouseInterior?.CATALOG || []).filter(c => (inv[c.id] || 0) > 0);
     const invHtml = items.length
       ? items.map(c => {
           const on = hi.selectedItem === c.id ? ' on' : '';
-          return `<button type="button" class="ow-hi-inv-btn${on}" data-a="ow_hiSelectItem" data-id="${esc(c.id)}">${c.emoji}<span class="cnt">×${inv[c.id]}</span></button>`;
+          const statBadge = c.stats ? `<span class="ow-hi-stat-badge">${esc(fmtFurnitureStats(c.stats))}</span>` : '';
+          return `<button type="button" class="ow-hi-inv-btn${on}" data-a="ow_hiSelectItem" data-id="${esc(c.id)}">${c.emoji}<span class="cnt">×${inv[c.id]}</span>${statBadge}</button>`;
         }).join('')
       : '<span style="font-size:12px;opacity:.75">보유 가구 없음 — 🏪 상점에서 구매</span>';
     panel = `<div class="ow-hi-panel">
-      <div style="font-size:12px;opacity:.85;margin-bottom:6px">👆 바닥 탭 = 배치 · 가구 탭 = 선택</div>
+      ${selectedStatHtml}
+      <div style="font-size:12px;opacity:.85;margin-bottom:6px">👆 가구 선택 후 끌어서 배치/이동 · 탭 한 번 = 바로 배치 · 왼쪽 파란 문 = 나가기</div>
       <div class="ow-hi-inv">${invHtml}</div>
       <div class="ow-hi-tools">
         <button type="button" data-a="ow_hiRotate" data-deg="-45">↺ 45°</button>
@@ -40848,11 +41352,51 @@ function rOWHouseInteriorUI(){
       <button type="button" data-a="ow_openShop" data-tab="furniture">🏪 가구 구매</button>
     </div></div>`;
   }
-  return `<div class="ow-hi-top">
-    <button class="ow-back-btn" data-a="ow_hiExit">← 나가기</button>
+  const visitorCnt = hi.visitorCount || 0;
+  const visitorLine = visitorCnt > 0
+    ? `<div class="ow-hi-visitors">👥 함께 있는 방문자 ${visitorCnt}명</div>`
+    : '';
+  const sitting = !!hi.sitting;
+  const simpleHud = owShouldSimpleHud();
+  const hiChatOpen = !simpleHud || !!S.ow.hudChatOpen;
+  const socialBottom = panel ? 'calc(118px + env(safe-area-inset-bottom))' : 'calc(14px + env(safe-area-inset-bottom))';
+  const camBottom = panel ? (simpleHud ? 'calc(72px + env(safe-area-inset-bottom))' : 'calc(210px + env(safe-area-inset-bottom))') : (simpleHud ? 'calc(64px + env(safe-area-inset-bottom))' : 'calc(108px + env(safe-area-inset-bottom))');
+  const socialCls = hiChatOpen ? (simpleHud ? ' ow-hi-social-open' : '') : '';
+  const socialPanel = hiChatOpen ? `<div class="ow-hi-social${socialCls}" style="bottom:${socialBottom}">
+    <div class="ow-emote-bar">
+      <button type="button" data-a="ow_doEmote" data-kind="wave">👋</button>
+      <button type="button" data-a="ow_doEmote" data-kind="heart">💖</button>
+      <button type="button" data-a="ow_doEmote" data-kind="shine">✨</button>
+      <button type="button" data-a="ow_doEmote" data-kind="party">🎉</button>
+      <button type="button" data-a="ow_doEmote" data-kind="dance">💃</button>
+      <button type="button" data-a="ow_hiToggleSit">${sitting ? '🧍 일어나기' : '🪑 앉기'}</button>
+    </div>
+    <div class="ow-chat-bar">
+      <label for="ow_chat_input" class="sr-only">집 안 채팅</label>
+      <input id="ow_chat_input" class="ow-chat-input" placeholder="채팅 메시지... (3초간 표시)" maxlength="60"/>
+      <button class="ow-chat-send" data-a="ow_sendChat">전송</button>
+    </div>
+  </div>` : '';
+  const hiChatFab = simpleHud ? `<button type="button" class="ow-hi-chat-fab${S.ow.hudChatOpen?' on':''}" data-a="ow_toggleHudChat" title="채팅">💬</button>` : '';
+  const camPanel = `<div class="ow-hi-cam" style="bottom:${camBottom}">
+    ${visitorLine}
+    <div class="ow-hi-cam-row">
+      <button type="button" data-a="ow_hiCamLeft" title="좌회전">↺</button>
+      <button type="button" data-a="ow_hiZoomIn" title="줌인">＋</button>
+      <button type="button" data-a="ow_hiZoomOut" title="줌아웃">－</button>
+      <button type="button" data-a="ow_hiCamRight" title="우회전">↻</button>
+    </div>
+  </div>`;
+  const statPill = isMine && placedCnt && owFmtStatBonusLine(placedSt)
+    ? `<div class="ow-info-pill" title="오픈월드 집 가구 배치 보너스"><span class="ip-icon">📊</span> ${esc(owFmtStatBonusLine(placedSt))}</div>`
+    : '';
+  return `${statBanner}<div class="ow-hi-top">
+    <button class="ow-back-btn" data-a="ow_hiExit">←</button>
     <div class="ow-info-pill"><span class="ip-icon">🏠</span> ${esc(ownerLabel)}</div>
+    ${statPill}
     <div class="ow-info-pill gold"><span class="ip-icon">💰</span> ${(S.myPet?.points||0).toLocaleString()}P</div>
-  </div>${panel}`;
+    ${hiChatFab}
+  </div>${camPanel}${socialPanel}${panel}`;
 }
 
 async function owBuyHousePlot(plotId){
