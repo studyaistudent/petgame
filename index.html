@@ -24975,8 +24975,9 @@ _buildHuman(avatar, heightCm, gender){
 
   _buildCherryTrees(){
     // 벚꽃 나무 (회색 줄기 + 분홍 잎 구체 클러스터)
+    const low = typeof owIsLowPerfDevice === 'function' && owIsLowPerfDevice();
     const positions = [];
-    for(let i=0;i<60;i++){
+    for(let i=0;i<(low ? 34 : 52);i++){
       const a = Math.random() * Math.PI * 2;
       const d = 14 + Math.random() * (OW_MAP_HALF - 16);
       const x = Math.cos(a) * d, z = Math.sin(a) * d;
@@ -24996,19 +24997,20 @@ _buildHuman(avatar, heightCm, gender){
         new THREE.MeshLambertMaterial({ color: 0x6F4E37 })
       );
       trunk.position.y = 1.2;
-      trunk.castShadow = true;
+      trunk.castShadow = !low;
       tree.add(trunk);
       // 잎 클러스터 (분홍 구체 여러 개)
       const leafMat = new THREE.MeshLambertMaterial({ color: 0xFFB6E1 });
       const cluster = new THREE.Group();
-      for(let j=0;j<5;j++){
-        const leaf = new THREE.Mesh(new THREE.SphereGeometry(1.1 + Math.random()*0.3, 8, 8), leafMat);
+      const leafN = low ? 4 : 5;
+      for(let j=0;j<leafN;j++){
+        const leaf = new THREE.Mesh(new THREE.SphereGeometry(1.1 + Math.random()*0.3, low ? 6 : 8, low ? 6 : 8), leafMat);
         leaf.position.set(
           (Math.random()-0.5)*1.2,
           2.6 + Math.random()*0.6,
           (Math.random()-0.5)*1.2
         );
-        leaf.castShadow = true;
+        leaf.castShadow = false;
         cluster.add(leaf);
       }
       tree.add(cluster);
@@ -25519,8 +25521,11 @@ _buildPet(emoji, color, equipment){
     this.petals = null;
     this._flowerPetals = [];
     this._flowerPetalHalf = OW_MAP_HALF;
-    if(window.LMOwGlb && typeof LMOwGlb.spawnFlowerPetals === 'function'){
-      LMOwGlb.spawnFlowerPetals(this.scene, 58, { half: OW_MAP_HALF }).then((field) => {
+    this._flowerPetalSnow = null;
+    const low = typeof owIsLowPerfDevice === 'function' && owIsLowPerfDevice();
+    const glbCount = low ? 0 : 20;
+    if(glbCount > 0 && window.LMOwGlb && typeof LMOwGlb.spawnFlowerPetals === 'function'){
+      LMOwGlb.spawnFlowerPetals(this.scene, glbCount, { half: OW_MAP_HALF }).then((field) => {
         this._flowerPetalRoot = field.root;
         this._flowerPetals = field.petals;
         this._flowerPetalHalf = field.half;
@@ -25530,8 +25535,29 @@ _buildPet(emoji, color, equipment){
     }
   }
 
+  _applyFlowerPetalSnowMode(isSnow){
+    if(!this._flowerPetals || !this._flowerPetals.length) return;
+    const snowCol = new THREE.Color(0xffffff);
+    this._flowerPetals.forEach((wrap) => {
+      const model = wrap.children[0];
+      if(!model) return;
+      model.traverse((o) => {
+        if(!o.isMesh) return;
+        const mats = Array.isArray(o.material) ? o.material : [o.material];
+        mats.forEach((m) => {
+          if(!m || !m.color) return;
+          if(!m.userData._owOrigColor && m.color) m.userData._owOrigColor = m.color.clone();
+          if(isSnow && m.userData._owOrigColor) m.color.copy(m.userData._owOrigColor).lerp(snowCol, 0.82);
+          else if(m.userData._owOrigColor) m.color.copy(m.userData._owOrigColor);
+        });
+      });
+    });
+    this._flowerPetalSnow = isSnow;
+  }
+
   _buildPetalPointsFallback(){
-    const N = 250;
+    const low = typeof owIsLowPerfDevice === 'function' && owIsLowPerfDevice();
+    const N = low ? 110 : 180;
     const geo = new THREE.BufferGeometry();
     const positions = new Float32Array(N * 3);
     const speeds = new Float32Array(N);
@@ -27871,6 +27897,9 @@ if(S.ow.isDriver && this.companion){
     const petalWeather = S.ow.weather === 'petal' || S.ow.weather === 'sunny' || S.ow.weather === 'snow';
     if(this._flowerPetals && this._flowerPetals.length && petalWeather){
       const isSnow = S.ow.weather === 'snow';
+      if(this._flowerPetalSnow !== isSnow && typeof this._applyFlowerPetalSnowMode === 'function'){
+        this._applyFlowerPetalSnowMode(isSnow);
+      }
       const half = this._flowerPetalHalf || OW_MAP_HALF;
       this._flowerPetals.forEach((wrap, i) => {
         const fall = isSnow ? wrap.userData.speed * 0.35 : wrap.userData.speed;
@@ -27880,24 +27909,6 @@ if(S.ow.isDriver && this.companion){
         wrap.position.z += Math.cos(t * 0.38 + wrap.userData.phase) * sway * 0.7;
         wrap.rotation.y += 0.012;
         wrap.rotation.z = Math.sin(t * 0.8 + i * 0.2) * 0.25;
-        if(wrap.children[0]){
-          wrap.children[0].traverse((o) => {
-            if(!o.isMesh) return;
-            const mats = Array.isArray(o.material) ? o.material : [o.material];
-            mats.forEach((m) => {
-              if(!m || !m.color) return;
-              if(!m.userData._owSnowBase && m.userData._owOrigColor){
-                m.userData._owSnowBase = m.userData._owOrigColor.clone();
-              }
-              if(isSnow){
-                if(!m.userData._owSnowBase && m.color) m.userData._owSnowBase = m.color.clone();
-                if(m.userData._owSnowBase) m.color.copy(m.userData._owSnowBase).lerp(new THREE.Color(0xffffff), 0.82);
-              } else if(m.userData._owSnowBase){
-                m.color.copy(m.userData._owSnowBase);
-              }
-            });
-          });
-        }
         if(wrap.position.y < 0.15){
           wrap.position.y = 26 + Math.random() * 5;
           wrap.position.x = (Math.random() - 0.5) * half * 2;
@@ -28252,130 +28263,171 @@ function owFishingBadgeText(phase){
 function owIsFishingBadgePhase(phase){
   return !!(phase && phase !== 'caught' && phase !== 'miss');
 }
-function owAddFishingBadge(root, project, pos, bodyH, phase){
-  if(!owIsFishingBadgePhase(phase)) return;
-  const v = pos.clone();
-  v.y += bodyH * 1.28;
-  const sp = project(v);
-  if(sp.z >= 1) return;
-  const el = document.createElement('div');
-  el.className = 'ow-fishing-badge';
-  el.textContent = owFishingBadgeText(phase);
+const __owOverlayPool = new Map();
+const __owProjVec = new THREE.Vector3();
+
+function owIsLowPerfDevice(){
+  if(window.__owForceLowPerf) return true;
+  if(window.__owForceHighPerf) return false;
+  const touch = ('ontouchstart' in window) || (navigator.maxTouchPoints || 0) > 0;
+  const cores = navigator.hardwareConcurrency || 4;
+  const mem = navigator.deviceMemory || 4;
+  return touch || cores <= 4 || mem <= 4;
+}
+
+function owTargetPixelRatio(){
+  const dpr = window.devicePixelRatio || 1;
+  return Math.min(dpr, owIsLowPerfDevice() ? 1 : 1.75);
+}
+
+function owApplyRendererPerf(rd){
+  if(!rd || !rd.renderer) return;
+  const low = owIsLowPerfDevice();
+  const dpr = owTargetPixelRatio();
+  rd.renderer.setPixelRatio(dpr);
+  const sz = _owGetCanvasSize(rd.canvas);
+  rd.renderer.setSize(sz.w, sz.h, false);
+  if(low){
+    rd.renderer.shadowMap.enabled = false;
+    if(rd.sun) rd.sun.castShadow = false;
+  } else if(rd.sun && rd.sun.shadow){
+    rd.sun.shadow.mapSize.set(768, 768);
+    rd.renderer.shadowMap.size = 768;
+  }
+}
+
+function __owOverlayTake(key, className){
+  let el = __owOverlayPool.get(key);
+  if(!el){
+    el = document.createElement('div');
+    el.className = className;
+    __owOverlayPool.set(key, el);
+  }
+  if(el.className !== className) el.className = className;
+  el.style.display = '';
+  el.dataset.owKey = key;
+  return el;
+}
+
+function __owOverlayHideUnused(root){
+  __owOverlayPool.forEach((el, key) => {
+    if(!el.isConnected || el.parentNode !== root){
+      el.style.display = 'none';
+      return;
+    }
+    if(el.dataset.owActive !== '1'){
+      el.style.display = 'none';
+    }
+    el.dataset.owActive = '0';
+  });
+}
+
+function __owOverlayPlace(el, sp, root, text){
+  if(text != null) el.textContent = text;
+  el.dataset.owActive = '1';
+  if(el.parentNode !== root) root.appendChild(el);
   el.style.left = sp.x + 'px';
   el.style.top = sp.y + 'px';
-  root.appendChild(el);
+}
+
+function owAddFishingBadge(root, project, pos, bodyH, phase, key){
+  if(!owIsFishingBadgePhase(phase)) return;
+  __owProjVec.copy(pos);
+  __owProjVec.y += bodyH * 1.28;
+  const sp = project(__owProjVec);
+  if(sp.z >= 1) return;
+  const el = __owOverlayTake(key || ('fish:' + phase), 'ow-fishing-badge');
+  __owOverlayPlace(el, sp, root, owFishingBadgeText(phase));
 }
 function updateOWOverlays(rd){
   const root = document.getElementById('ow-overlays');
   if(!root) return;
   const W = rd.canvas.clientWidth, H = rd.canvas.clientHeight;
-  // 기존 div들 제거
-  while(root.firstChild) root.removeChild(root.firstChild);
 
   const project = (vec)=>{
-    const v = vec.clone();
-    v.project(rd.camera);
-    return { x: (v.x + 1) * 0.5 * W, y: (-v.y + 1) * 0.5 * H, z: v.z };
+    __owProjVec.copy(vec);
+    __owProjVec.project(rd.camera);
+    return { x: (__owProjVec.x + 1) * 0.5 * W, y: (-__owProjVec.y + 1) * 0.5 * H, z: __owProjVec.z };
   };
 
   // ★ 내 아바타 닉네임 (1인칭 카메라 모드일 땐 표시 안 함)
   const myNick = S.myEntry?.nick;
   if(myNick && !(S.ow.inCar && S.ow.cameraMode === 'first')){
     const bodyH = rd.human.userData.lmBodyHeight || 2.52;
-    const v = rd.human.position.clone(); v.y += bodyH * 1.04 + 0.08;
-    const sp = project(v);
+    __owProjVec.copy(rd.human.position);
+    __owProjVec.y += bodyH * 1.04 + 0.08;
+    const sp = project(__owProjVec);
     if(sp.z < 1){
-      const nm = document.createElement('div');
-      nm.className = 'ow-nameplate';
-      nm.textContent = (S.myPet?.petEmoji || '🐾') + ' ' + shortNick(myNick);
-      nm.style.left = sp.x+'px';
-      nm.style.top = sp.y+'px';
-      root.appendChild(nm);
-      owAddFishingBadge(root, project, rd.human.position, bodyH, S.ow.fishingPhase);
+      const nm = __owOverlayTake('me:name', 'ow-nameplate');
+      __owOverlayPlace(nm, sp, root, (S.myPet?.petEmoji || '🐾') + ' ' + shortNick(myNick));
+      owAddFishingBadge(root, project, rd.human.position, bodyH, S.ow.fishingPhase, 'me:fish');
     }
   }
 
   // 내 이모트 플로트
   if(S.ow.emoteKind && Date.now() < (S.ow.emoteUntil || 0)){
     const bodyH = rd.human.userData.lmBodyHeight || 2.52;
-    const v = rd.human.position.clone(); v.y += bodyH * 1.35;
-    const sp = project(v);
+    __owProjVec.copy(rd.human.position);
+    __owProjVec.y += bodyH * 1.35;
+    const sp = project(__owProjVec);
     if(sp.z < 1){
-      const ef = document.createElement('div');
-      ef.className = 'ow-mmo-emote-float';
-      ef.textContent = owEmoteDef(S.ow.emoteKind).emoji;
-      ef.style.left = sp.x + 'px';
-      ef.style.top = sp.y + 'px';
-      root.appendChild(ef);
+      const ef = __owOverlayTake('me:emote', 'ow-mmo-emote-float');
+      __owOverlayPlace(ef, sp, root, owEmoteDef(S.ow.emoteKind).emoji);
     }
   }
   // 내 펫 말풍선
   if(S.ow.chatMsg && Date.now() < S.ow.chatExpire){
-    const v = rd.pet.position.clone(); v.y += 2.4;
-    const p = project(v);
+    __owProjVec.copy(rd.pet.position);
+    __owProjVec.y += 2.4;
+    const p = project(__owProjVec);
     if(p.z < 1){
-      const b = document.createElement('div');
-      b.className = 'ow-bubble';
-      b.textContent = S.ow.chatMsg;
-      b.style.left = p.x+'px';
-      b.style.top = p.y+'px';
-      root.appendChild(b);
+      const b = __owOverlayTake('me:chat', 'ow-bubble');
+      __owOverlayPlace(b, p, root, S.ow.chatMsg);
     }
   }
   // 다른 유저들
   rd.otherPetsByNick.forEach((p, nick)=>{
     const bodyH = p.userData.lmBodyHeight || 2.52;
-    const v = p.position.clone(); v.y += bodyH * 1.04 + 0.08;
-    const sp = project(v);
+    __owProjVec.copy(p.position);
+    __owProjVec.y += bodyH * 1.04 + 0.08;
+    const sp = project(__owProjVec);
     if(sp.z < 1){
-      const nm = document.createElement('div');
-      nm.className = 'ow-nameplate';
-      nm.textContent = (p.userData.emoji || '🐾') + ' ' + shortNick(nick);
-      nm.style.left = sp.x+'px';
-      nm.style.top = sp.y+'px';
-      root.appendChild(nm);
+      const nm = __owOverlayTake('u:' + nick + ':name', 'ow-nameplate');
+      __owOverlayPlace(nm, sp, root, (p.userData.emoji || '🐾') + ' ' + shortNick(nick));
       const fishPhase = p.userData.fishingDetail || (p.userData.state === 'fishing' ? 'waiting' : '');
-      owAddFishingBadge(root, project, p.position, bodyH, fishPhase);
+      owAddFishingBadge(root, project, p.position, bodyH, fishPhase, 'u:' + nick + ':fish');
     }
     const comp = p.userData.companion;
     const petNm = p.userData.petName || '';
     if(comp && petNm){
-      const pv = comp.position.clone(); pv.y += 2.05;
-      const psp = project(pv);
+      __owProjVec.copy(comp.position);
+      __owProjVec.y += 2.05;
+      const psp = project(__owProjVec);
       if(psp.z < 1){
-        const pm = document.createElement('div');
-        pm.className = 'ow-nameplate ow-pet-nameplate';
-        pm.textContent = shortNick(nick) + '의 펫 ' + petNm;
-        pm.style.left = psp.x + 'px';
-        pm.style.top = psp.y + 'px';
-        root.appendChild(pm);
+        const pm = __owOverlayTake('u:' + nick + ':pet', 'ow-nameplate ow-pet-nameplate');
+        __owOverlayPlace(pm, psp, root, shortNick(nick) + '의 펫 ' + petNm);
       }
     }
     if(p.userData.emoteFloat && Date.now() < (p.userData.emoteFloat.until || 0)){
-      const v3 = p.position.clone(); v3.y += bodyH * 1.35;
-      const sp3 = project(v3);
+      __owProjVec.copy(p.position);
+      __owProjVec.y += bodyH * 1.35;
+      const sp3 = project(__owProjVec);
       if(sp3.z < 1){
-        const ef = document.createElement('div');
-        ef.className = 'ow-mmo-emote-float';
-        ef.textContent = p.userData.emoteFloat.emoji;
-        ef.style.left = sp3.x + 'px';
-        ef.style.top = sp3.y + 'px';
-        root.appendChild(ef);
+        const ef = __owOverlayTake('u:' + nick + ':emote', 'ow-mmo-emote-float');
+        __owOverlayPlace(ef, sp3, root, p.userData.emoteFloat.emoji);
       }
     }
     if(p.userData.chatMsg && Date.now() < (p.userData.chatExpire || 0)){
-      const v2 = p.position.clone(); v2.y += bodyH * 0.92;
-      const sp2 = project(v2);
+      __owProjVec.copy(p.position);
+      __owProjVec.y += bodyH * 0.92;
+      const sp2 = project(__owProjVec);
       if(sp2.z < 1){
-        const b = document.createElement('div');
-        b.className = 'ow-bubble';
-        b.textContent = p.userData.chatMsg;
-        b.style.left = sp2.x+'px';
-        b.style.top = sp2.y+'px';
-        root.appendChild(b);
+        const b = __owOverlayTake('u:' + nick + ':chat', 'ow-bubble');
+        __owOverlayPlace(b, sp2, root, p.userData.chatMsg);
       }
     }
   });
+  __owOverlayHideUnused(root);
 }
 
 /* ─── 오픈월드 진입/종료 ─── */
@@ -28620,11 +28672,13 @@ function initOpenWorld3D(){
   const { w, h } = _owGetCanvasSize(canvas);
   canvas.style.width = '100vw';
   canvas.style.height = '100dvh';
-  canvas.width = Math.floor(w * Math.min(window.devicePixelRatio || 1, 2));
-  canvas.height = Math.floor(h * Math.min(window.devicePixelRatio || 1, 2));
+  const dpr = typeof owTargetPixelRatio === 'function' ? owTargetPixelRatio() : Math.min(window.devicePixelRatio || 1, 2);
+  canvas.width = Math.floor(w * dpr);
+  canvas.height = Math.floor(h * dpr);
 
   __owRenderer = new OpenWorldRenderer(canvas);
   window.__owRenderer = __owRenderer;
+  if(typeof owApplyRendererPerf === 'function') owApplyRendererPerf(__owRenderer);
   owInitFeatureLayer(__owRenderer);
   owInitNovelLayer(__owRenderer);
   subscribeOWGhostRaid();
