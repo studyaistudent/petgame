@@ -4197,7 +4197,7 @@ body.ow-mode{ overscroll-behavior:none; overflow:hidden; }
 <script src="lm-ow-mp-sync.js?v=6"></script>
 <script src="lm-ow-pvp.js?v=5"></script>
 <script src="vendor/supabase.js?v=1"></script>
-<script src="supabase-firestore-shim.js?v=11"></script>
+<script src="supabase-firestore-shim.js?v=12"></script>
 <script>
 (function bootCheck(){
   const msgs=[];
@@ -40323,6 +40323,7 @@ async function owBuyHousePlot(plotId){
     const msg = e && e.message ? e.message : '';
     if(msg === 'already_owned') alert('다른 유저가 먼저 구매했어요!');
     else if(msg === 'no_points') alert('포인트가 부족해요.');
+    else if(msg && String(msg).indexOf('PGRST205') >= 0) alert('집 소유 DB 테이블이 없어요.\nSupabase SQL Editor에서 supabase_lm_ow_house_plots.sql 을 실행해 주세요.');
     else alert('구매에 실패했어요. 다시 시도해 주세요.');
   }
 }

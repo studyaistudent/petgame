@@ -154,6 +154,7 @@
     'lm_ow_territories',
     'lm_ow_world_boss',
     'lm_ow_house_trade',
+    'lm_ow_house_plots',
   ]);
 
   /** Firestore timestamp = 활동 시각(updated_at) */
@@ -168,6 +169,7 @@
     lm_ow_territories: 'updated_at',
     lm_ow_world_boss: 'updated_at',
     lm_ow_house_trade: 'updated_at',
+    lm_ow_house_plots: 'purchased_at',
     lm_ow_world_events: 'started_at',
     lm_game: 'updated_at',
   };
@@ -508,6 +510,23 @@
     return __sbRestClient;
   }
 
+  const __tableMissingWarned = new Set();
+
+  function isTableMissingError(e) {
+    const code = e && (e.code || e.details);
+    const msg = String((e && e.message) || e || '');
+    return code === 'PGRST205' || msg.indexOf('Could not find the table') >= 0;
+  }
+
+  function warnTableMissing(table) {
+    if (__tableMissingWarned.has(table)) return;
+    __tableMissingWarned.add(table);
+    const hint = table === 'lm_ow_house_plots'
+      ? ' — Supabase SQL Editor에서 supabase_lm_ow_house_plots.sql 실행'
+      : '';
+    console.warn('[supabase]', table, '테이블 없음' + hint);
+  }
+
   /** 테이블당 Realtime 채널 1개 — WebSocket 실패 시 REST 폴링 폴백 */
   const __rtChannels = new Map();
   const __rtWarnedTables = new Set();
@@ -765,6 +784,11 @@
           failDelay = 0;
           cb(new QuerySnapshot(this._db, this._table, rows));
         } catch (e) {
+          if (isTableMissingError(e)) {
+            warnTableMissing(table);
+            cb(new QuerySnapshot(this._db, this._table, []));
+            return;
+          }
           if (errCb) errCb(e);
           if (failDelay === 0) console.error('[supabase]', table, e);
           failDelay = Math.min(12000, Math.max(800, (failDelay || 400) * 2));
@@ -916,6 +940,11 @@
           cb(await this.get());
           failDelay = 0;
         } catch (e) {
+          if (isTableMissingError(e)) {
+            warnTableMissing(this._table);
+            cb(new DocumentSnapshot(this._table, this.id, null));
+            return;
+          }
           if (errCb) errCb(e);
           failDelay = Math.min(12000, Math.max(800, (failDelay || 400) * 2));
         } finally {
@@ -1077,5 +1106,5 @@
     return ref.update(patch);
   };
 
-  global.__lmShimVersion = '11';
+  global.__lmShimVersion = '12';
 })(typeof window !== 'undefined' ? window : globalThis);
