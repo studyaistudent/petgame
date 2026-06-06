@@ -9,10 +9,14 @@
 <meta property="og:description" content="러브몬 육성 · 퀴즈 · 캐치마인드 · 마피아 오픈월드 등">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
-<link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&family=Playfair+Display:ital,wght@0,700;1,400&display=swap" rel="stylesheet">
 <style>
+@font-face{font-family:'Noto Sans KR';font-style:normal;font-weight:300;font-display:swap;src:url(https://fonts.gstatic.com/s/notosanskr/v39/PbyxFmXiEBPT4ITbgNA5Cgms3VYcOA-vvnIzzrQyeLQ.ttf) format('truetype');}
+@font-face{font-family:'Noto Sans KR';font-style:normal;font-weight:400;font-display:swap;src:url(https://fonts.gstatic.com/s/notosanskr/v39/PbyxFmXiEBPT4ITbgNA5Cgms3VYcOA-vvnIzzuoyeLQ.ttf) format('truetype');}
+@font-face{font-family:'Noto Sans KR';font-style:normal;font-weight:500;font-display:swap;src:url(https://fonts.gstatic.com/s/notosanskr/v39/PbyxFmXiEBPT4ITbgNA5Cgms3VYcOA-vvnIzztgyeLQ.ttf) format('truetype');}
+@font-face{font-family:'Noto Sans KR';font-style:normal;font-weight:700;font-display:swap;src:url(https://fonts.gstatic.com/s/notosanskr/v39/PbyxFmXiEBPT4ITbgNA5Cgms3VYcOA-vvnIzzg01eLQ.ttf) format('truetype');}
+@font-face{font-family:'Playfair Display';font-style:italic;font-weight:400;font-display:swap;src:url(https://fonts.gstatic.com/s/playfairdisplay/v40/nuFRD-vYSZviVYUb_rj3ij__anPXDTnCjmHKM4nYO7KN_qiTbtY.ttf) format('truetype');}
+@font-face{font-family:'Playfair Display';font-style:normal;font-weight:700;font-display:swap;src:url(https://fonts.gstatic.com/s/playfairdisplay/v40/nuFvD-vYSZviVYUb_rj3ij__anPXJzDwcbmjWBN2PKeiukDQ.ttf) format('truetype');}
 .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0;}
 :root {
   --rose:       #E8537A;
@@ -21706,6 +21710,12 @@ function attachEvents(){
       else if(a==="ow_mapFarmAct"){ owMapFarmInteract(parseInt(el.dataset.slot,10)); render(); }
       else if(a==="ow_mapHouseTp"){ owMapHouseTeleport(el.dataset.nick); render(); }
       else if(a==="ow_buyHousePlot"){ owBuyHousePlot(el.dataset.plot); }
+      else if(a==="ow_confirmHousePlotBuy"){ owBuyHousePlot(el.dataset.plot); }
+      else if(a==="ow_closeHousePlotBuy"){
+        S.ow.housePlotBuyDismissed = el.dataset.plot || S.ow.housePlotBuyModal;
+        S.ow.housePlotBuyModal = null;
+        render();
+      }
       else if(a==="ow_enterHousePortal"){ owEnterHousePortal(el.dataset.plot); }
       else if(a==="ow_mmoNpcShop"){ owMmoGetController().npc.buyFromShop(el.dataset.id, el.dataset.item); render(); }
       else if(a==="ow_mmoNpcGift"){ owMmoGetController().npc.giftItem(el.dataset.id, el.dataset.item); render(); }
@@ -24108,20 +24118,21 @@ function owBaitWormIconHtml(size, cls){
 }
 const OW_SHOP_POS    = { x: -36, z: 12 };         // 낚시 상점 NPC
 const OW_HOUSE_HUB_POS = { x: 14, z: -6, r: 16 }; // 커뮤니티 허브 · 내 집
-/** 오픈월드 집 — 동일 Pastel House GLB, h(높이·m)만 다름 */
+/** 오픈월드 커뮤니티 허브 집 (분양 대상 아님) */
 const OW_HOUSE_PLACEMENTS = [
-  { x: 18, z: -10, ry: 0.4, h: 3.2 },
-  { x: -18, z: -14, ry: 1.2, h: 4.6 },
-  { x: 10, z: 18, ry: 2.1, h: 3.8 },
-  { x: -10, z: 8, ry: -0.6, h: 5.0 },
   { x: OW_HOUSE_HUB_POS.x, z: OW_HOUSE_HUB_POS.z, ry: 0.35, h: 5.4, hub: true }
 ];
-/** 오픈월드 분양 집 — house.glb · 색상별 · 선착순 10만P */
+/** 오픈월드 분양 집 — house.glb · 색상별 · 선착순 10만P · 맵 전체 집 */
 const OW_HOUSE_PLOT_COST = 100000;
+const OW_HOUSE_PLOT_OWNED_PORTAL = 0x42A5F5;
 const OW_HOUSE_PLOT_PLACEMENTS = [
-  { id:'plot_rose', x: 25, z: 15, ry: -0.8, h: 4.0, tint: 0xFF6B9D, portalOff: { x: 0, z: 3.8 } },
-  { id:'plot_sky',  x:-25, z: 25, ry:  1.5, h: 4.2, tint: 0x6BAAFF, portalOff: { x: 0, z: 3.8 } },
-  { id:'plot_mint', x: 30, z:-20, ry:  2.5, h: 3.8, tint: 0x7DDB8A, portalOff: { x: 0, z: 3.8 } },
+  { id:'plot_east',  x: 18, z: -10, ry:  0.4, h: 3.2, tint: 0xFF6B9D, portalOff: { x: 0, z: 3.8 } },
+  { id:'plot_nw',    x:-18, z: -14, ry:  1.2, h: 4.6, tint: 0x6BAAFF, portalOff: { x: 0, z: 3.8 } },
+  { id:'plot_south', x: 10, z:  18, ry:  2.1, h: 3.8, tint: 0xFFB74D, portalOff: { x: 0, z: 3.8 } },
+  { id:'plot_west',  x:-10, z:   8, ry: -0.6, h: 5.0, tint: 0xCE93D8, portalOff: { x: 0, z: 3.8 } },
+  { id:'plot_rose',  x: 25, z:  15, ry: -0.8, h: 4.0, tint: 0xFF6B9D, portalOff: { x: 0, z: 3.8 } },
+  { id:'plot_sky',   x:-25, z:  25, ry:  1.5, h: 4.2, tint: 0x6BAAFF, portalOff: { x: 0, z: 3.8 } },
+  { id:'plot_mint',  x: 30, z: -20, ry:  2.5, h: 3.8, tint: 0x7DDB8A, portalOff: { x: 0, z: 3.8 } },
 ];
 const OW_FISHING_DOCK_POS = { x: -32, z: 18 };
 const OW_CAR_HOME    = { x: 4, z: -4 };           // 차 주차 위치
@@ -25138,7 +25149,7 @@ _buildHuman(avatar, heightCm, gender){
         tint: plot.tint,
         tintStrength: 0.48
       });
-      const sign = this._makeHouseSignSprite('분양 중 · 10만P');
+      const sign = this._makeHouseSignSprite('분양중 · 10만P');
       sign.position.set(0, plot.h + 0.55, 0);
       g.add(sign);
       g.userData.signSprite = sign;
@@ -25165,6 +25176,7 @@ _buildHuman(avatar, heightCm, gender){
       g.userData.portal = portal;
       g.userData.portalRing = ring;
       g.userData.portalInner = inner;
+      g.userData.portalLight = portalLight;
       const cos = Math.cos(plot.ry || 0), sin = Math.sin(plot.ry || 0);
       g.userData.portalPos = {
         x: plot.x + po.x * cos - po.z * sin,
@@ -25183,7 +25195,7 @@ _buildHuman(avatar, heightCm, gender){
       const data = plots[g.userData.plotId];
       const owner = data?.owner || null;
       g.userData.owner = owner;
-      const label = owner ? `${shortNick(owner)}의 집` : '분양 중 · 10만P';
+      const label = owner ? `${shortNick(owner)}의 집` : '분양중 · 10만P';
       if(g.userData.signSprite){
         const sign = this._makeHouseSignSprite(label);
         sign.position.copy(g.userData.signSprite.position);
@@ -25193,9 +25205,10 @@ _buildHuman(avatar, heightCm, gender){
         g.add(sign);
         g.userData.signSprite = sign;
       }
-      const portalCol = owner ? 0xAB47BC : (g.userData.tint || 0x7c4dff);
+      const portalCol = owner ? OW_HOUSE_PLOT_OWNED_PORTAL : (g.userData.tint || 0xFF6B9D);
       if(g.userData.portalRing) g.userData.portalRing.material.color.setHex(portalCol);
       if(g.userData.portalInner) g.userData.portalInner.material.color.setHex(portalCol);
+      if(g.userData.portalLight) g.userData.portalLight.color.setHex(portalCol);
     });
   }
 
@@ -25225,6 +25238,25 @@ _buildHuman(avatar, heightCm, gender){
       }
     });
     S.ow.mmo.housePlotNear = nearPlot;
+    const prevId = this._housePlotNearId || null;
+    const currId = nearPlot?.plotId || null;
+    if(currId !== prevId){
+      this._housePlotNearId = currId;
+      if(nearPlot){
+        if(!nearPlot.owner){
+          if(S.ow.housePlotBuyDismissed !== currId){
+            S.ow.housePlotBuyModal = currId;
+            if(S.screen === 'openworld') renderOpenWorldUIPass();
+          }
+        } else if(!S.ow._housePlotEntering){
+          owEnterHousePortal(currId);
+        }
+      } else {
+        S.ow.housePlotBuyModal = null;
+        S.ow.housePlotBuyDismissed = null;
+        if(S.screen === 'openworld') renderOpenWorldUIPass();
+      }
+    }
   }
 
   _makeEmojiSprite(emoji, scale=0.85){
@@ -31293,6 +31325,7 @@ const driveUI = (S.ow.inCar && S.ow.isDriver) ? `
   if(S.ow.cookResultPopup) modalUI += rOWCookResultPopup();
   if(S.ow.tradePickerKind) modalUI += rOWTradePickerModal();
   if(S.ow.showGlbPicker && typeof rGlbPickerModal === 'function') modalUI += rGlbPickerModal();
+  if(S.ow.housePlotBuyModal) modalUI += rOWHousePlotBuyModal();
 
   const nvHud = _owGetNovelState();
   const syncHud = (nvHud.syncBoostUntil && Date.now() < nvHud.syncBoostUntil)
@@ -40384,7 +40417,6 @@ async function owBuyHousePlot(plotId){
     alert(`포인트 부족! (필요: ${OW_HOUSE_PLOT_COST.toLocaleString()}P)`);
     return;
   }
-  if(!confirm(`🏠 이 집을 ${OW_HOUSE_PLOT_COST.toLocaleString()}P에 구매할까요?\n선착순으로 소유됩니다.`)) return;
   try{
     await db.runTransaction(async (tx) => {
       const plotRef = owHousePlotCol.doc(plotId);
@@ -40400,9 +40432,15 @@ async function owBuyHousePlot(plotId){
     });
     S.myPet.points = (S.myPet.points || 0) - OW_HOUSE_PLOT_COST;
     if(!S.myHouse) await initMyHouse();
+    S.ow.housePlotBuyModal = null;
+    S.ow.housePlotBuyDismissed = null;
     owMmoToast(`🏠 ${shortNick(myNick)}의 집이 생겼어요!`);
-    if(__owRenderer) __owRenderer._syncOwHousePlotLabels();
-    render();
+    if(__owRenderer){
+      __owRenderer._syncOwHousePlotLabels();
+      __owRenderer._housePlotNearId = null;
+    }
+    if(S.ow.mmo?.housePlotNear?.plotId === plotId) await owEnterHousePortal(plotId);
+    else render();
   }catch(e){
     const msg = e && e.message ? e.message : '';
     if(msg === 'already_owned') alert('다른 유저가 먼저 구매했어요!');
@@ -40413,17 +40451,47 @@ async function owBuyHousePlot(plotId){
 }
 
 async function owEnterHousePortal(plotId){
+  if(S.ow._housePlotEntering) return;
   const plotData = S.owHousePlots?.[plotId];
   const owner = plotData?.owner;
-  if(!owner){
-    owMmoToast('아직 주인이 없는 집이에요');
-    return;
+  if(!owner) return;
+  S.ow._housePlotEntering = true;
+  S.ow.housePlotBuyModal = null;
+  try{
+    if(owner === S.myEntry?.nick){
+      await owMmoGetController().house.visitOwnHouseFromOW();
+    } else {
+      await owMmoGetController().house.visitNearbyFromOW(owner);
+    }
+  } finally {
+    S.ow._housePlotEntering = false;
   }
-  if(owner === S.myEntry?.nick){
-    await owMmoGetController().house.visitOwnHouseFromOW();
-  } else {
-    await owMmoGetController().house.visitNearbyFromOW(owner);
-  }
+}
+function rOWHousePlotBuyModal(){
+  const plotId = S.ow.housePlotBuyModal;
+  if(!plotId) return '';
+  const plot = (OW_HOUSE_PLOT_PLACEMENTS || []).find(p => p.id === plotId);
+  if(!plot) return '';
+  const pts = S.myPet?.points || 0;
+  const canBuy = pts >= OW_HOUSE_PLOT_COST;
+  return `<div class="ow-modal ow-modal-front" data-a="ow_closeHousePlotBuy" data-plot="${esc(plotId)}">
+    <div class="ow-modal-card" onclick="event.stopPropagation()" style="max-width:360px">
+      <div class="ow-modal-head">
+        <div class="ow-modal-title">🏠 집 분양</div>
+        <button class="preview-modal-close" data-a="ow_closeHousePlotBuy" data-plot="${esc(plotId)}">✕</button>
+      </div>
+      <div class="ow-modal-body" style="text-align:center;line-height:1.7">
+        <p style="font-size:15px;font-weight:700;margin:0 0 8px">이 집을 분양하겠습니까?</p>
+        <p style="font-size:13px;opacity:.8;margin:0 0 12px">가격 <b>${OW_HOUSE_PLOT_COST.toLocaleString()}P</b> · 선착순 1인 1채</p>
+        <p style="font-size:12px;opacity:.65;margin:0 0 14px">보유 포인트: ${pts.toLocaleString()}P</p>
+        <div style="display:flex;gap:8px">
+          <button class="preview-btn-close" style="flex:1" data-a="ow_closeHousePlotBuy" data-plot="${esc(plotId)}">취소</button>
+          <button class="preview-btn-buy" style="flex:1" data-a="ow_confirmHousePlotBuy" data-plot="${esc(plotId)}" ${canBuy?'':'disabled'}>분양하기</button>
+        </div>
+        ${!canBuy ? '<p style="font-size:11px;color:#ef9a9a;margin:10px 0 0">포인트가 부족해요</p>' : ''}
+      </div>
+    </div>
+  </div>`;
 }
 function owMmoRenderWild3DHUD(){
   if(S.screen !== 'openworld' || !S.ow.mmo?.wildNear) return '';
@@ -40445,9 +40513,9 @@ function owMmoRenderMapInteractHUD(){
   if(plot){
     if(plot.owner){
       const label = plot.mine ? '내 집' : `${shortNick(plot.owner)}의 집`;
-      html += `<button type="button" class="ow-campfire-bar" style="top:auto;bottom:calc(248px + env(safe-area-inset-bottom))" data-a="ow_enterHousePortal" data-plot="${esc(plot.plotId)}">🌀 ${esc(label)} · 입장</button>`;
-    } else {
-      html += `<button type="button" class="ow-campfire-bar" style="top:auto;bottom:calc(248px + env(safe-area-inset-bottom))" data-a="ow_buyHousePlot" data-plot="${esc(plot.plotId)}">🏠 집 구매 (${OW_HOUSE_PLOT_COST.toLocaleString()}P)</button>`;
+      html += `<div class="ow-campfire-bar" style="top:auto;bottom:calc(248px + env(safe-area-inset-bottom));pointer-events:none;opacity:.92">🌀 ${esc(label)} · 입장 중…</div>`;
+    } else if(!S.ow.housePlotBuyModal){
+      html += `<div class="ow-campfire-bar" style="top:auto;bottom:calc(248px + env(safe-area-inset-bottom));pointer-events:none;opacity:.92">🏠 분양중 · ${OW_HOUSE_PLOT_COST.toLocaleString()}P</div>`;
     }
   }
   const house = S.ow.mmo?.mapHouseNear;
@@ -40647,6 +40715,9 @@ function owMmoLeaveCleanup(){
   S.ow.mmo._petExpReadyNotified = false;
   S.ow.mmo.houseHubNear = false;
   S.ow.mmo.housePlotNear = null;
+  S.ow.housePlotBuyModal = null;
+  S.ow.housePlotBuyDismissed = null;
+  S.ow._housePlotEntering = false;
   S.ow.mmo.partyBroadcast = null;
   S.ow.mmo.mountState = null;
   S.ow.mmo.driftActive = false;
