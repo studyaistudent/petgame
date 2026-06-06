@@ -149,8 +149,8 @@
 
       if (this.active) await this.exit();
 
-      this.owner = opts.owner;
-      this.plotId = opts.plotId;
+      this.owner = opts.owner != null ? String(opts.owner) : null;
+      this.plotId = opts.plotId != null ? String(opts.plotId) : null;
       this.canEdit = !!opts.canEdit;
       this.editMode = false;
       this.selectedItem = null;

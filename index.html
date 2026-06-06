@@ -3859,7 +3859,7 @@ body.ow-mode #app{
 }
 .ow-root.ow-simple-hud .ow-emote-bar{
   position:absolute;left:50%;transform:translateX(-50%);
-  bottom:calc(118px + env(safe-area-inset-bottom));z-index:14;
+  bottom:calc(132px + env(safe-area-inset-bottom));z-index:14;
 }
 .ow-root.ow-simple-hud .ow-chat-bar.ow-simple-chat{
   position:absolute;left:10px;right:10px;
@@ -4581,7 +4581,7 @@ body.ow-hi-dragging, body.ow-hi-dragging #ow-canvas{ cursor:grabbing!important; 
 <script src="lm-ow-mp-sync.js?v=6"></script>
 <script src="lm-ow-pvp.js?v=6"></script>
 <script src="vendor/supabase.js?v=1"></script>
-<script src="supabase-firestore-shim.js?v=16"></script>
+<script src="supabase-firestore-shim.js?v=17"></script>
 <script>
 (function bootCheck(){
   const msgs=[];
@@ -26601,9 +26601,11 @@ if(S.ow.inCar && S.ow.cameraMode === 'first'){
 
 // 3. OpenWorldRenderer 내부 upsertOtherPet의 펫 호출부 수정
 upsertOtherPet(nick, data){
-  const hv = data.houseVisit;
+  const hv = typeof owNormalizeHouseVisit === 'function'
+    ? owNormalizeHouseVisit(data.houseVisit || data.house_visit)
+    : data.houseVisit;
   const hiInst = window.OWHouseInterior?.getInstance?.();
-  if(hv && hiInst?.active && hiInst.owner === hv.owner && hiInst.plotId === hv.plotId){
+  if(hv && hiInst?.active && String(hiInst.owner) === hv.owner && String(hiInst.plotId) === hv.plotId){
     const p = this.otherPetsByNick.get(nick);
     if(p){
       p.visible = false;
