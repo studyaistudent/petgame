@@ -825,6 +825,10 @@
   }
 
   function resolveNpcUrls(npcId) {
+    if (npcId === 'herbalist' && typeof global.owIsLowPerfDevice === 'function' && global.owIsLowPerfDevice()) {
+      const d = NPC.default || WORLD.npc;
+      return Array.isArray(d) ? d : [d];
+    }
     if (npcId && NPC[npcId]) {
       const u = NPC[npcId];
       return Array.isArray(u) ? u : [u];
@@ -838,18 +842,15 @@
     return NPC_TARGET_H.default != null ? NPC_TARGET_H.default : 1.55;
   }
 
-  const OW_BRIGHT_NPC_IDS = ['herbalist', 'guard_capt', 'wanderer'];
-
   /** npcId: OW_MMO_NPCS id · group.userData.npcId 도 사용 */
   function attachNpc(group, npcId) {
     const id = npcId || (group && group.userData && group.userData.npcId) || null;
     const urls = resolveNpcUrls(id);
     const h = resolveNpcHeight(id);
-    const brightenNpc = id && OW_BRIGHT_NPC_IDS.indexOf(id) >= 0;
     return attachModel(group, urls, h, 'ow_glb_model', { polishMaterials: true })
       .then((model) => {
-        if (brightenNpc && global.LMGlb && typeof global.LMGlb.polishOwNpcGlbModel === 'function') {
-          global.LMGlb.polishOwNpcGlbModel(model, id);
+        if (global.LMGlb && typeof global.LMGlb.polishOwNpcGlbModel === 'function') {
+          global.LMGlb.polishOwNpcGlbModel(model);
         }
         if (group && group.userData && group.userData.sprite) {
           group.userData.sprite.visible = false;
@@ -914,7 +915,10 @@
   function spawnFlowerPetals(scene, count, bounds) {
     const THREE = global.THREE;
     if (!scene || !THREE) return Promise.reject(new Error('scene missing'));
-    count = count || 55;
+    if (typeof global.owIsLowPerfDevice === 'function' && global.owIsLowPerfDevice()) {
+      return Promise.reject(new Error('flower petals disabled on low perf'));
+    }
+    count = count || 120;
     bounds = bounds || { half: 60 };
     const half = bounds.half || 60;
     const root = new THREE.Group();
@@ -925,16 +929,28 @@
         const wrap = new THREE.Group();
         const model = cloneGltfScene(gltf);
         model.name = 'ow_flower_petal';
-        applyFit(model, FLOWER_PETAL_TARGET_H + Math.random() * 0.12);
+        const petalH = FLOWER_PETAL_TARGET_H + Math.random() * 0.18;
+        applyFit(model, petalH);
         model.rotation.y = Math.random() * Math.PI * 2;
-        model.rotation.x = (Math.random() - 0.5) * 0.35;
+        model.rotation.x = (Math.random() - 0.5) * 0.55;
+        model.rotation.z = (Math.random() - 0.5) * 0.4;
         wrap.add(model);
-        wrap.userData.speed = 0.018 + Math.random() * 0.04;
-        wrap.userData.phase = i * 0.37;
-        wrap.userData.sway = 0.012 + Math.random() * 0.018;
+        const sway = 0.022 + Math.random() * 0.038;
+        wrap.userData.speed = 0.01 + Math.random() * 0.022;
+        wrap.userData.fallSpeed = wrap.userData.speed;
+        wrap.userData.phase = i * 0.31 + Math.random() * 1.7;
+        wrap.userData.sway = sway;
+        wrap.userData.swayZ = sway * (0.45 + Math.random() * 0.65);
+        wrap.userData.windDrift = 0.008 + Math.random() * 0.018;
+        wrap.userData.flutterFreq = 1.6 + Math.random() * 2.8;
+        wrap.userData.flutterAmp = 0.004 + Math.random() * 0.008;
+        wrap.userData.rotX = (Math.random() - 0.5) * 0.028;
+        wrap.userData.rotY = 0.006 + Math.random() * 0.024;
+        wrap.userData.tiltAmp = 0.22 + Math.random() * 0.42;
+        wrap.scale.setScalar(0.7 + Math.random() * 0.65);
         wrap.position.set(
           (Math.random() - 0.5) * half * 2,
-          Math.random() * 28 + 5,
+          Math.random() * 32 + 4,
           (Math.random() - 0.5) * half * 2
         );
         root.add(wrap);
@@ -942,6 +958,32 @@
       }
       scene.add(root);
       return { root, petals, half };
+    });
+  }
+
+  /** 벚꽃 낙하 — flutter·바람·회전 */
+  function tickFlowerPetals(petals, t, opts) {
+    if (!petals || !petals.length) return;
+    opts = opts || {};
+    const half = opts.half || 60;
+    const isSnow = !!opts.snow;
+    const snowMul = isSnow ? 0.32 : 1;
+    petals.forEach((wrap, i) => {
+      const ud = wrap.userData;
+      const flutter = Math.sin(t * (ud.flutterFreq || 2) + ud.phase) * (ud.flutterAmp || 0.005);
+      const fall = (ud.fallSpeed || ud.speed || 0.018) * snowMul;
+      wrap.position.y -= fall - flutter * (isSnow ? 0.4 : 1);
+      const wind = Math.sin(t * 0.12 + ud.phase * 0.4) * (ud.windDrift || 0.01);
+      wrap.position.x += wind + Math.sin(t * 0.42 + ud.phase) * (ud.sway || 0.015) * snowMul;
+      wrap.position.z += Math.cos(t * 0.34 + ud.phase * 0.85) * (ud.swayZ || 0.012) * snowMul;
+      wrap.rotation.x += (ud.rotX || 0.01) * snowMul;
+      wrap.rotation.y += (ud.rotY || 0.014) * snowMul;
+      wrap.rotation.z = Math.sin(t * 0.72 + i * 0.19) * (ud.tiltAmp || 0.3);
+      if (wrap.position.y < 0.08) {
+        wrap.position.y = 24 + Math.random() * 12;
+        wrap.position.x = (Math.random() - 0.5) * half * 2;
+        wrap.position.z = (Math.random() - 0.5) * half * 2;
+      }
     });
   }
 
@@ -1042,6 +1084,7 @@
     attachCampfire,
     attachFountain,
     spawnFlowerPetals,
+    tickFlowerPetals,
     attachLamp,
     tickMixers,
     updatePetLocomotion,

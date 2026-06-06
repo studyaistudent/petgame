@@ -1570,65 +1570,27 @@
     });
   }
 
-  const OW_BRIGHT_NPC_IDS = ['herbalist', 'guard_capt', 'wanderer'];
-
-  /** 약초상·경비대장·떠돌이상인 — 씬 조명은 그대로, NPC 텍스처만 선명·밝게 */
-  function polishOwNpcGlbModel(model, npcId) {
-    if (!model || !npcId || OW_BRIGHT_NPC_IDS.indexOf(npcId) < 0) return;
-    const warm = new THREE.Color(0xfff5e6);
-    const cool = new THREE.Color(0xeaf2ff);
-    const tint = npcId === 'guard_capt' ? cool : warm;
-
+  /** 오픈월드 NPC — 주변 조명·낮밤과 맞추기 (자체 발광 제거, 그림자 수용) */
+  function polishOwNpcGlbModel(model) {
+    if (!model) return;
     model.traverse((o) => {
       if ((!o.isMesh && !o.isSkinnedMesh) || !o.material) return;
-      o.castShadow = false;
-      o.receiveShadow = false;
+      o.castShadow = true;
+      o.receiveShadow = true;
       const mats = Array.isArray(o.material) ? o.material : [o.material];
-      const next = mats.map((m) => {
-        if (!m) return m;
+      mats.forEach((m) => {
+        if (!m) return;
         applyTextureColorSpace(m.map);
         applyTextureColorSpace(m.normalMap);
-        const hasTex = isTextureReady(m.map);
-        let mat = m;
-        if (hasTex && m.isMeshLambertMaterial) {
-          mat = new THREE.MeshPhongMaterial({
-            map: m.map,
-            color: 0xffffff,
-            normalMap: m.normalMap || null,
-            alphaMap: m.alphaMap || null,
-            transparent: m.transparent,
-            opacity: m.opacity != null ? m.opacity : 1,
-            skinning: !!m.skinning,
-            shininess: 34,
-            specular: 0x333333
-          });
-        } else if (hasTex && m.isMeshStandardMaterial) {
-          mat = new THREE.MeshLambertMaterial({
-            map: m.map,
-            color: 0xffffff,
-            normalMap: m.normalMap || null,
-            alphaMap: m.alphaMap || null,
-            transparent: m.transparent,
-            opacity: m.opacity != null ? m.opacity : 1,
-            skinning: !!m.skinning
-          });
+        if (!m.userData) m.userData = {};
+        if (!m.userData._owNpcBaseColor && m.color) {
+          m.userData._owNpcBaseColor = m.color.clone();
         }
-        let c = mat.color ? mat.color.clone() : new THREE.Color(0xffffff);
-        if (!hasTex) {
-          const lum = c.r * 0.299 + c.g * 0.587 + c.b * 0.114;
-          if (lum < 0.42) c.multiplyScalar(1 + (0.42 - lum) * 0.9);
-        } else {
-          c.setRGB(1, 1, 1);
-        }
-        mat.color.copy(c);
-        if (!mat.emissive) mat.emissive = new THREE.Color(0, 0, 0);
-        mat.emissive.copy(tint).lerp(c, 0.38).multiplyScalar(0.28);
-        mat.emissiveIntensity = 0.7;
-        mat.side = THREE.FrontSide;
-        mat.needsUpdate = true;
-        return mat;
+        if (m.emissive) m.emissive.setRGB(0, 0, 0);
+        if (m.emissiveIntensity != null) m.emissiveIntensity = 0;
+        m.side = THREE.FrontSide;
+        m.needsUpdate = true;
       });
-      o.material = next.length === 1 ? next[0] : next;
     });
   }
 

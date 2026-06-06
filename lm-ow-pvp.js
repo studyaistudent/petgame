@@ -107,8 +107,15 @@
   async function writeDoc(patch) {
     const col = eventsCol();
     if (!col) return false;
+    const ref = col.doc(OW_PVP_DOC);
+    const payload = { ...patch, updatedAt: Date.now() };
     try {
-      await col.doc(OW_PVP_DOC).set({ ...patch, updatedAt: Date.now() }, { merge: true });
+      const snap = await ref.get().catch(() => null);
+      if (snap?.exists) {
+        await ref.update(payload);
+      } else {
+        await ref.set({ requests: [], duels: [], hall: [], ...payload }, { merge: true });
+      }
       return true;
     } catch (e) {
       console.error('[OW_PVP] writeDoc failed', e);

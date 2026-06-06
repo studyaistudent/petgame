@@ -744,7 +744,7 @@ body.ow-mode .ow-modal-card{
 .ow-info-stack-r{display:flex;flex-direction:column;gap:6px;align-items:flex-end;}
 .ow-cam-zoom-panel{
   position:absolute;left:max(10px,env(safe-area-inset-left));
-  bottom:calc(118px + env(safe-area-inset-bottom));
+  bottom:calc(158px + env(safe-area-inset-bottom));
   z-index:12;pointer-events:auto;
   display:flex;align-items:center;gap:8px;
   background:rgba(0,0,0,.55);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);
@@ -1616,11 +1616,7 @@ body.ow-mode .ow-modal-card{
 }
 @keyframes owEmoteFloat{0%{opacity:1;transform:translateY(0) scale(.8)}100%{opacity:0;transform:translateY(-48px) scale(1.2)}}
 /* ★ 탐험 — 보물 레이더 / 포토존 */
-#ow-treasure-radar-canvas{
-  position:absolute;left:max(12px,env(safe-area-inset-left));
-  bottom:calc(108px + env(safe-area-inset-bottom));
-  width:88px;height:88px;pointer-events:none;z-index:8;
-}
+#ow-treasure-radar-canvas{ display:none!important; }
 .ow-root-photo-mode .ow-bottom-bar,
 .ow-root-photo-mode .ow-action-stack,
 .ow-root-photo-mode .ow-action-stack-r,
@@ -4452,15 +4448,15 @@ body.ow-hi-dragging, body.ow-hi-dragging #ow-canvas{ cursor:grabbing!important; 
 <script src="vendor/FBXLoader.js?v=1"></script>
 <script src="lm-fbx-texture-manifest.js?v=3"></script>
 <script src="lm-glb-catalog.js?v=80"></script>
-<script src="lm-ow-glb.js?v=24"></script>
-<script src="lm-ow-house-interior.js?v=12"></script>
+<script src="lm-ow-glb.js?v=27"></script>
+<script src="lm-ow-house-interior.js?v=16"></script>
 <script src="lm-golem-manifest.js?v=3"></script>
 <script src="lm-ow-avatar.js?v=14"></script>
-<script src="lm-glb-runtime.js?v=114"></script>
+<script src="lm-glb-runtime.js?v=115"></script>
 <script src="lm-ow-mp-sync.js?v=6"></script>
-<script src="lm-ow-pvp.js?v=5"></script>
+<script src="lm-ow-pvp.js?v=6"></script>
 <script src="vendor/supabase.js?v=1"></script>
-<script src="supabase-firestore-shim.js?v=15"></script>
+<script src="supabase-firestore-shim.js?v=16"></script>
 <script>
 (function bootCheck(){
   const msgs=[];
@@ -4493,6 +4489,8 @@ body.ow-hi-dragging, body.ow-hi-dragging #ow-canvas{ cursor:grabbing!important; 
 
 
 <script>
+/* 빌드 확인: F12 콘솔 → __LM_BUILD (20260606-hud3 = simpleHud 수정본) */
+window.__LM_BUILD = '20260606-hud3';
 /* ═══════════════════════════════════════
    SUPABASE INIT (Firestore 호환 shim)
    supabase-firestore-shim.js 참고
@@ -17606,8 +17604,12 @@ function renderOpenWorldUIPass(){
        허브 스크롤이 맨 위로 튀는 버그 방지 */
     const ae = document.activeElement;
     let focusSnap = null;
+    let tradePtsSnap = null;
     if(ae && ae.id === 'ow_chat_input'){
       focusSnap = { v: ae.value, s: ae.selectionStart, e: ae.selectionEnd };
+    }
+    if(ae && ae.id === 'ow_trade_points'){
+      tradePtsSnap = { v: ae.value, s: ae.selectionStart, e: ae.selectionEnd };
     }
     const prevScroll = [];
     uiRoot.querySelectorAll('.ow-modal-body').forEach(el => prevScroll.push(el.scrollTop));
@@ -17624,6 +17626,13 @@ function renderOpenWorldUIPass(){
     if(focusSnap){
       const inp = document.getElementById('ow_chat_input');
       if(inp){ inp.value = focusSnap.v; try{ inp.focus({ preventScroll:true }); inp.setSelectionRange(focusSnap.s, focusSnap.e); }catch(e){} }
+    }
+    if(tradePtsSnap){
+      const inp = document.getElementById('ow_trade_points');
+      if(inp){
+        inp.value = tradePtsSnap.v;
+        try{ inp.focus({ preventScroll:true }); inp.setSelectionRange(tradePtsSnap.s, tradePtsSnap.e); }catch(e){}
+      }
     }
     const bodies = uiRoot.querySelectorAll('.ow-modal-body');
     prevScroll.forEach((st, i)=>{ if(bodies[i]) bodies[i].scrollTop = st; });
@@ -21106,8 +21115,9 @@ function attachEvents(){
   }
   const owTradePts = app.querySelector('#ow_trade_points');
   if(owTradePts){
-    owTradePts.addEventListener('change', e=>{ owSetTradePoints(e.target.value); });
-    owTradePts.addEventListener('blur', e=>{ owSetTradePoints(e.target.value); });
+    owTradePts.addEventListener('input', e=>{ owSetTradePoints(e.target.value, { localOnly: true }); });
+    owTradePts.addEventListener('change', e=>{ owSetTradePoints(e.target.value, { syncNow: true }); });
+    owTradePts.addEventListener('blur', e=>{ owSetTradePoints(e.target.value, { syncNow: true }); });
   }
   if(__owRenderer && S.screen === 'openworld'){
     const saveCamPitch = ()=>{
@@ -25013,25 +25023,32 @@ function _owGetCanvasSize(canvas){
 class OpenWorldRenderer {
   constructor(canvas){
     this.canvas = canvas;
+    this._owPerf = typeof owGetOwPerfProfile === 'function' ? owGetOwPerfProfile() : { low: false };
+    const perf = this._owPerf;
     this.scene = new THREE.Scene();
-    this.scene.fog = new THREE.Fog(0xffe4f0, 30, 100);
+    this.scene.fog = new THREE.Fog(0xffe4f0, perf.fogNear || 30, perf.fogFar || 100);
 const __size = _owGetCanvasSize(canvas);
 
-this.camera = new THREE.PerspectiveCamera(60, __size.w / __size.h, 0.1, 200);
-this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha:false });
-this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+this.camera = new THREE.PerspectiveCamera(60, __size.w / __size.h, 0.1, perf.camFar || 200);
+this.renderer = new THREE.WebGLRenderer({
+  canvas,
+  antialias: perf.antialias !== false,
+  alpha: false,
+  powerPreference: perf.low ? 'low-power' : 'default',
+});
+this.renderer.setPixelRatio(perf.pixelRatio || Math.min(window.devicePixelRatio || 1, 2));
 this.renderer.setSize(__size.w, __size.h, false);
     this.renderer.setClearColor(0xffe4f0, 1);
-    this.renderer.shadowMap.enabled = true;
+    this.renderer.shadowMap.enabled = !perf.low;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-    this.renderer.shadowMap.size = 1024;
+    this.renderer.shadowMap.size = perf.low ? 512 : 1024;
     /* 조명 */
     this.ambient = new THREE.AmbientLight(0xffe4f0, 0.55);
     this.scene.add(this.ambient);
     this.sun = new THREE.DirectionalLight(0xffd9b8, 1.3);
     this.sun.position.set(40, 60, 20);
-    this.sun.castShadow = true;
-    this.sun.shadow.mapSize.set(1024,1024);
+    this.sun.castShadow = !perf.low;
+    this.sun.shadow.mapSize.set(perf.low ? 512 : 1024, perf.low ? 512 : 1024);
     this.sun.shadow.camera.left = -60;
     this.sun.shadow.camera.right = 60;
     this.sun.shadow.camera.top = 60;
@@ -25047,7 +25064,8 @@ this.renderer.setSize(__size.w, __size.h, false);
     this._owSceneryBuilt = false;
 
     /* 지형 — 잔디 (살짝 다이아 패턴 명암) */
-    const grassGeo = new THREE.PlaneGeometry(OW_MAP_HALF*2, OW_MAP_HALF*2, 32, 32);
+    const grassSeg = perf.grassSeg || 32;
+    const grassGeo = new THREE.PlaneGeometry(OW_MAP_HALF*2, OW_MAP_HALF*2, grassSeg, grassSeg);
     // 미세한 색 변화로 입체감
     const grassColors = new Float32Array(grassGeo.attributes.position.count * 3);
     for(let i = 0; i < grassGeo.attributes.position.count; i++){
@@ -25063,7 +25081,7 @@ this.renderer.setSize(__size.w, __size.h, false);
     const grassMat = new THREE.MeshLambertMaterial({ vertexColors: true });
     this.ground = new THREE.Mesh(grassGeo, grassMat);
     this.ground.rotation.x = -Math.PI/2;
-    this.ground.receiveShadow = true;
+    this.ground.receiveShadow = !perf.low;
     this.scene.add(this.ground);
 
     /* 도로 (원형 루프) */
@@ -25119,7 +25137,8 @@ this.renderer.setSize(__size.w, __size.h, false);
     if(this._owSceneryBuilt) return;
     this._owSceneryBuilt = true;
 
-    const skyGeo = new THREE.SphereGeometry(180, 48, 32);
+    const perf = this._owPerf || (typeof owGetOwPerfProfile === 'function' ? owGetOwPerfProfile() : {});
+    const skyGeo = new THREE.SphereGeometry(180, perf.skySeg || 48, perf.low ? 16 : 32);
     const skyPositions = skyGeo.attributes.position;
     const skyColors = new Float32Array(skyPositions.count * 3);
     const topColor = new THREE.Color(0x7ec7ff);
@@ -25150,10 +25169,13 @@ this.renderer.setSize(__size.w, __size.h, false);
     this._skyPositions = skyPositions;
 
     const cloudMat = new THREE.MeshLambertMaterial({ color: 0xffffff, transparent: true, opacity: 0.92 });
-    for(let i = 0; i < 7; i++){
+    const cloudN = perf.clouds || 7;
+    const puffSeg = perf.low ? 8 : 12;
+    for(let i = 0; i < cloudN; i++){
       const cluster = new THREE.Group();
-      for(let j = 0; j < 4 + Math.floor(Math.random()*3); j++){
-        const puff = new THREE.Mesh(new THREE.SphereGeometry(2 + Math.random()*1.5, 12, 10), cloudMat);
+      const puffCount = perf.cloudPuffs || (4 + Math.floor(Math.random()*3));
+      for(let j = 0; j < puffCount; j++){
+        const puff = new THREE.Mesh(new THREE.SphereGeometry(2 + Math.random()*1.5, puffSeg, perf.low ? 6 : 10), cloudMat);
         puff.position.set((Math.random()-0.5)*4, Math.random()*1.5, (Math.random()-0.5)*4);
         cluster.add(puff);
       }
@@ -25166,8 +25188,9 @@ this.renderer.setSize(__size.w, __size.h, false);
       this.clouds.push(cluster);
     }
 
-    for(let i = 0; i < 12; i++){
-      const a = (i / 12) * Math.PI * 2 + (Math.random()*0.4);
+    const mountainN = perf.mountains || 12;
+    for(let i = 0; i < mountainN; i++){
+      const a = (i / mountainN) * Math.PI * 2 + (Math.random()*0.4);
       const r = 80 + Math.random()*15;
       const height = 12 + Math.random()*8;
       const mat = new THREE.MeshLambertMaterial({
@@ -25182,22 +25205,25 @@ this.renderer.setSize(__size.w, __size.h, false);
       this.scene.add(mountain);
     }
 
-    const sparkleN = 80;
-    const sparkleGeo = new THREE.BufferGeometry();
-    const sparkleP = new Float32Array(sparkleN * 3);
-    for(let i = 0; i < sparkleN; i++){
-      sparkleP[i*3]   = (Math.random()-0.5) * OW_MAP_HALF*1.5;
-      sparkleP[i*3+1] = 3 + Math.random() * 18;
-      sparkleP[i*3+2] = (Math.random()-0.5) * OW_MAP_HALF*1.5;
+    const sparkleN = perf.sparkles != null ? perf.sparkles : 80;
+    if(sparkleN > 0){
+      const sparkleGeo = new THREE.BufferGeometry();
+      const sparkleP = new Float32Array(sparkleN * 3);
+      for(let i = 0; i < sparkleN; i++){
+        sparkleP[i*3]   = (Math.random()-0.5) * OW_MAP_HALF*1.5;
+        sparkleP[i*3+1] = 3 + Math.random() * 18;
+        sparkleP[i*3+2] = (Math.random()-0.5) * OW_MAP_HALF*1.5;
+      }
+      sparkleGeo.setAttribute('position', new THREE.BufferAttribute(sparkleP, 3));
+      const sparkleMat = new THREE.PointsMaterial({
+        color: 0xFFFACD, size: 0.18, transparent: true, opacity: 0.7, sizeAttenuation: true,
+      });
+      this.sparkles = new THREE.Points(sparkleGeo, sparkleMat);
+      this.scene.add(this.sparkles);
     }
-    sparkleGeo.setAttribute('position', new THREE.BufferAttribute(sparkleP, 3));
-    const sparkleMat = new THREE.PointsMaterial({
-      color: 0xFFFACD, size: 0.18, transparent: true, opacity: 0.7, sizeAttenuation: true,
-    });
-    this.sparkles = new THREE.Points(sparkleGeo, sparkleMat);
-    this.scene.add(this.sparkles);
 
-    for(let i = 0; i < 80; i++){
+    const flowerN = perf.groundFlowers || 80;
+    for(let i = 0; i < flowerN; i++){
       const a = Math.random() * Math.PI * 2;
       const d = 6 + Math.random() * (OW_MAP_HALF - 12);
       const x = Math.cos(a) * d, z = Math.sin(a) * d;
@@ -25214,9 +25240,127 @@ this.renderer.setSize(__size.w, __size.h, false);
       this.scene.add(flower);
     }
 
+    if(perf.skyEffects !== false) this._buildSkyEffects();
     this._buildCherryTrees();
     this._buildOwGlbScenery();
     this._buildOwHousePlots();
+  }
+
+  _buildSkyEffects(){
+    const perf = this._owPerf || {};
+    if(perf.low || perf.skyEffects === false) return;
+    const STAR_R = 172;
+    const placeStar = (x, y, z, r) => {
+      const len = Math.hypot(x, y, z) || 1;
+      return new THREE.Vector3(x / len * r, y / len * r, z / len * r);
+    };
+    const mkStar = (pos, size, opacity, phase) => {
+      const star = new THREE.Mesh(
+        new THREE.SphereGeometry(size, 8, 8),
+        new THREE.MeshBasicMaterial({
+          color: 0xffffff, transparent: true, opacity,
+          depthWrite: false, fog: false,
+        })
+      );
+      star.position.copy(pos);
+      star.userData.twinklePhase = phase;
+      star.userData.baseOpacity = opacity;
+      star.userData.baseScale = 0.85 + Math.random() * 0.35;
+      return star;
+    };
+    const mkConstellation = (stars, lines, tint) => {
+      const g = new THREE.Group();
+      const meshes = [];
+      stars.forEach((s, i) => {
+        const pos = placeStar(s[0], s[1], s[2], STAR_R);
+        const size = 0.28 + (s[3] || 0) * 0.22;
+        const star = mkStar(pos, size, 0.88 + Math.random() * 0.12, i * 0.9 + Math.random());
+        if(tint) star.material.color.setHex(tint);
+        g.add(star);
+        meshes.push(star);
+      });
+      lines.forEach(([a, b]) => {
+        if(!meshes[a] || !meshes[b]) return;
+        const geo = new THREE.BufferGeometry().setFromPoints([meshes[a].position, meshes[b].position]);
+        const line = new THREE.Line(
+          geo,
+          new THREE.LineBasicMaterial({ color: 0xb8d4ff, transparent: true, opacity: 0.42, depthWrite: false, fog: false })
+        );
+        g.add(line);
+      });
+      return g;
+    };
+
+    this._skyStars = new THREE.Group();
+    this._skyStars.name = 'ow_sky_stars';
+    const constellations = [
+      {
+        stars: [[-0.55, 0.82, -0.28, 1], [-0.38, 0.86, -0.32, 0.8], [-0.22, 0.84, -0.3, 0.9],
+                [-0.08, 0.8, -0.26, 0.7], [0.05, 0.76, -0.22, 0.8], [0.2, 0.72, -0.18, 0.9], [0.36, 0.68, -0.12, 1]],
+        lines: [[0,1],[1,2],[2,3],[3,4],[4,5],[5,6],[2,4]],
+      },
+      {
+        stars: [[-0.18, 0.62, 0.78, 1], [0, 0.58, 0.82, 1.1], [0.18, 0.62, 0.78, 1],
+                [-0.14, 0.76, 0.74, 0.8], [0.14, 0.76, 0.74, 0.8], [-0.05, 0.48, 0.8, 0.7]],
+        lines: [[0,1],[1,2],[3,0],[4,2],[3,4],[1,5]],
+      },
+      {
+        stars: [[-0.52, 0.88, 0.12, 0.9], [-0.26, 0.82, 0.18, 0.8], [0, 0.9, 0.14, 1],
+                [0.26, 0.82, 0.18, 0.8], [0.52, 0.88, 0.12, 0.9]],
+        lines: [[0,1],[1,2],[2,3],[3,4]],
+      },
+      {
+        stars: [[0.42, 0.74, -0.55, 0.8], [0.55, 0.7, -0.48, 0.7], [0.48, 0.66, -0.62, 0.9], [0.38, 0.72, -0.68, 0.8]],
+        lines: [[0,1],[1,2],[2,3],[3,0]],
+      },
+      {
+        stars: [[-0.35, 0.7, 0.55, 0.9], [-0.2, 0.66, 0.6, 0.7], [-0.05, 0.72, 0.58, 1], [0.1, 0.68, 0.62, 0.8]],
+        lines: [[0,1],[1,2],[2,3]],
+      },
+    ];
+    constellations.forEach((c) => { this._skyStars.add(mkConstellation(c.stars, c.lines)); });
+
+    const scatterN = typeof owIsLowPerfDevice === 'function' && owIsLowPerfDevice() ? 70 : 140;
+    for(let i = 0; i < scatterN; i++){
+      const theta = Math.random() * Math.PI * 2;
+      const phi = 0.08 + Math.random() * 0.55;
+      const r = STAR_R - Math.random() * 6;
+      const y = r * Math.cos(phi);
+      if(y < 45) continue;
+      const star = mkStar(
+        new THREE.Vector3(r * Math.sin(phi) * Math.cos(theta), y, r * Math.sin(phi) * Math.sin(theta)),
+        0.1 + Math.random() * 0.2,
+        0.35 + Math.random() * 0.55,
+        Math.random() * Math.PI * 2
+      );
+      this._skyStars.add(star);
+    }
+    this._skyStars.visible = false;
+    this.scene.add(this._skyStars);
+
+    this._rainbowArc = new THREE.Group();
+    this._rainbowArc.name = 'ow_sky_rainbow';
+    const rainbowColors = [0xff3b30, 0xff9500, 0xffcc00, 0x34c759, 0x007aff, 0x5856d6, 0xaf52de];
+    const baseR = 92;
+    const arc = Math.PI * 0.64;
+    rainbowColors.forEach((col, i) => {
+      const band = new THREE.Mesh(
+        new THREE.TorusGeometry(baseR - i * 1.05, 0.5, 6, 56, arc),
+        new THREE.MeshBasicMaterial({
+          color: col, transparent: true, opacity: 0.72,
+          side: THREE.DoubleSide, depthWrite: false, fog: false,
+        })
+      );
+      band.rotation.x = Math.PI / 2;
+      band.rotation.z = Math.PI * 0.18;
+      this._rainbowArc.add(band);
+    });
+    this._rainbowArc.position.set(22, 47, -58);
+    this._rainbowArc.rotation.y = -0.22;
+    this._rainbowArc.visible = false;
+    this.scene.add(this._rainbowArc);
+    this._rainbowPhase = 0;
+    this._skyStarPhase = 0;
   }
 
   /* ═══ 🧑 오픈월드 아바타 (boystandard / girlstandard) ═══ */
@@ -25236,18 +25380,19 @@ _buildHuman(avatar, heightCm, gender){
 }
 
   _buildRoad(){
-    // 회색 아스팔트 원형 트랙 (TorusGeometry 활용)
-    const roadGeo = new THREE.RingGeometry(OW_ROAD_RADIUS - 3, OW_ROAD_RADIUS + 3, 64);
+    const perf = this._owPerf || {};
+    const roadSeg = perf.low ? 28 : 64;
+    const roadGeo = new THREE.RingGeometry(OW_ROAD_RADIUS - 3, OW_ROAD_RADIUS + 3, roadSeg);
     const roadMat = new THREE.MeshLambertMaterial({ color: 0x404040 });
     const road = new THREE.Mesh(roadGeo, roadMat);
     road.rotation.x = -Math.PI/2;
     road.position.y = 0.02;
-    road.receiveShadow = true;
+    road.receiveShadow = !perf.low;
     this.scene.add(road);
-    // 차선 마킹 (가는 흰 선)
     const laneMat = new THREE.MeshBasicMaterial({ color: 0xfffacd });
-    for(let i=0;i<24;i++){
-      const a = (i/24) * Math.PI * 2;
+    const laneN = perf.low ? 12 : 24;
+    for(let i=0;i<laneN;i++){
+      const a = (i/laneN) * Math.PI * 2;
       const dash = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.04, 0.2), laneMat);
       dash.position.set(Math.cos(a)*OW_ROAD_RADIUS, 0.04, Math.sin(a)*OW_ROAD_RADIUS);
       dash.rotation.y = -a;
@@ -25257,26 +25402,31 @@ _buildHuman(avatar, heightCm, gender){
 
   _buildLake(){
     // 호수 — 약간 흔들리는 푸른 평면 + 가장자리 모래
-    const sandGeo = new THREE.CircleGeometry(OW_LAKE_CENTER.r + 2, 32);
+    const sandSeg = perf.low ? 16 : 32;
+    const sandGeo = new THREE.CircleGeometry(OW_LAKE_CENTER.r + 2, sandSeg);
     const sandMat = new THREE.MeshLambertMaterial({ color: 0xE8D6A0 });
     const sand = new THREE.Mesh(sandGeo, sandMat);
     sand.rotation.x = -Math.PI/2;
     sand.position.set(OW_LAKE_CENTER.x, 0.03, OW_LAKE_CENTER.z);
     this.scene.add(sand);
-    const waterGeo = new THREE.CircleGeometry(OW_LAKE_CENTER.r, 48);
-    this.waterMat = new THREE.MeshPhysicalMaterial({
-      color: 0x4FC3F7, transparent: true, opacity: 0.85,
-      roughness: 0.18, metalness: 0.3, transmission: 0.5
-    });
+    const perf = this._owPerf || {};
+    const waterGeo = new THREE.CircleGeometry(OW_LAKE_CENTER.r, perf.low ? 24 : 48);
+    this.waterMat = perf.low
+      ? new THREE.MeshLambertMaterial({ color: 0x4FC3F7, transparent: true, opacity: 0.82 })
+      : new THREE.MeshPhysicalMaterial({
+          color: 0x4FC3F7, transparent: true, opacity: 0.85,
+          roughness: 0.18, metalness: 0.3, transmission: 0.5
+        });
     this.water = new THREE.Mesh(waterGeo, this.waterMat);
     this.water.rotation.x = -Math.PI/2;
     this.water.position.set(OW_LAKE_CENTER.x, 0.07, OW_LAKE_CENTER.z);
     this.scene.add(this.water);
     // 가장자리 작은 갈대들
-    for(let i=0;i<14;i++){
-      const a = (i/14) * Math.PI * 2;
+    const reedN = perf.low ? 6 : 14;
+    for(let i=0;i<reedN;i++){
+      const a = (i/reedN) * Math.PI * 2;
       const reed = new THREE.Mesh(
-        new THREE.ConeGeometry(0.1, 0.7, 6),
+        new THREE.ConeGeometry(0.1, 0.7, perf.low ? 4 : 6),
         new THREE.MeshLambertMaterial({ color: 0x6B8E23 })
       );
       reed.position.set(
@@ -25290,9 +25440,10 @@ _buildHuman(avatar, heightCm, gender){
 
   _buildCherryTrees(){
     // 벚꽃 나무 (회색 줄기 + 분홍 잎 구체 클러스터)
-    const low = typeof owIsLowPerfDevice === 'function' && owIsLowPerfDevice();
+    const perf = this._owPerf || (typeof owGetOwPerfProfile === 'function' ? owGetOwPerfProfile() : {});
+    const low = !!perf.low;
     const positions = [];
-    for(let i=0;i<(low ? 34 : 52);i++){
+    for(let i=0;i<(perf.cherryTrees || (low ? 34 : 52));i++){
       const a = Math.random() * Math.PI * 2;
       const d = 14 + Math.random() * (OW_MAP_HALF - 16);
       const x = Math.cos(a) * d, z = Math.sin(a) * d;
@@ -25317,7 +25468,7 @@ _buildHuman(avatar, heightCm, gender){
       // 잎 클러스터 (분홍 구체 여러 개)
       const leafMat = new THREE.MeshLambertMaterial({ color: 0xFFB6E1 });
       const cluster = new THREE.Group();
-      const leafN = low ? 4 : 5;
+      const leafN = perf.cherryLeaves || (low ? 4 : 5);
       for(let j=0;j<leafN;j++){
         const leaf = new THREE.Mesh(new THREE.SphereGeometry(1.1 + Math.random()*0.3, low ? 6 : 8, low ? 6 : 8), leafMat);
         leaf.position.set(
@@ -25345,11 +25496,13 @@ _buildHuman(avatar, heightCm, gender){
     this.scene.add(campfireG);
     this._owCampfireGlb = campfireG;
     LMOwGlb.attachCampfire(campfireG, 1.85);
-    const fountainG = new THREE.Group();
-    fountainG.position.set(OW_FISHING_DOCK_POS.x, 0, OW_FISHING_DOCK_POS.z);
-    this.scene.add(fountainG);
-    this._owFountainGlb = fountainG;
-    LMOwGlb.attachFountain(fountainG, 3.4);
+    if(!this._owPerf?.low){
+      const fountainG = new THREE.Group();
+      fountainG.position.set(OW_FISHING_DOCK_POS.x, 0, OW_FISHING_DOCK_POS.z);
+      this.scene.add(fountainG);
+      this._owFountainGlb = fountainG;
+      LMOwGlb.attachFountain(fountainG, 3.4);
+    }
     (OW_HOUSE_PLACEMENTS || []).forEach((hp) => {
       const house = new THREE.Group();
       house.name = hp.hub ? 'ow_house_hub' : 'ow_house';
@@ -25365,8 +25518,9 @@ _buildHuman(avatar, heightCm, gender){
         house.userData.mine = true;
       }
     });
-    for(let i = 0; i < 8; i++){
-      const a = (i / 8) * Math.PI * 2;
+    const lampN = (this._owPerf && this._owPerf.lamps) || 8;
+    for(let i = 0; i < lampN; i++){
+      const a = (i / lampN) * Math.PI * 2;
       const x = Math.cos(a) * (OW_ROAD_RADIUS + 5);
       const z = Math.sin(a) * (OW_ROAD_RADIUS + 5);
       const lampGroup = new THREE.Group();
@@ -25383,11 +25537,7 @@ _buildHuman(avatar, heightCm, gender){
         ptLight.position.y = 2.8;
       });
     }
-    const npc = new THREE.Group();
-    npc.position.set(OW_SHOP_POS.x, 0, OW_SHOP_POS.z);
-    this.shopNPC = npc;
-    this.scene.add(npc);
-    LMOwGlb.attachNpc(npc);
+    /* 낚시 상점 NPC — OW_MMO_NPCS shop_keeper 마커와 동일 좌표 (중복 스폰 방지) */
   }
 
   _makeHouseSignSprite(text){
@@ -25419,11 +25569,29 @@ _buildHuman(avatar, heightCm, gender){
       g.position.set(plot.x, 0, plot.z);
       g.rotation.y = plot.ry != null ? plot.ry : 0;
       g.userData = { plotId: plot.id, tint: plot.tint, h: plot.h };
-      LMOwGlb.attachHouse(g, plot.h, {
-        url: LMOwGlb.WORLD.purchasableHouse,
-        tint: plot.tint,
-        tintStrength: 0.48
-      });
+      const useHouseGlb = this._owPerf?.houseGlb !== false;
+      if(useHouseGlb){
+        LMOwGlb.attachHouse(g, plot.h, {
+          url: LMOwGlb.WORLD.purchasableHouse,
+          tint: plot.tint,
+          tintStrength: 0.48
+        });
+      } else {
+        const body = new THREE.Mesh(
+          new THREE.BoxGeometry(3.6, plot.h, 3.6),
+          new THREE.MeshLambertMaterial({ color: plot.tint || 0xFF6B9D })
+        );
+        body.position.y = plot.h * 0.5;
+        body.castShadow = false;
+        g.add(body);
+        const roof = new THREE.Mesh(
+          new THREE.ConeGeometry(2.6, 1.4, 4),
+          new THREE.MeshLambertMaterial({ color: 0xfff5fb })
+        );
+        roof.position.y = plot.h + 0.55;
+        roof.rotation.y = Math.PI / 4;
+        g.add(roof);
+      }
       const sign = this._makeHouseSignSprite('분양중 · 10만P');
       sign.position.set(0, plot.h + 0.55, 0);
       g.add(sign);
@@ -25431,27 +25599,30 @@ _buildHuman(avatar, heightCm, gender){
       const portal = new THREE.Group();
       const po = plot.portalOff || { x: 0, z: 3.8 };
       portal.position.set(po.x, 0.02, po.z);
+      const portalSeg = this._owPerf?.low ? 20 : 48;
       const ring = new THREE.Mesh(
-        new THREE.RingGeometry(1.15, 1.6, 48),
+        new THREE.RingGeometry(1.15, 1.6, portalSeg),
         new THREE.MeshBasicMaterial({ color: plot.tint, transparent: true, opacity: 0.72, side: THREE.DoubleSide, depthWrite: false })
       );
       ring.rotation.x = -Math.PI / 2;
       portal.add(ring);
       const inner = new THREE.Mesh(
-        new THREE.CircleGeometry(1.05, 48),
+        new THREE.CircleGeometry(1.05, portalSeg),
         new THREE.MeshBasicMaterial({ color: plot.tint, transparent: true, opacity: 0.2, side: THREE.DoubleSide, depthWrite: false })
       );
       inner.rotation.x = -Math.PI / 2;
       inner.position.y = 0.01;
       portal.add(inner);
-      const portalLight = new THREE.PointLight(plot.tint, 0.55, 7, 2);
-      portalLight.position.y = 0.55;
-      portal.add(portalLight);
+      if(!this._owPerf?.low){
+        const portalLight = new THREE.PointLight(plot.tint, 0.55, 7, 2);
+        portalLight.position.y = 0.55;
+        portal.add(portalLight);
+        g.userData.portalLight = portalLight;
+      }
       g.add(portal);
       g.userData.portal = portal;
       g.userData.portalRing = ring;
       g.userData.portalInner = inner;
-      g.userData.portalLight = portalLight;
       const cos = Math.cos(plot.ry || 0), sin = Math.sin(plot.ry || 0);
       g.userData.portalPos = {
         x: plot.x + po.x * cos - po.z * sin,
@@ -25523,6 +25694,17 @@ _buildHuman(avatar, heightCm, gender){
       }
     });
     S.ow.mmo.housePlotNear = nearPlot;
+    if(owIsHousePortalBlocked()){
+      const hadNear = this._housePlotNearId != null;
+      const hadModal = !!S.ow.housePlotBuyModal;
+      this._housePlotNearId = null;
+      if(hadNear || hadModal){
+        S.ow.housePlotBuyModal = null;
+        S.ow.housePlotBuyDismissed = null;
+        if(S.screen === 'openworld') renderOpenWorldUIPass();
+      }
+      return;
+    }
     if(!nearPlot){
       const wasNear = this._housePlotNearId != null;
       const hadModal = !!S.ow.housePlotBuyModal;
@@ -25594,17 +25776,16 @@ _buildHuman(avatar, heightCm, gender){
       const g = new THREE.Group();
       const ring = new THREE.Mesh(
         new THREE.RingGeometry(0.75, 1.05, 28),
-        new THREE.MeshBasicMaterial({ color: 0x42A5F5, transparent: true, opacity: 0.62, side: THREE.DoubleSide, depthWrite: false })
+        new THREE.MeshBasicMaterial({ color: 0x42A5F5, transparent: true, opacity: 0.38, side: THREE.DoubleSide, depthWrite: false })
       );
       ring.rotation.x = -Math.PI / 2;
       ring.position.y = 0.06;
       g.add(ring);
       const beam = new THREE.Mesh(
         new THREE.CylinderGeometry(0.06, 0.06, 1.5, 8),
-        new THREE.MeshBasicMaterial({ color: 0x7E57C2, transparent: true, opacity: 0.35, depthWrite: false })
+        new THREE.MeshBasicMaterial({ color: 0x7E57C2, transparent: true, opacity: 0.12, depthWrite: false })
       );
       beam.position.y = 0.75;
-      beam.material.opacity = 0.18;
       g.add(beam);
       const sprite = this._makeEmojiSprite(npc.emoji, 0.65);
       sprite.position.y = 2.35;
@@ -25893,8 +26074,8 @@ _buildPet(emoji, color, equipment){
     this._flowerPetals = [];
     this._flowerPetalHalf = OW_MAP_HALF;
     this._flowerPetalSnow = null;
-    const low = typeof owIsLowPerfDevice === 'function' && owIsLowPerfDevice();
-    const glbCount = low ? 0 : 20;
+    const perf = this._owPerf || (typeof owGetOwPerfProfile === 'function' ? owGetOwPerfProfile() : {});
+    const glbCount = perf.petalGlb != null ? perf.petalGlb : (perf.low ? 0 : 150);
     if(glbCount > 0 && window.LMOwGlb && typeof LMOwGlb.spawnFlowerPetals === 'function'){
       LMOwGlb.spawnFlowerPetals(this.scene, glbCount, { half: OW_MAP_HALF }).then((field) => {
         this._flowerPetalRoot = field.root;
@@ -25927,8 +26108,8 @@ _buildPet(emoji, color, equipment){
   }
 
   _buildPetalPointsFallback(){
-    const low = typeof owIsLowPerfDevice === 'function' && owIsLowPerfDevice();
-    const N = low ? 110 : 180;
+    const perf = this._owPerf || (typeof owGetOwPerfProfile === 'function' ? owGetOwPerfProfile() : {});
+    const N = perf.petalPoints || (perf.low ? 48 : 380);
     const geo = new THREE.BufferGeometry();
     const positions = new Float32Array(N * 3);
     const speeds = new Float32Array(N);
@@ -28357,20 +28538,9 @@ if(S.ow.isDriver && this.companion){
         this._applyFlowerPetalSnowMode(isSnow);
       }
       const half = this._flowerPetalHalf || OW_MAP_HALF;
-      this._flowerPetals.forEach((wrap, i) => {
-        const fall = isSnow ? wrap.userData.speed * 0.35 : wrap.userData.speed;
-        const sway = isSnow ? 0.006 : wrap.userData.sway;
-        wrap.position.y -= fall;
-        wrap.position.x += Math.sin(t * 0.45 + wrap.userData.phase) * sway;
-        wrap.position.z += Math.cos(t * 0.38 + wrap.userData.phase) * sway * 0.7;
-        wrap.rotation.y += 0.012;
-        wrap.rotation.z = Math.sin(t * 0.8 + i * 0.2) * 0.25;
-        if(wrap.position.y < 0.15){
-          wrap.position.y = 26 + Math.random() * 5;
-          wrap.position.x = (Math.random() - 0.5) * half * 2;
-          wrap.position.z = (Math.random() - 0.5) * half * 2;
-        }
-      });
+      if(window.LMOwGlb && typeof LMOwGlb.tickFlowerPetals === 'function'){
+        LMOwGlb.tickFlowerPetals(this._flowerPetals, t, { half, snow: isSnow });
+      }
       if(this._flowerPetalRoot) this._flowerPetalRoot.visible = true;
     } else if(this._flowerPetalRoot){
       this._flowerPetalRoot.visible = false;
@@ -28445,6 +28615,40 @@ if(S.ow.isDriver && this.companion){
 
     /* === HTML 오버레이 갱신 (이름표/말풍선/거리표시) === */
     updateOWOverlays(this);
+  }
+
+  _syncOwNpcDayNight(phase, ambient, fogColor){
+    const lightMul = Math.min(1, 0.3 + ambient * 0.95);
+    const night = phase >= 0.62 || phase < 0.14;
+    const dusk = phase >= 0.48 && phase < 0.62;
+    const tint = fogColor || new THREE.Color(0xffffff);
+    const ringBase = night ? 0.22 : dusk ? 0.32 : 0.4;
+    const beamBase = night ? 0.06 : dusk ? 0.09 : 0.12;
+    const applyNpcGroup = (g) => {
+      if(!g) return;
+      const model = g.getObjectByName && g.getObjectByName('ow_glb_model');
+      if(model){
+        model.traverse((o) => {
+          if(!o.isMesh && !o.isSkinnedMesh) return;
+          const mats = Array.isArray(o.material) ? o.material : [o.material];
+          mats.forEach((m) => {
+            if(!m || !m.color) return;
+            if(!m.userData._owNpcBaseColor) m.userData._owNpcBaseColor = m.color.clone();
+            m.color.copy(m.userData._owNpcBaseColor).multiplyScalar(lightMul);
+            if(night || dusk) m.color.lerp(tint, night ? 0.18 : 0.08);
+            if(m.emissive){ m.emissive.setRGB(0, 0, 0); m.emissiveIntensity = 0; }
+          });
+        });
+      }
+      if(g.userData?.ring?.material) g.userData.ring.material.opacity = ringBase;
+      if(g.userData?.beam?.material) g.userData.beam.material.opacity = beamBase;
+      if(g.userData?.sprite?.material){
+        g.userData.sprite.material.opacity = night ? 0.55 : dusk ? 0.72 : 0.88;
+      }
+    };
+    if(this._mmoNpcMarkers){
+      Object.values(this._mmoNpcMarkers).forEach(applyNpcGroup);
+    }
   }
 
   _updateDayNight(){
@@ -28537,6 +28741,41 @@ if(S.ow.isDriver && this.companion){
       this.sparkles.material.opacity = phase > 0.6 ? 0.9 : 0.45 + Math.abs(Math.sin(this._sparklePhase))*0.2;
       this.sparkles.material.color.setHex(phase > 0.6 ? 0xFFFFFF : 0xFFFACD);
     }
+    const isNightSky = phase >= 0.68 || phase < 0.14;
+    const isDaySky = phase >= 0.2 && phase < 0.5;
+    if(this._skyStars){
+      this._skyStars.visible = isNightSky;
+      if(isNightSky){
+        this._skyStarPhase = (this._skyStarPhase || 0) + 0.04;
+        const t = this._skyStarPhase;
+        let nightBlend = 1;
+        if(phase >= 0.68) nightBlend = Math.min(1, (phase - 0.68) / 0.1);
+        else if(phase < 0.14) nightBlend = Math.min(1, (0.14 - phase) / 0.08);
+        this._skyStars.traverse((o) => {
+          if(!o.isMesh || !o.material) return;
+          const ph = o.userData.twinklePhase || 0;
+          const tw = 0.55 + Math.sin(t * 3.1 + ph) * 0.45;
+          o.material.opacity = (o.userData.baseOpacity || 0.8) * tw * nightBlend;
+          const sc = (o.userData.baseScale || 1) * (0.88 + tw * 0.2);
+          o.scale.setScalar(sc);
+        });
+      }
+    }
+    if(this._rainbowArc){
+      this._rainbowArc.visible = isDaySky;
+      if(isDaySky){
+        this._rainbowPhase = (this._rainbowPhase || 0) + 0.014;
+        let dayBlend = 1;
+        if(phase < 0.26) dayBlend = Math.max(0, (phase - 0.2) / 0.06);
+        else if(phase > 0.44) dayBlend = Math.max(0, (0.5 - phase) / 0.06);
+        this._rainbowArc.position.y = 46 + Math.sin(this._rainbowPhase * 0.55) * 1.8;
+        this._rainbowArc.children.forEach((band, i) => {
+          if(!band.material) return;
+          band.material.opacity = (0.62 + Math.sin(this._rainbowPhase + i * 0.25) * 0.1) * dayBlend;
+        });
+      }
+    }
+    this._syncOwNpcDayNight(phase, ambient, fogColor);
     // 가로등 (저녁 이후 점등)
     const lampOn = phase > 0.5;
     if(this.lamps){
@@ -28569,7 +28808,8 @@ resize(){
   const { w, h } = _owGetCanvasSize(this.canvas);
   this.camera.aspect = w / h;
   this.camera.updateProjectionMatrix();
-  this.renderer.setSize(w, h, false);
+  if(typeof owApplyRendererPerf === 'function') owApplyRendererPerf(this);
+  else this.renderer.setSize(w, h, false);
 }
 }
 
@@ -28586,30 +28826,33 @@ function owInitFeatureLayer(rd){
   __owFeatureLayer = { meshes: [] };
   owEnsureFeatureState(false);
   const fs = S.ow.featureState || {};
+  const low = typeof owIsLowPerfDevice === 'function' && owIsLowPerfDevice();
   (fs.treasures || []).forEach((t)=>{
     const gem = new THREE.Mesh(
       new THREE.OctahedronGeometry(0.65, 0),
-      new THREE.MeshStandardMaterial({
-        color: 0xffd166,
-        emissive: 0xff66aa,
-        emissiveIntensity: 0.35,
-        roughness: 0.25,
-        metalness: 0.4,
-      })
+      low
+        ? new THREE.MeshLambertMaterial({ color: 0xffd166 })
+        : new THREE.MeshStandardMaterial({
+            color: 0xffd166,
+            emissive: 0xff66aa,
+            emissiveIntensity: 0.35,
+            roughness: 0.25,
+            metalness: 0.4,
+          })
     );
     gem.position.set(t.x, 0.9, t.z);
     gem.userData.treasureId = t.id;
     gem.userData.baseY = 0.9;
-    gem.castShadow = true;
+    gem.castShadow = !low;
     rd.scene.add(gem);
     __owFeatureLayer.meshes.push(gem);
 
     const glow = new THREE.Mesh(
-      new THREE.SphereGeometry(1.2, 16, 16),
+      new THREE.SphereGeometry(1.2, low ? 8 : 16, low ? 8 : 16),
       new THREE.MeshBasicMaterial({
         color: 0xffe6f2,
         transparent: true,
-        opacity: 0.16,
+        opacity: low ? 0.1 : 0.16,
         depthWrite: false,
       })
     );
@@ -28734,31 +28977,80 @@ const __owProjVec = new THREE.Vector3();
 function owIsLowPerfDevice(){
   if(window.__owForceLowPerf) return true;
   if(window.__owForceHighPerf) return false;
-  const touch = ('ontouchstart' in window) || (navigator.maxTouchPoints || 0) > 0;
+  const ua = navigator.userAgent || '';
+  const mobileUa = /Android|iPhone|iPad|iPod|Mobile|webOS|BlackBerry|IEMobile|Opera Mini/i.test(ua);
+  const touch = mobileUa || ('ontouchstart' in window) || (navigator.maxTouchPoints || 0) > 1;
   const cores = navigator.hardwareConcurrency || 4;
   const mem = navigator.deviceMemory || 4;
   return touch || cores <= 4 || mem <= 4;
 }
 
+function owGetOwPerfProfile(){
+  const low = owIsLowPerfDevice();
+  return {
+    low,
+    pixelRatio: Math.min(window.devicePixelRatio || 1, low ? 1 : 1.75),
+    antialias: !low,
+    shadows: !low,
+    fpsCap: low ? 30 : 60,
+    syncMs: low ? 520 : OW_SYNC_MS,
+    syncMoveMs: low ? 260 : OW_SYNC_MOVE_MS,
+    grassSeg: low ? 12 : 32,
+    skySeg: low ? 24 : 48,
+    clouds: low ? 2 : 7,
+    cloudPuffs: low ? 3 : 6,
+    mountains: low ? 4 : 12,
+    sparkles: low ? 0 : 80,
+    groundFlowers: low ? 12 : 80,
+    cherryTrees: low ? 10 : 52,
+    cherryLeaves: low ? 3 : 5,
+    skyEffects: !low,
+    petalGlb: low ? 0 : 150,
+    petalPoints: low ? 48 : 380,
+    lamps: low ? 4 : 8,
+    houseGlb: !low,
+    fogNear: low ? 20 : 30,
+    fogFar: low ? 68 : 100,
+    camFar: low ? 105 : 200,
+    featureSkip: low ? 4 : 2,
+  };
+}
+window.owGetOwPerfProfile = owGetOwPerfProfile;
+window.owIsLowPerfDevice = owIsLowPerfDevice;
+
 function owTargetPixelRatio(){
-  const dpr = window.devicePixelRatio || 1;
-  return Math.min(dpr, owIsLowPerfDevice() ? 1 : 1.75);
+  return owGetOwPerfProfile().pixelRatio;
 }
 
 function owApplyRendererPerf(rd){
   if(!rd || !rd.renderer) return;
-  const low = owIsLowPerfDevice();
-  const dpr = owTargetPixelRatio();
+  const perf = owGetOwPerfProfile();
+  const dpr = perf.pixelRatio;
   rd.renderer.setPixelRatio(dpr);
   const sz = _owGetCanvasSize(rd.canvas);
   rd.renderer.setSize(sz.w, sz.h, false);
-  if(low){
+  if(perf.low){
     rd.renderer.shadowMap.enabled = false;
     if(rd.sun) rd.sun.castShadow = false;
+    if(rd.scene?.fog){
+      rd.scene.fog.near = perf.fogNear;
+      rd.scene.fog.far = perf.fogFar;
+    }
+    if(rd.camera){
+      rd.camera.far = perf.camFar;
+      rd.camera.updateProjectionMatrix();
+    }
+    if(rd.ground) rd.ground.receiveShadow = false;
+    if(rd.waterMat){
+      rd.waterMat.transmission = 0;
+      rd.waterMat.metalness = 0;
+      rd.waterMat.roughness = 0.55;
+    }
   } else if(rd.sun && rd.sun.shadow){
     rd.sun.shadow.mapSize.set(768, 768);
     rd.renderer.shadowMap.size = 768;
   }
+  rd._owPerf = perf;
 }
 
 function __owOverlayTake(key, className){
@@ -29220,7 +29512,25 @@ function leaveOpenWorld(){
 
 let __owLoopLastT = 0;
 let __owLoopFrame = 0;
+let __owMobileFpsSkip = false;
 const __OW_FRAME_BUDGET_MS = 14;
+function owForceOpenWorldFrame(){
+  if(!S.ow?.active || !__owRenderer?.scene) return;
+  const rd = __owRenderer;
+  if(rd.renderer) rd.renderer.setClearColor(0xffe4f0, 1);
+  if(rd.human) rd.human.visible = true;
+  if(rd.companion){
+    const hideComp = !!S.ow.inCar || !!S.ow.mmo?.mountPassengerOf;
+    rd.companion.visible = !hideComp;
+  }
+  try{
+    rd.update(0.016);
+  }catch(e){
+    console.error('[OW force frame]', e);
+    if(rd.renderer && rd.scene && rd.camera) rd.renderer.render(rd.scene, rd.camera);
+    if(typeof updateOWOverlays === 'function') updateOWOverlays(rd);
+  }
+}
 function owResumeOpenWorldLoop(){
   if(__owRaf){ cancelAnimationFrame(__owRaf); __owRaf = null; }
   if(!S.ow?.active || !__owRenderer?.scene) return;
@@ -29232,6 +29542,13 @@ function owResumeOpenWorldLoop(){
       return;
     }
     const rd = __owRenderer;
+    if(rd?._owPerf?.low){
+      __owMobileFpsSkip = !__owMobileFpsSkip;
+      if(__owMobileFpsSkip){
+        __owRaf = requestAnimationFrame(loop);
+        return;
+      }
+    }
     const frameStart = performance.now();
     const now = frameStart;
     const dt = Math.min(0.05, (now - __owLoopLastT) / 1000);
@@ -29241,7 +29558,8 @@ function owResumeOpenWorldLoop(){
         rd.update(dt);
         __owLoopFrame++;
         const elapsed = performance.now() - frameStart;
-        if(elapsed < __OW_FRAME_BUDGET_MS && (__owLoopFrame & 1) === 0 && S.ow.active && __owRenderer === rd){
+        const featSkip = rd?._owPerf?.featureSkip || 2;
+        if(elapsed < __OW_FRAME_BUDGET_MS && (__owLoopFrame % featSkip) === 0 && S.ow.active && __owRenderer === rd){
           owUpdateFeatureLayer(rd, dt, now * 0.001);
         }
       }
@@ -30056,7 +30374,8 @@ function owMaybePushOWPositionOnMove(rd){
   const now = Date.now();
   const moved = rd._owLastPushX == null
     || Math.hypot(pos.x - rd._owLastPushX, pos.z - rd._owLastPushZ) > 0.05;
-  const due = now - (rd._owLastPushAt || 0) >= OW_SYNC_MOVE_MS;
+  const moveMs = typeof owGetOwPerfProfile === 'function' ? owGetOwPerfProfile().syncMoveMs : OW_SYNC_MOVE_MS;
+  const due = now - (rd._owLastPushAt || 0) >= moveMs;
   if(moved && due){
     rd._owLastPushX = pos.x;
     rd._owLastPushZ = pos.z;
@@ -30068,6 +30387,15 @@ function owBuildOWPositionPayload(){
   if(!__owRenderer || !S.myEntry?.nick) return null;
   const world = owGetLocalSyncWorldPos(__owRenderer);
   const mpExtra = (window.OW_MP_SYNC && OW_MP_SYNC.buildPayloadExtras) ? OW_MP_SYNC.buildPayloadExtras() : {};
+  const hiVisit = owBuildHouseVisitPayload();
+  let houseVisit = hiVisit;
+  if(hiVisit) S.ow._inHouseVisit = true;
+  else if(S.ow._inHouseVisit){
+    S.ow._inHouseVisit = false;
+    houseVisit = (typeof firebase !== 'undefined' && firebase.firestore?.FieldValue?.delete)
+      ? firebase.firestore.FieldValue.delete()
+      : null;
+  }
   return {
     nick: S.myEntry.nick,
     emoji: S.myPet?.petEmoji || '🐾',
@@ -30087,7 +30415,7 @@ function owBuildOWPositionPayload(){
     mountActive: S.ow.mmo?.ridingMount || 'foot',
     mountPassengerOf: S.ow.mmo?.mountPassengerOf || '',
     mountPassengers: (S.ow.mmo?.mountPassengers || []).slice(),
-    houseVisit: owBuildHouseVisitPayload(),
+    houseVisit,
     ...mpExtra,
     x: world ? +world.x.toFixed(2) : (mpExtra.x ?? 0),
     z: world ? +world.z.toFixed(2) : (mpExtra.z ?? 0),
@@ -30116,7 +30444,7 @@ function startOWPositionSync(){
     owCol.doc(S.myEntry.nick).set(data, { merge: true }).catch(()=>{});
     if(S.ow.combat?.huntMode && typeof owSharedHuntUpdateHunterPos === 'function') owSharedHuntUpdateHunterPos();
     if((S.ow.bossFight?.active || S.ow.combat?.huntMode) && typeof owSharedBossUpdateFighterPos === 'function') owSharedBossUpdateFighterPos();
-  }, OW_SYNC_MS);
+  }, typeof owGetOwPerfProfile === 'function' ? owGetOwPerfProfile().syncMs : OW_SYNC_MS);
 }
 function subscribeOWPlayers(){
   if(__owUnsub){ try{ __owUnsub(); }catch(e){} }
@@ -30127,13 +30455,16 @@ function subscribeOWPlayers(){
     const remoteRows = [];
     snap.forEach(doc=>{
       const d = doc.data();
-      if(!d.nick || d.nick === myNick) return;
+      const nick = d.nick || doc.id;
+      if(!nick || nick === myNick) return;
       // 30초 이상 비활성 → 제거
       if(d.ts && (now - d.ts > 30000)) return;
-      seen.add(d.nick);
-      remoteRows.push(d);
-      if(__owRenderer) __owRenderer.upsertOtherPet(d.nick, d);
+      seen.add(nick);
+      const row = { ...d, nick };
+      remoteRows.push(row);
+      if(__owRenderer) __owRenderer.upsertOtherPet(nick, row);
     });
+    S.ow._owRemotePlayerRows = remoteRows;
     if(__owRenderer){
       // 떠난 유저 제거
       const toRemove = [];
@@ -30143,16 +30474,7 @@ function subscribeOWPlayers(){
       toRemove.forEach(n=>__owRenderer.removeOtherPet(n));
     }
     if(window.OWHouseInterior && OWHouseInterior.isActive()){
-      OWHouseInterior.syncVisitors(remoteRows);
-      const vc = remoteRows.filter(d => {
-        const hv = d.houseVisit;
-        const hi = S.ow.houseInterior;
-        return hv && hi && hv.owner === hi.owner && hv.plotId === hi.plotId;
-      }).length;
-      if(S.ow.houseInterior.visitorCount !== vc){
-        S.ow.houseInterior.visitorCount = vc;
-        if(S.screen === 'openworld') renderOpenWorldUIPass();
-      }
+      owRefreshHouseInteriorVisitors();
     }
     // 상태 패널 갱신용
     S.ow.players = Array.from(seen);
@@ -30179,17 +30501,22 @@ function subscribeOWCar(){
     }
   });
 }
-function owTradeFromNick(t){ return (t && (t.from || t.from_nick)) || ''; }
-function owTradeToNick(t){ return (t && (t.to || t.to_nick)) || ''; }
+function owTradeFromNick(t){ return (t && (t.from || t.from_nick || t.fromNick)) || ''; }
+function owTradeToNick(t){ return (t && (t.to || t.to_nick || t.toNick)) || ''; }
+function owTradeAmSeller(t, myNick){
+  const from = owTradeFromNick(t);
+  return !!(myNick && from && from === myNick);
+}
 function owTradeNormalize(t){
   if(!t) return null;
+  const extra = (t.extra && typeof t.extra === 'object') ? t.extra : {};
   return {
     from: owTradeFromNick(t),
     to: owTradeToNick(t),
     sellerOffer: Array.isArray(t.sellerOffer) ? t.sellerOffer : (Array.isArray(t.seller_offer) ? t.seller_offer : []),
     buyerOffer: Array.isArray(t.buyerOffer) ? t.buyerOffer : (Array.isArray(t.buyer_offer) ? t.buyer_offer : []),
-    sellerPoints: Math.max(0, Math.floor(Number(t.sellerPoints ?? t.seller_points ?? 0) || 0)),
-    buyerPoints: Math.max(0, Math.floor(Number(t.buyerPoints ?? t.buyer_points ?? 0) || 0)),
+    sellerPoints: Math.max(0, Math.floor(Number(t.sellerPoints ?? t.seller_points ?? extra.sellerPoints ?? 0) || 0)),
+    buyerPoints: Math.max(0, Math.floor(Number(t.buyerPoints ?? t.buyer_points ?? extra.buyerPoints ?? 0) || 0)),
     sellerLocked: !!(t.sellerLocked || t.seller_locked),
     buyerLocked: !!(t.buyerLocked || t.buyer_locked),
     status: t.status || 'open',
@@ -30205,6 +30532,7 @@ function owTradeItemKind(o){
 let __owLastTradeUiFp = '';
 let __owLastTradeReqId = null;
 let __owTradeSyncPending = false;
+let __owTradePtsSyncTimer = null;
 function owTradeUiFingerprint(t){
   if(!t) return '';
   const n = owTradeNormalize(t);
@@ -30220,7 +30548,7 @@ function owApplyOpenTradeState(t){
   const norm = owTradeNormalize(t);
   const from = norm.from;
   const to = norm.to;
-  const iAmSeller = myNick === from;
+  const iAmSeller = owTradeAmSeller(t, myNick);
   S.ow.activeTrade = { ...t, id: t.id };
   S.ow.tradeWith = iAmSeller ? to : from;
   S.ow.tradeOffer = (iAmSeller ? norm.sellerOffer : norm.buyerOffer).slice();
@@ -30307,6 +30635,14 @@ function subscribeOWTrade(){
       }
       owSyncOpenTradeFromSnapshots();
     }));
+  bindTradeUnsub(owTradeCol.where('participants', 'array-contains', myNick).where('status', '==', 'completed')
+    .onSnapshot(snap=>{
+      if(snap.empty) return;
+      if(S.ow.showTrade){
+        owCloseTradeUI();
+        if(S.screen === 'openworld') owRenderTradeUi();
+      }
+    }));
   bindTradeUnsub(owTradeCol.where('from', '==', myNick).where('status', '==', 'open')
     .onSnapshot(snap=>{
       S.ow._openTradeByFrom = null;
@@ -30326,13 +30662,31 @@ function owGetActiveOwHuman(){
 function owIsInHouseInterior(){
   return !!(window.OWHouseInterior && OWHouseInterior.isActive());
 }
+function owIsHousePortalBlocked(){
+  return !!(S.ow.combat?.huntMode || S.ow.pvpDuel || S.ow.bossFight?.active);
+}
+function owRefreshHouseInteriorVisitors(){
+  if(!window.OWHouseInterior || !OWHouseInterior.isActive()) return;
+  const rows = S.ow?._owRemotePlayerRows || [];
+  OWHouseInterior.syncVisitors(rows);
+  const hi = S.ow?.houseInterior;
+  if(!hi) return;
+  const vc = rows.filter(d => {
+    const hv = d.houseVisit;
+    return hv && hv.owner === hi.owner && hv.plotId === hi.plotId;
+  }).length;
+  if(hi.visitorCount !== vc){
+    hi.visitorCount = vc;
+    if(S.screen === 'openworld') renderOpenWorldUIPass();
+  }
+}
 function owSendChat(text){
   if(!text || !text.trim()) return;
   S.ow.chatMsg = text.trim().slice(0, 60);
-  S.ow.chatExpire = Date.now() + 3500;
+  S.ow.chatExpire = Date.now() + (owIsInHouseInterior() ? 5500 : 3500);
   owQuestProgress('social', 1);
+  owPushOWPositionNow();
   if(owIsInHouseInterior()){
-    owPushOWPositionNow();
     renderOpenWorldUIPass();
   }
 }
@@ -31680,13 +32034,19 @@ function owRemoveTradeOffer(idx){
   _owSyncTradeOffer();
   owRenderTradeUi();
 }
-function owSetTradePoints(raw){
+function owSetTradePoints(raw, opts){
   if(S.ow.tradeLocked) return;
   const max = Math.max(0, Math.floor(Number(S.myPet?.points) || 0));
   const n = Math.max(0, Math.min(max, Math.floor(Number(raw) || 0)));
   S.ow.tradeMyPoints = n;
+  if(opts?.localOnly){
+    if(__owTradePtsSyncTimer) clearTimeout(__owTradePtsSyncTimer);
+    __owTradePtsSyncTimer = setTimeout(()=>{ owSetTradePoints(n, { syncNow: true }); }, 450);
+    return;
+  }
+  if(__owTradePtsSyncTimer){ clearTimeout(__owTradePtsSyncTimer); __owTradePtsSyncTimer = null; }
   _owSyncTradeOffer();
-  owRenderTradeUi();
+  if(opts?.syncNow) owRenderTradeUi();
 }
 async function _owSyncTradeOffer(){
   if(!S.ow.activeTrade?.id) return;
@@ -31696,7 +32056,7 @@ async function _owSyncTradeOffer(){
     const doc = await owTradeCol.doc(S.ow.activeTrade.id).get();
     if(!doc.exists) return;
     const data = doc.data();
-    const isSeller = owTradeFromNick(data) === myNick;
+    const isSeller = owTradeAmSeller(data, myNick);
     const fld = isSeller ? 'sellerOffer' : 'buyerOffer';
     const pointsFld = isSeller ? 'sellerPoints' : 'buyerPoints';
     const lockFld = isSeller ? 'sellerLocked' : 'buyerLocked';
@@ -31705,15 +32065,16 @@ async function _owSyncTradeOffer(){
       [pointsFld]: Math.max(0, Math.floor(Number(S.ow.tradeMyPoints) || 0)),
       [lockFld]: false,
     });
+    const norm = owTradeNormalize(data);
     __owLastTradeUiFp = owTradeUiFingerprint({
       id: S.ow.activeTrade.id,
       status: 'open',
-      from: owTradeFromNick(data),
-      to: owTradeToNick(data),
-      sellerOffer: isSeller ? S.ow.tradeOffer : (data.sellerOffer || data.seller_offer || []),
-      buyerOffer: isSeller ? (data.buyerOffer || data.buyer_offer || []) : S.ow.tradeOffer,
-      sellerPoints: isSeller ? S.ow.tradeMyPoints : (data.sellerPoints ?? data.extra?.sellerPoints ?? 0),
-      buyerPoints: isSeller ? (data.buyerPoints ?? data.extra?.buyerPoints ?? 0) : S.ow.tradeMyPoints,
+      from: norm.from,
+      to: norm.to,
+      sellerOffer: isSeller ? S.ow.tradeOffer : norm.sellerOffer,
+      buyerOffer: isSeller ? norm.buyerOffer : S.ow.tradeOffer,
+      sellerPoints: isSeller ? S.ow.tradeMyPoints : norm.sellerPoints,
+      buyerPoints: isSeller ? norm.buyerPoints : S.ow.tradeMyPoints,
       sellerLocked: false,
       buyerLocked: false,
     });
@@ -31729,14 +32090,14 @@ async function owToggleTradeLock(){
     const doc = await owTradeCol.doc(S.ow.activeTrade.id).get();
     if(!doc.exists) return;
     const data = doc.data();
-    const isSeller = owTradeFromNick(data) === myNick;
+    const isSeller = owTradeAmSeller(data, myNick);
     const lockFld = isSeller ? 'sellerLocked' : 'buyerLocked';
     const newLock = !S.ow.tradeLocked;
     await owTradeDocUpdate(S.ow.activeTrade.id, { [lockFld]: newLock });
     const updated = await owTradeCol.doc(S.ow.activeTrade.id).get();
     const d2 = updated.data();
+    const norm = owTradeNormalize({ id: S.ow.activeTrade.id, ...d2 });
     owApplyOpenTradeState({ id: S.ow.activeTrade.id, ...d2 });
-    const norm = owTradeNormalize(d2);
     if(norm.status === 'open' && norm.sellerLocked && norm.buyerLocked){
       await _owFinalizeTrade(S.ow.activeTrade.id);
       return;
@@ -37669,8 +38030,8 @@ class OWExplorationSystem {
   }
   tick(dt, pos){
     if(!pos) return;
-    this.radar.mount();
-    this.radar.tick(dt, pos);
+    if(this.radar?.canvas) this.radar.dispose();
+    if(S.ow?.mmo) S.ow.mmo.treasureRadar = null;
     this.photo.tick(dt, pos);
     const region = this.getRegionAt(pos.x, pos.z);
     if(!region) return;
@@ -41179,7 +41540,30 @@ function owSaveHouseDecor(owner, plotId, decor){
   }, 450);
 }
 
+const OW_SPAWN_POS = { x: 0, z: 0 };
+function owResetOpenWorldSpawnPos(rd){
+  rd = rd || __owRenderer;
+  if(!rd?.human) return;
+  const sx = OW_SPAWN_POS.x;
+  const sz = OW_SPAWN_POS.z;
+  rd.human.position.set(sx, 0, sz);
+  rd.human.rotation.y = 0;
+  rd.humanRotY = 0;
+  rd.humanTarget = null;
+  rd.humanWalkPhase = 0;
+  if(rd.companion){
+    rd.companion.position.set(sx - 1.4, 0, sz);
+    rd.companion.userData.walkPhase = 0;
+  }
+  rd.petTarget = null;
+  rd.petRotY = 0;
+  rd.cameraYaw = 0;
+}
 async function owEnterOwHouseInterior(plotId, owner, canEdit){
+  if(owIsHousePortalBlocked()){
+    owMmoToast('⚔️ 사냥 중에는 집에 들어갈 수 없어요');
+    return;
+  }
   if(!window.OWHouseInterior) { alert('인테리어 모듈 로드 실패 — 페이지를 새로고침 해주세요.'); return; }
   if(!__owRenderer){
     alert('오픈월드가 준비되지 않았어요. 잠시 후 다시 시도해 주세요.');
@@ -41202,9 +41586,11 @@ async function owEnterOwHouseInterior(plotId, owner, canEdit){
     if(canEdit && typeof owApplyOWStatBonuses === 'function') owApplyOWStatBonuses();
     const placed = canEdit ? getOwHouseDecorStats() : null;
     const placedLine = placed?.count && owFmtStatBonusLine(placed) ? ' · ' + owFmtStatBonusLine(placed) : '';
+    owPushOWPositionNow();
+    owRefreshHouseInteriorVisitors();
     owMmoToast(canEdit
       ? ('🏠 내 오픈월드 집 — 바닥 탭 이동 · 왼쪽 파란 문 나가기' + placedLine)
-      : `🏠 ${shortNick(owner)}님의 집 방문`);
+      : `🏠 ${shortNick(owner)}님의 집 방문 · 💬 채팅으로 대화해요`);
   }catch(e){
     console.error('[OWHouseInterior]', e);
     alert('집 내부 로딩에 실패했어요.');
@@ -41404,6 +41790,10 @@ function rOWHouseInteriorUI(){
 }
 
 async function owBuyHousePlot(plotId){
+  if(owIsHousePortalBlocked()){
+    owMmoToast('⚔️ 사냥 중에는 집을 분양할 수 없어요');
+    return;
+  }
   const myNick = S.myEntry?.nick;
   if(!myNick || !S.myPet) return;
   const plot = (OW_HOUSE_PLOT_PLACEMENTS || []).find(p => p.id === plotId);
@@ -41464,6 +41854,10 @@ async function owBuyHousePlot(plotId){
 
 async function owEnterHousePortal(plotId){
   if(!plotId) return;
+  if(owIsHousePortalBlocked()){
+    owMmoToast('⚔️ 사냥 중에는 집에 들어갈 수 없어요');
+    return;
+  }
   if(S.ow._housePlotEntering || S.ow.houseInterior?.active || (window.OWHouseInterior && OWHouseInterior.isActive())) return;
   const plotData = S.owHousePlots?.[plotId];
   const owner = plotData?.owner;
@@ -41528,7 +41922,7 @@ function owMmoRenderMapInteractHUD(){
   if(farm != null){
     html += `<button type="button" class="ow-campfire-bar" data-a="ow_mapFarmAct" data-slot="${farm}">🌾 밭 ${farm+1} — 심기/수확</button>`;
   }
-  const plot = S.ow.mmo?.housePlotNear;
+  const plot = !owIsHousePortalBlocked() ? S.ow.mmo?.housePlotNear : null;
   if(plot){
     if(plot.owner){
       const label = plot.mine ? '내 집 입장' : `${shortNick(plot.owner)}의 집`;

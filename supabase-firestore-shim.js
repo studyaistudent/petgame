@@ -255,9 +255,13 @@
     const rev = Object.fromEntries(Object.entries(alias).map(([a, b]) => [b, a]));
     const out = { ...data };
     for (const [snake, camel] of Object.entries(rev)) {
+      const camelSnake = camelKey(snake);
       if (snake in out) {
         out[camel] = out[snake];
         if (camel !== snake) delete out[snake];
+      } else if (camelSnake in out) {
+        out[camel] = out[camelSnake];
+        if (camel !== camelSnake) delete out[camelSnake];
       }
     }
     return out;
@@ -1151,6 +1155,6 @@
     return ref.update(patch);
   };
 
-  global.__lmShimVersion = '15';
+  global.__lmShimVersion = '16';
   global.__lmIsTableDead = isTableDead;
 })(typeof window !== 'undefined' ? window : globalThis);

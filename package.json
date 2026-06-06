@@ -1,0 +1,8 @@
+{
+  "name": "petgame",
+  "private": true,
+  "scripts": {
+    "dev": "npx --yes serve -l 5500 -c serve.json",
+    "start": "npx --yes serve -l 5500 -c serve.json"
+  }
+}

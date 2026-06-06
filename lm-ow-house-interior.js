@@ -110,7 +110,11 @@
       this.selectedPlacement = null;
       this._raf = null;
       this._furnitureMeshes = new Map();
+      this._wallMeshes = [];
       this._raycaster = new THREE.Raycaster();
+      this._camLook = new THREE.Vector3();
+      this._camDesired = new THREE.Vector3();
+      this._camDir = new THREE.Vector3();
       this._pointer = new THREE.Vector2();
       this._floorPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
       this._intersectPt = new THREE.Vector3();
@@ -214,8 +218,11 @@
       if (this._posPushTimer) clearInterval(this._posPushTimer);
       this._posPushTimer = setInterval(() => {
         if (this.active && typeof global.owPushOWPositionNow === 'function') global.owPushOWPositionNow();
-      }, 280);
+      }, 140);
       if (typeof global.owPushOWPositionNow === 'function') global.owPushOWPositionNow();
+      if (typeof global.owRefreshHouseInteriorVisitors === 'function') {
+        setTimeout(() => global.owRefreshHouseInteriorVisitors(), 80);
+      }
 
       this._lastT = performance.now();
       const loop = () => {
@@ -257,11 +264,18 @@
       this.scene.add(rug);
 
       const wallT = 0.18;
+      this._wallMeshes = [];
       const mkWall = (gw, gh, gd, x, y, z) => {
-        const m = new THREE.Mesh(new THREE.BoxGeometry(gw, gh, gd), wallMat);
+        const mat = wallMat.clone();
+        mat.transparent = true;
+        mat.opacity = 1;
+        mat.depthWrite = true;
+        const m = new THREE.Mesh(new THREE.BoxGeometry(gw, gh, gd), mat);
         m.position.set(x, y, z);
         m.castShadow = true;
         m.receiveShadow = true;
+        m.userData.hiWall = true;
+        this._wallMeshes.push(m);
         this.scene.add(m);
       };
       mkWall(ROOM_W, WALL_H, wallT, 0, WALL_H / 2, -ROOM_D / 2);
@@ -447,11 +461,16 @@
         global.owUpdateHumanLocomotion(this.human, moving, dt, this._locoState(moving));
       }
 
-      const cx = this.human.position.x - Math.sin(this.cameraYaw) * this.cameraDist;
-      const cz = this.human.position.z - Math.cos(this.cameraYaw) * this.cameraDist;
-      const cy = 2.1 + this.cameraPitch * 2;
-      this.camera.position.lerp(new this.THREE.Vector3(cx, cy, cz), moving ? 0.12 : 0.08);
-      this.camera.lookAt(this.human.position.x, 1.1, this.human.position.z);
+      this._updateCamera(moving);
+      if (moving) {
+        this._hiPushAcc = (this._hiPushAcc || 0) + dt;
+        if (this._hiPushAcc >= 0.1) {
+          this._hiPushAcc = 0;
+          if (typeof global.owPushOWPositionNow === 'function') global.owPushOWPositionNow();
+        }
+      } else {
+        this._hiPushAcc = 0;
+      }
 
       this._otherVisitors.forEach((g) => {
         const tx = g.userData.targetX;
@@ -460,11 +479,12 @@
         if (typeof tx === 'number' && typeof tz === 'number') {
           const md = Math.hypot(tx - g.position.x, tz - g.position.z);
           visitorMoving = md > 0.03 && !g.userData.sitting;
-          g.position.x += (tx - g.position.x) * 0.18;
-          g.position.z += (tz - g.position.z) * 0.18;
+          const t = md > 1.5 ? 0.38 : 0.22;
+          g.position.x += (tx - g.position.x) * t;
+          g.position.z += (tz - g.position.z) * t;
         }
         if (typeof g.userData.targetRotY === 'number') {
-          g.rotation.y += (g.userData.targetRotY - g.rotation.y) * 0.2;
+          g.rotation.y += (g.userData.targetRotY - g.rotation.y) * 0.24;
         }
         const mesh = g.userData.mesh;
         if (mesh && typeof global.owUpdateHumanLocomotion === 'function') {
@@ -510,6 +530,59 @@
       if (typeof global.renderOpenWorldUIPass === 'function') global.renderOpenWorldUIPass();
     }
 
+    _updateCamera(moving) {
+      const THREE = this.THREE;
+      const margin = 0.55;
+      const maxX = ROOM_W / 2 - margin;
+      const maxZ = ROOM_D / 2 - margin;
+      const lookAt = this._camLook.set(this.human.position.x, 1.15, this.human.position.z);
+      let cx = this.human.position.x - Math.sin(this.cameraYaw) * this.cameraDist;
+      let cz = this.human.position.z - Math.cos(this.cameraYaw) * this.cameraDist;
+      const cy = Math.min(WALL_H - 0.35, Math.max(1.35, 2.1 + this.cameraPitch * 2));
+      cx = Math.max(-maxX, Math.min(maxX, cx));
+      cz = Math.max(-maxZ, Math.min(maxZ, cz));
+      const desired = this._camDesired.set(cx, cy, cz);
+      const dir = this._camDir.copy(desired).sub(lookAt);
+      const len = dir.length();
+      if (len > 0.05 && this._wallMeshes.length) {
+        dir.normalize();
+        this._raycaster.set(lookAt, dir);
+        this._raycaster.far = len;
+        const hits = this._raycaster.intersectObjects(this._wallMeshes, false);
+        if (hits.length) {
+          const pull = Math.max(1.1, hits[0].distance - 0.3);
+          desired.copy(lookAt).add(dir.multiplyScalar(pull));
+          desired.x = Math.max(-maxX, Math.min(maxX, desired.x));
+          desired.z = Math.max(-maxZ, Math.min(maxZ, desired.z));
+        }
+      }
+      this.camera.position.lerp(desired, moving ? 0.12 : 0.08);
+      this.camera.lookAt(lookAt);
+      this._updateWallOcclusion();
+    }
+
+    _updateWallOcclusion() {
+      if (!this._wallMeshes.length || !this.human) return;
+      const cam = this.camera.position;
+      const target = this._camLook.set(this.human.position.x, 1.15, this.human.position.z);
+      const toTarget = this._camDir.copy(target).sub(cam);
+      const dist = toTarget.length();
+      if (dist < 0.05) return;
+      toTarget.normalize();
+      this._raycaster.set(cam, toTarget);
+      this._raycaster.far = dist - 0.2;
+      const hits = this._raycaster.intersectObjects(this._wallMeshes, false);
+      const blocking = new Set(hits.map((h) => h.object));
+      this._wallMeshes.forEach((wall) => {
+        const mat = wall.material;
+        if (!mat) return;
+        const goal = blocking.has(wall) ? 0.06 : 1;
+        mat.transparent = true;
+        mat.opacity += (goal - mat.opacity) * 0.2;
+        mat.depthWrite = mat.opacity > 0.42;
+      });
+    }
+
     adjustCameraZoom(delta) {
       this.cameraDist = Math.max(this.cameraDistMin, Math.min(this.cameraDistMax, this.cameraDist + delta));
     }
@@ -553,16 +626,27 @@
         g.userData.nick = nick;
         this.scene.add(g);
         this._otherVisitors.set(nick, g);
-        if (global.__owRenderer && typeof global.__owRenderer._buildHuman === 'function') {
-          try {
-            const avatar = data.avatar || global.DEFAULT_AVATAR;
-            const mesh = global.__owRenderer._buildHuman(avatar, data.heightCm || 180, data.gender || '남성');
+        const avatar = data.avatar || global.DEFAULT_AVATAR;
+        const gender = data.gender || '남성';
+        const heightCm = data.heightCm || 180;
+        try {
+          if (global.__owRenderer && typeof global.__owRenderer._buildHuman === 'function') {
+            const mesh = global.__owRenderer._buildHuman(avatar, heightCm, gender);
             mesh.position.set(0, 0, 0);
             mesh.rotation.set(0, 0, 0);
             g.add(mesh);
             g.userData.mesh = mesh;
-          } catch (e) { /* fallback below */ }
-        }
+          } else if (global.LMOwAvatar && typeof global.LMOwAvatar.createWrapper === 'function') {
+            const mesh = global.LMOwAvatar.createWrapper(
+              global.LMOwAvatar.resolveGender(avatar, gender),
+              { avatar, gender }
+            );
+            mesh.position.set(0, 0, 0);
+            mesh.rotation.set(0, 0, 0);
+            g.add(mesh);
+            g.userData.mesh = mesh;
+          }
+        } catch (e) { /* fallback below */ }
         if (!g.userData.mesh) {
           const body = new THREE.Mesh(
             hiCapsuleGeometry(THREE, 0.26, 0.85, 6, 12),
@@ -578,14 +662,25 @@
         }
       }
       const wasSitting = !!g.userData.sitting;
-      g.userData.targetX = typeof hv.x === 'number' ? hv.x : g.position.x;
-      g.userData.targetZ = typeof hv.z === 'number' ? hv.z : g.position.z;
+      if (typeof hv.x === 'number') {
+        g.userData.targetX = hv.x;
+        if (!g.userData._spawned) g.position.x = hv.x;
+      } else {
+        g.userData.targetX = g.position.x;
+      }
+      if (typeof hv.z === 'number') {
+        g.userData.targetZ = hv.z;
+        if (!g.userData._spawned) g.position.z = hv.z;
+      } else {
+        g.userData.targetZ = g.position.z;
+      }
+      g.userData._spawned = true;
       g.userData.targetRotY = typeof hv.rotY === 'number' ? hv.rotY : 0;
       g.userData.sitting = !!hv.sitting;
-      g.userData.emoji = data.emoji || '🐾';
-      g.userData.chatMsg = data.chatMsg || '';
+      g.userData.emoji = data.emoji || data.petEmoji || '🐾';
+      g.userData.chatMsg = (data.chatMsg && data.chatExpire && Date.now() < data.chatExpire) ? data.chatMsg : '';
       g.userData.chatExpire = data.chatExpire || 0;
-      g.userData.emoteKind = data.emoteKind || '';
+      g.userData.emoteKind = (data.emoteUntil && Date.now() < data.emoteUntil) ? (data.emoteKind || '') : '';
       g.userData.emoteUntil = data.emoteUntil || 0;
       const mesh = g.userData.mesh;
       if (mesh && g.userData.sitting !== wasSitting) {
@@ -820,6 +915,7 @@
       if (this._isSitting) return;
       const c = clampRoom(pt.x, pt.z);
       this.humanTarget = new this.THREE.Vector3(c.x, 0, c.z);
+      if (typeof global.owPushOWPositionNow === 'function') global.owPushOWPositionNow();
     }
 
     _onPointerMove(ev) {
@@ -975,6 +1071,7 @@
         this.scene = null;
       }
       this._furnitureMeshes.clear();
+      this._wallMeshes = [];
       this.human = null;
 
       const owRd = global.__owRenderer;
@@ -993,6 +1090,10 @@
         global.S.ow.houseInterior = null;
         global.S.ow.active = true;
       }
+      if (typeof global.owResetOpenWorldSpawnPos === 'function') global.owResetOpenWorldSpawnPos(owRd);
+      if (typeof global.owPushOWPositionNow === 'function') global.owPushOWPositionNow();
+      if (typeof global.owForceOpenWorldFrame === 'function') global.owForceOpenWorldFrame();
+      if (typeof global.owSyncOwRootStateClasses === 'function') global.owSyncOwRootStateClasses();
 
       if (typeof global.renderOpenWorldUIPass === 'function') global.renderOpenWorldUIPass();
 
