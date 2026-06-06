@@ -4564,6 +4564,7 @@ body.ow-hi-dragging, body.ow-hi-dragging #ow-canvas{ cursor:grabbing!important; 
 
 </style>
 <!-- CDN 대신 로컬 vendor (Tracking Prevention / file:// 대응) -->
+<script src="lm-devguard.js?v=1"></script>
 <script src="vendor/three.min.js?v=1"></script>
 <script src="vendor/fflate.min.js?v=1"></script>
 <script src="vendor/GLTFLoader.js?v=1"></script>
@@ -25524,6 +25525,7 @@ _buildHuman(avatar, heightCm, gender){
   }
 
   _buildLake(){
+    const perf = this._owPerf || {};
     // 호수 — 약간 흔들리는 푸른 평면 + 가장자리 모래
     const sandSeg = perf.low ? 16 : 32;
     const sandGeo = new THREE.CircleGeometry(OW_LAKE_CENTER.r + 2, sandSeg);
@@ -25532,7 +25534,6 @@ _buildHuman(avatar, heightCm, gender){
     sand.rotation.x = -Math.PI/2;
     sand.position.set(OW_LAKE_CENTER.x, 0.03, OW_LAKE_CENTER.z);
     this.scene.add(sand);
-    const perf = this._owPerf || {};
     const waterGeo = new THREE.CircleGeometry(OW_LAKE_CENTER.r, perf.low ? 24 : 48);
     this.waterMat = perf.low
       ? new THREE.MeshLambertMaterial({ color: 0x4FC3F7, transparent: true, opacity: 0.82 })
