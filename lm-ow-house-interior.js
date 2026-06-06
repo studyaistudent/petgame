@@ -607,14 +607,30 @@
       this.adjustCameraZoom(ev.deltaY > 0 ? 0.35 : -0.35);
     }
 
+    _normalizeHouseVisit(hv) {
+      if (typeof global.owNormalizeHouseVisit === 'function') return global.owNormalizeHouseVisit(hv);
+      if (!hv || typeof hv !== 'object') return null;
+      const plotId = hv.plotId ?? hv.plot_id;
+      const owner = hv.owner;
+      if (!plotId || !owner) return null;
+      const out = { plotId: String(plotId), owner: String(owner), sitting: !!hv.sitting };
+      if (typeof hv.x === 'number') out.x = hv.x;
+      if (typeof hv.z === 'number') out.z = hv.z;
+      const rotY = hv.rotY ?? hv.rot_y;
+      if (typeof rotY === 'number') out.rotY = rotY;
+      return out;
+    }
+
     syncVisitors(remoteList) {
       if (!this.active) return;
       const seen = new Set();
+      const myOwner = String(this.owner);
+      const myPlotId = String(this.plotId);
       (remoteList || []).forEach((data) => {
         const nick = data.nick;
         if (!nick || nick === global.S?.myEntry?.nick) return;
-        const hv = data.houseVisit;
-        if (!hv || hv.owner !== this.owner || hv.plotId !== this.plotId) {
+        const hv = this._normalizeHouseVisit(data.houseVisit || data.house_visit);
+        if (!hv || hv.owner !== myOwner || hv.plotId !== myPlotId) {
           this._removeVisitor(nick);
           return;
         }
@@ -686,11 +702,15 @@
       g.userData._spawned = true;
       g.userData.targetRotY = typeof hv.rotY === 'number' ? hv.rotY : 0;
       g.userData.sitting = !!hv.sitting;
-      g.userData.emoji = data.emoji || data.petEmoji || '🐾';
-      g.userData.chatMsg = (data.chatMsg && data.chatExpire && Date.now() < data.chatExpire) ? data.chatMsg : '';
-      g.userData.chatExpire = data.chatExpire || 0;
-      g.userData.emoteKind = (data.emoteUntil && Date.now() < data.emoteUntil) ? (data.emoteKind || '') : '';
-      g.userData.emoteUntil = data.emoteUntil || 0;
+      g.userData.emoji = data.emoji || data.petEmoji || data.pet_emoji || '🐾';
+      const chatMsg = data.chatMsg || data.chat_msg || '';
+      const chatExpire = Number(data.chatExpire ?? data.chat_expire) || 0;
+      g.userData.chatMsg = (chatMsg && chatExpire && Date.now() < chatExpire) ? chatMsg : '';
+      g.userData.chatExpire = chatExpire;
+      const emoteUntil = Number(data.emoteUntil ?? data.emote_until) || 0;
+      const emoteKind = data.emoteKind || data.emote_kind || '';
+      g.userData.emoteKind = (emoteUntil && Date.now() < emoteUntil) ? emoteKind : '';
+      g.userData.emoteUntil = emoteUntil;
       const mesh = g.userData.mesh;
       if (mesh && g.userData.sitting !== wasSitting) {
         if (g.userData.sitting) {

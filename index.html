@@ -3863,7 +3863,7 @@ body.ow-mode #app{
 }
 .ow-root.ow-simple-hud .ow-chat-bar.ow-simple-chat{
   position:absolute;left:10px;right:10px;
-  bottom:calc(64px + env(safe-area-inset-bottom));z-index:14;
+  bottom:calc(76px + env(safe-area-inset-bottom));z-index:16;
   transform:none;width:auto;
 }
 .ow-root-combat .ow-simple-dock,
@@ -4332,6 +4332,8 @@ body.ow-mode{ overscroll-behavior:none; overflow:hidden; }
 .ow-house-interior-mode .ow-mmo-social-bar,
 .ow-house-interior-mode .ow-hunt-toggle,
 .ow-house-interior-mode .ow-near-list{ display:none!important; }
+.ow-house-interior-mode .ow-hi-social .ow-chat-bar,
+.ow-house-interior-mode .ow-hi-social .ow-emote-bar{ display:flex!important; }
 .ow-hi-panel{
   position:absolute;left:0;right:0;bottom:0;z-index:24;
   padding:10px 12px calc(12px + env(safe-area-inset-bottom));
@@ -4572,7 +4574,7 @@ body.ow-hi-dragging, body.ow-hi-dragging #ow-canvas{ cursor:grabbing!important; 
 <script src="lm-fbx-texture-manifest.js?v=3"></script>
 <script src="lm-glb-catalog.js?v=80"></script>
 <script src="lm-ow-glb.js?v=27"></script>
-<script src="lm-ow-house-interior.js?v=17"></script>
+<script src="lm-ow-house-interior.js?v=18"></script>
 <script src="lm-golem-manifest.js?v=3"></script>
 <script src="lm-ow-avatar.js?v=14"></script>
 <script src="lm-glb-runtime.js?v=115"></script>
@@ -30497,12 +30499,40 @@ function owGetLocalSyncWorldPos(rd){
   }
   return null;
 }
+function owNormalizeHouseVisit(hv){
+  if(!hv || typeof hv !== 'object') return null;
+  const plotId = hv.plotId ?? hv.plot_id;
+  const owner = hv.owner;
+  if(!plotId || !owner) return null;
+  const out = {
+    plotId: String(plotId),
+    owner: String(owner),
+    sitting: !!hv.sitting,
+  };
+  if(typeof hv.x === 'number') out.x = hv.x;
+  if(typeof hv.z === 'number') out.z = hv.z;
+  const rotY = hv.rotY ?? hv.rot_y;
+  if(typeof rotY === 'number') out.rotY = rotY;
+  return out;
+}
+function owNormalizeOwRemoteRow(d){
+  if(!d) return d;
+  const row = { ...d };
+  row.chatMsg = d.chatMsg || d.chat_msg || '';
+  row.chatExpire = Number(d.chatExpire ?? d.chat_expire) || 0;
+  row.emoteKind = d.emoteKind || d.emote_kind || '';
+  row.emoteAt = Number(d.emoteAt ?? d.emote_at) || 0;
+  row.emoteUntil = Number(d.emoteUntil ?? d.emote_until) || 0;
+  const hv = d.houseVisit || d.house_visit || (d.extra && (d.extra.houseVisit || d.extra.house_visit));
+  row.houseVisit = owNormalizeHouseVisit(hv);
+  return row;
+}
 function owBuildHouseVisitPayload(){
   const hiInst = window.OWHouseInterior?.getInstance?.();
   if(!hiInst?.active || !hiInst.human) return null;
   return {
-    plotId: hiInst.plotId,
-    owner: hiInst.owner,
+    plotId: String(hiInst.plotId),
+    owner: String(hiInst.owner),
     x: +hiInst.human.position.x.toFixed(2),
     z: +hiInst.human.position.z.toFixed(2),
     rotY: +(hiInst.humanRotY ?? hiInst.human.rotation.y).toFixed(2),
@@ -30602,7 +30632,7 @@ function subscribeOWPlayers(){
       // 30초 이상 비활성 → 제거
       if(d.ts && (now - d.ts > 30000)) return;
       seen.add(nick);
-      const row = { ...d, nick };
+      const row = owNormalizeOwRemoteRow({ ...d, nick });
       remoteRows.push(row);
       if(__owRenderer) __owRenderer.upsertOtherPet(nick, row);
     });
@@ -30813,9 +30843,11 @@ function owRefreshHouseInteriorVisitors(){
   OWHouseInterior.syncVisitors(rows);
   const hi = S.ow?.houseInterior;
   if(!hi) return;
+  const hiOwner = String(hi.owner);
+  const hiPlotId = String(hi.plotId);
   const vc = rows.filter(d => {
-    const hv = d.houseVisit;
-    return hv && hv.owner === hi.owner && hv.plotId === hi.plotId;
+    const hv = owNormalizeHouseVisit(d.houseVisit || d.house_visit);
+    return hv && hv.owner === hiOwner && hv.plotId === hiPlotId;
   }).length;
   if(hi.visitorCount !== vc){
     hi.visitorCount = vc;
@@ -30829,6 +30861,7 @@ function owSendChat(text){
   owQuestProgress('social', 1);
   owPushOWPositionNow();
   if(owIsInHouseInterior()){
+    owRefreshHouseInteriorVisitors();
     renderOpenWorldUIPass();
   }
 }
