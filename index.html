@@ -4631,8 +4631,8 @@ body.ow-hi-dragging, body.ow-hi-dragging #ow-canvas{ cursor:grabbing!important; 
 
 
 <script>
-/* 빌드 확인: F12 콘솔 → __LM_BUILD (20260606-hud4 = bugfix: hunt/avatar/dock/furniture) */
-window.__LM_BUILD = '20260606-hud4';
+/* 빌드 확인: F12 콘솔 → __LM_BUILD (20260606-hud5 = bugfix: stat-banner-dup/menu-flicker) */
+window.__LM_BUILD = '20260606-hud5';
 /* ═══════════════════════════════════════
    SUPABASE INIT (Firestore 호환 shim)
    supabase-firestore-shim.js 참고
@@ -17734,6 +17734,14 @@ function renderOpenWorldUIPass(){
   if(S.screen !== 'openworld') return;
   const uiRoot = document.getElementById('ow-ui-root');
   if(!uiRoot) return;
+  // 메뉴가 열려 있을 때 잦은 리렌더로 인한 깜빡임 방지 (800ms 스로틀)
+  if(S.ow?.hudMenuOpen){
+    const now = Date.now();
+    if(S.ow._menuRenderAt && now - S.ow._menuRenderAt < 800) return;
+    S.ow._menuRenderAt = now;
+  } else {
+    S.ow._menuRenderAt = 0;
+  }
 
     /* UI만 갈아끼울 때 캔버스/WebGL 미리보기는 먼저 해제 (컨텍스트 누수 방지) */
     if(window.LMGlb && typeof LMGlb.disposePickerPreview === 'function') LMGlb.disposePickerPreview();
@@ -29490,6 +29498,7 @@ function owMapHintBottom(){
 function owToggleHudMenu(){
   S.ow.hudMenuOpen = !S.ow.hudMenuOpen;
   if(S.ow.hudMenuOpen) S.ow.hudChatOpen = false;
+  S.ow._menuRenderAt = 0; // 사용자 직접 토글 시 스로틀 리셋
   if(S.screen === 'openworld') renderOpenWorldUIPass();
   else render();
 }
@@ -41995,7 +42004,8 @@ function rOWHouseInteriorUI(){
       selectedStatHtml = `<div class="ow-hi-stat-panel" style="margin-bottom:6px">배치 예정 <b>${esc(selItem.emoji)} ${esc(selItem.name)}</b> · ${esc(fmtFurnitureStats(selItem.stats))}</div>`;
     }
   }
-  const statBanner = (hiSimpleHud && !hi.editMode) ? '' : (placedCnt
+  // editMode 일 때는 상단 statPill이 이미 합계를 표시하므로 하단 배너 중복 제거
+  const statBanner = (hiSimpleHud || hi.editMode) ? '' : (placedCnt
     ? `<div class="ow-hi-stat-panel" style="position:absolute;left:12px;right:12px;top:calc(96px + env(safe-area-inset-top));z-index:23;pointer-events:none"><b>📊 배치 스탯 합계</b> · ${placedCnt}개${rOWHouseStatChips(placedSt)}</div>`
     : (isMine ? `<div class="ow-hi-stat-panel" style="position:absolute;left:12px;right:12px;top:calc(96px + env(safe-area-inset-top));z-index:23;pointer-events:none">가구를 배치하면 <b>HP/MP/ATK/DEF/EVA</b> 스탯이 올라가요</div>` : ''));
   let panel = '';
