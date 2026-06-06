@@ -3788,7 +3788,17 @@ body.ow-mode #app{
   padding:6px 12px;border-radius:999px;
   background:rgba(8,10,24,.72);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);
   border:1px solid rgba(255,255,255,.16);box-shadow:0 8px 28px rgba(0,0,0,.42);
+  touch-action:none;user-select:none;
 }
+.ow-simple-dock.dragging{ opacity:.85;box-shadow:0 12px 40px rgba(0,0,0,.6); }
+.ow-dock-drag-handle{
+  width:14px;height:34px;display:flex;flex-direction:column;align-items:center;
+  justify-content:center;gap:3px;cursor:grab;opacity:.55;flex-shrink:0;
+}
+.ow-dock-drag-handle span{
+  display:block;width:4px;height:4px;border-radius:50%;background:#fff;
+}
+.ow-dock-drag-handle:active{ cursor:grabbing; }
 .ow-simple-dock-btn{
   width:46px;height:46px;border:none;border-radius:50%;cursor:pointer;
   background:rgba(255,255,255,.1);color:#fff;font-size:20px;
@@ -3865,6 +3875,10 @@ body.ow-mode #app{
   position:absolute;left:10px;right:10px;
   bottom:calc(76px + env(safe-area-inset-bottom));z-index:16;
   transform:none;width:auto;
+}
+/* 채팅 열렸을 때 도크를 채팅창 위로 올려서 겹침 방지 (드래그로 이동 전 기본 위치) */
+.ow-root.ow-simple-hud .ow-simple-dock.chat-open:not([style*="top"]){
+  bottom:calc(128px + env(safe-area-inset-bottom));
 }
 .ow-root-combat .ow-simple-dock,
 .ow-root-combat .ow-simple-sheet{ display:none!important; }
@@ -4617,8 +4631,8 @@ body.ow-hi-dragging, body.ow-hi-dragging #ow-canvas{ cursor:grabbing!important; 
 
 
 <script>
-/* 빌드 확인: F12 콘솔 → __LM_BUILD (20260606-hud3 = simpleHud 수정본) */
-window.__LM_BUILD = '20260606-hud3';
+/* 빌드 확인: F12 콘솔 → __LM_BUILD (20260606-hud4 = bugfix: hunt/avatar/dock/furniture) */
+window.__LM_BUILD = '20260606-hud4';
 /* ═══════════════════════════════════════
    SUPABASE INIT (Firestore 호환 shim)
    supabase-firestore-shim.js 참고
@@ -17749,6 +17763,7 @@ function renderOpenWorldUIPass(){
     lmSyncGlobalModals();
     if(typeof owStoryTypewriterMount === 'function') owStoryTypewriterMount();
     if(typeof owBindStatPanelDrag === 'function') owBindStatPanelDrag();
+    if(typeof owInitDockDrag === 'function') owInitDockDrag();
     if(__owRenderer) updateOWOverlays(__owRenderer);
 
     /* 복원: 채팅 입력값/커서 + 모달 스크롤 위치 */
@@ -29421,6 +29436,52 @@ function owShouldSimpleHud(){
   if(S.ow && S.ow.hudSimple === false) return false;
   return owIsMobileHud();
 }
+
+/* ── 간편 HUD 도크 드래그 이동 ── */
+function owGetDockStyle(){
+  const pos = S.ow._dockPos;
+  if(!pos) return '';
+  return ` style="left:${pos.x}px;top:${pos.y}px;bottom:auto;transform:none"`;
+}
+function owInitDockDrag(){
+  const dock = document.getElementById('ow-simple-dock');
+  const handle = document.getElementById('ow-dock-drag-handle');
+  if(!dock || !handle) return;
+  let dragging = false, ox = 0, oy = 0, sx = 0, sy = 0;
+  function getDocPos(){
+    const r = dock.getBoundingClientRect();
+    return { x: r.left, y: r.top };
+  }
+  handle.addEventListener('pointerdown', e => {
+    e.stopPropagation(); e.preventDefault();
+    dragging = true;
+    const p = getDocPos();
+    sx = e.clientX; sy = e.clientY;
+    ox = p.x; oy = p.y;
+    handle.setPointerCapture(e.pointerId);
+    dock.classList.add('dragging');
+  });
+  handle.addEventListener('pointermove', e => {
+    if(!dragging) return;
+    e.preventDefault();
+    const dx = e.clientX - sx, dy = e.clientY - sy;
+    const nx = Math.max(0, Math.min(window.innerWidth - dock.offsetWidth, ox + dx));
+    const ny = Math.max(0, Math.min(window.innerHeight - dock.offsetHeight, oy + dy));
+    dock.style.left = nx + 'px';
+    dock.style.top = ny + 'px';
+    dock.style.bottom = 'auto';
+    dock.style.transform = 'none';
+    S.ow._dockPos = { x: nx, y: ny };
+  });
+  handle.addEventListener('pointerup', () => {
+    dragging = false;
+    dock.classList.remove('dragging');
+  });
+  handle.addEventListener('pointercancel', () => {
+    dragging = false;
+    dock.classList.remove('dragging');
+  });
+}
 function owMapHintBottom(){
   return owShouldSimpleHud()
     ? 'calc(112px + env(safe-area-inset-bottom))'
@@ -32454,8 +32515,11 @@ function rOWSimpleDock(){
       <button class="ow-chat-send" data-a="ow_sendChat">전송</button>
     </div>`;
   }
+  const dockStyle = owGetDockStyle();
+  const chatOpenCls = chatOn ? ' chat-open' : '';
   return `${menuSheet}${chatBlock}
-    <div class="ow-simple-dock">
+    <div class="ow-simple-dock${chatOpenCls}" id="ow-simple-dock"${dockStyle}>
+      <div class="ow-dock-drag-handle" id="ow-dock-drag-handle" title="끌어서 이동"><span></span><span></span><span></span><span></span></div>
       <button type="button" class="ow-simple-dock-btn${menuOn?' on':''}" data-a="ow_toggleHudMenu" title="메뉴">☰</button>
       <button type="button" class="ow-simple-dock-btn${chatOn?' on':''}" data-a="ow_toggleHudChat" title="채팅">💬</button>
       <button type="button" class="ow-simple-dock-btn" data-a="ow_toggleStatPanel" title="스탯">📊</button>
@@ -34691,8 +34755,16 @@ function owSharedHuntIsHost(){
   const s = owSharedHuntSync();
   const me = owMyNick();
   if(!s || !me || !s.active) return false;
-  if(s.host) return s.host === me;
-  const keys = Object.keys(s.hunters || {});
+  const hunters = s.hunters || {};
+  // 호스트가 설정되어 있고 현재 hunters에 있으며 최근 30초 내에 활동했으면 호스트
+  if(s.host && hunters[s.host]){
+    const hostTs = hunters[s.host]?.ts || 0;
+    if(Date.now() - hostTs < 30000) return s.host === me;
+  }
+  // 호스트가 없거나 오래됐으면 hunters 중 첫번째 활성 사용자가 호스트
+  const activeKeys = Object.keys(hunters).filter(k => Date.now() - (hunters[k]?.ts || 0) < 30000);
+  if(activeKeys.length) return activeKeys[0] === me;
+  const keys = Object.keys(hunters);
   return keys[0] === me;
 }
 function owSharedHuntNearestHunterPos(fromX, fromZ){
@@ -35246,14 +35318,13 @@ function owCombatSpawnWave(){
     });
     newMobs.push(owMobToSync(mob));
   }
-  if(s?.active){
-    const existing = (s.mobs || []).filter(m => !m.dead);
-    owEventsCol.doc(OW_SHARED_HUNT_DOC).set({
-      mobs: [...existing, ...newMobs],
-      nextWaveAt: Date.now() + 2400,
-      updatedAt: Date.now(),
-    }, { merge: true }).catch(() => {});
-  }
+  // s가 null이어도(첫 웨이브, 스냅샷 미도착) 항상 DB에 기록하여 몹이 보이지 않는 버그 방지
+  const existing = s?.active ? (s.mobs || []).filter(m => !m.dead) : [];
+  owEventsCol.doc(OW_SHARED_HUNT_DOC).set({
+    mobs: [...existing, ...newMobs],
+    nextWaveAt: Date.now() + 2400,
+    updatedAt: Date.now(),
+  }, { merge: true }).catch(() => {});
 }
 /* ── 필드 보스 소환 (전투 레이어 — 멀티 공유) ── */
 function owCombatSpawnFieldBoss(){

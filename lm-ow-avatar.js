@@ -607,8 +607,11 @@
         setTimeout(() => {
           if (wrapper.userData.owCombatAction !== action) return;
           action.fadeOut(0.12);
-          setLocomotionAnim(wrapper, wrapper.userData.owLocoAnim || 'idle');
           wrapper.userData.owCombatUntil = 0;
+          wrapper.userData.owCombatAction = null;
+          // owLocoAnim을 초기화하여 setLocomotionAnim이 idle을 강제 재생하게 함
+          wrapper.userData.owLocoAnim = '';
+          setLocomotionAnim(wrapper, 'idle');
         }, clip.duration * 1000 + 100);
       })
       .catch((e) => warnLoadFail(role, url, e))
