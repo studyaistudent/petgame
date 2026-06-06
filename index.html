@@ -3878,6 +3878,128 @@ body.ow-mode #app{
   border:1px solid rgba(129,212,250,.4);
 }
 
+/* ═══════════════════ 📱 모바일 심플 HUD — 화면 가리기 최소화 ═══════════════════ */
+.ow-root.ow-mobile-hud .ow-top-bar .ow-info-pill{
+  padding:5px 9px;font-size:10px;border-radius:10px;
+}
+.ow-root.ow-mobile-hud .ow-top-bar .ow-info-pill.gold{
+  max-width:38vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+.ow-root.ow-simple-hud .ow-simple-sheet-inner{
+  max-height:min(58vh,400px);
+}
+.ow-root.ow-simple-hud .ow-simple-grid .ow-action-btn{
+  padding:10px 5px;font-size:10.5px;border-radius:11px;
+}
+.ow-root.ow-simple-hud .ow-simple-info-row{
+  gap:4px;margin-bottom:8px;font-size:10px;
+}
+.ow-root.ow-simple-hud .ow-simple-info-row span{
+  padding:4px 7px;border-radius:8px;
+}
+.ow-root.ow-simple-hud .ow-simple-dock{
+  gap:8px;padding:5px 10px;
+}
+.ow-root.ow-simple-hud .ow-simple-dock-btn{
+  width:42px;height:42px;font-size:18px;
+}
+.ow-root.ow-simple-hud .ow-campfire-bar{
+  top:auto;
+  bottom:calc(112px + env(safe-area-inset-bottom));
+  left:max(10px,env(safe-area-inset-left));
+  right:auto;
+  max-width:min(46vw,200px);
+  font-size:10px;padding:6px 10px;border-radius:10px;
+}
+.ow-root.ow-simple-hud .ow-campfire-bar.ow-map-hint{
+  left:auto;
+  right:max(10px,env(safe-area-inset-right));
+}
+.ow-root.ow-simple-hud .ow-left-stats{
+  left:max(10px,env(safe-area-inset-left));
+  right:auto;
+  bottom:calc(68px + env(safe-area-inset-bottom));
+  width:min(168px,44vw);
+}
+.ow-root.ow-simple-hud .ow-left-stats.ow-ls-compact .ow-ls-box{
+  padding:7px 9px 8px;font-size:10px;
+}
+.ow-root.ow-simple-hud .ow-left-stats.ow-ls-compact .ow-ls-title{font-size:11px;margin-bottom:3px;}
+.ow-root.ow-simple-hud .ow-left-stats.ow-ls-compact .ow-ls-bar{height:7px;margin-top:2px;}
+.ow-root.ow-simple-hud .ow-left-stats.ow-ls-compact .ow-ls-bar-label,
+.ow-root.ow-simple-hud .ow-left-stats.ow-ls-compact .ow-ls-row{font-size:9.5px;margin-top:2px;}
+.ow-root.ow-simple-hud .ow-left-stats.ow-ls-compact .ow-ls-buff{display:none;}
+.ow-root.ow-simple-hud .ow-left-stats.ow-ls-compact .ow-ls-actions{margin-top:5px;}
+.ow-root.ow-simple-hud .ow-left-stats.ow-ls-compact .ow-ls-actions button{
+  padding:5px 3px;font-size:10px;
+}
+.ow-root.ow-simple-hud .ow-stat-toggle-btn.ow-stat-toggle-mini{
+  left:max(10px,env(safe-area-inset-left));
+  right:auto;
+  bottom:calc(68px + env(safe-area-inset-bottom));
+  width:36px;height:36px;padding:0;border-radius:50%;
+  font-size:15px;display:flex;align-items:center;justify-content:center;
+}
+.ow-root.ow-root-combat .ow-left-stats,
+.ow-root.ow-root-combat .ow-stat-toggle-btn{
+  display:none!important;
+}
+.ow-root.ow-root-combat.ow-simple-hud .ow-combat-playerhp{
+  top:calc(max(env(safe-area-inset-top),6px) + 34px);
+  left:max(10px,env(safe-area-inset-left));
+  right:auto;
+  width:min(140px,38vw);
+}
+.ow-root.ow-root-combat.ow-simple-hud .ow-combat-top{
+  top:calc(max(env(safe-area-inset-top),6px) + 34px);
+  right:max(8px,env(safe-area-inset-right));
+  left:auto;
+  max-width:min(200px,46vw);
+  padding:6px 8px;
+}
+.ow-root.ow-root-combat.ow-simple-hud .ow-combat-consume-hint{
+  font-size:8px;padding:0 0 4px;
+}
+.ow-root.ow-root-combat.ow-simple-hud .ow-combat-mini{
+  font-size:9px;padding:4px 7px;min-width:28px;
+}
+.ow-root.ow-root-combat.ow-simple-hud .ow-combat-mini-row{
+  flex-wrap:wrap;justify-content:flex-end;gap:4px;
+}
+.ow-root.ow-root-combat.ow-simple-hud .ow-combat-dock{
+  bottom:calc(6px + env(safe-area-inset-bottom));
+}
+.ow-root.ow-root-combat.ow-simple-hud .ow-combat-pad{
+  padding:5px 8px 4px;gap:5px;background:rgba(8,6,16,.62);
+}
+.ow-root.ow-root-combat.ow-simple-hud .ow-combat-dock .ow-cbtn{
+  width:46px;height:46px;font-size:15px;
+}
+.ow-root.ow-root-combat.ow-simple-hud .ow-combat-dock .ow-cbtn.atk{
+  width:52px;height:52px;font-size:18px;
+}
+.ow-root.ow-root-combat.ow-simple-hud .ow-combat-dock .ow-cbtn small{
+  font-size:8px;
+}
+@media (orientation:landscape) and (max-height:520px){
+  .ow-root.ow-simple-hud .ow-simple-sheet-inner{
+    max-height:min(72vh,280px);padding:10px 12px calc(12px + env(safe-area-inset-bottom));
+  }
+  .ow-root.ow-simple-hud .ow-simple-grid{
+    grid-template-columns:repeat(4,1fr);gap:6px;
+  }
+  .ow-root.ow-simple-hud .ow-simple-grid .ow-action-btn{
+    padding:7px 3px;font-size:9.5px;
+  }
+  .ow-root.ow-simple-hud .ow-simple-info-row{
+    flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;
+    margin-bottom:6px;padding-bottom:2px;
+  }
+  .ow-root.ow-simple-hud .ow-simple-info-row span{flex-shrink:0;}
+  .ow-root.ow-simple-hud .ow-simple-dock-btn{width:38px;height:38px;font-size:16px;}
+  .ow-root.ow-simple-hud .ow-left-stats{width:min(152px,36vw);}
+}
+
 /* ═══════════════════ 📖 연계 시나리오 (에피소드) ═══════════════════ */
 .ow-story-pill{
   background:linear-gradient(135deg,rgba(124,77,255,.42),rgba(255,91,174,.32))!important;
@@ -17584,7 +17706,8 @@ function owSyncOwRootStateClasses(){
   const combatCls = (S.ow.combat?.huntMode || S.ow.pvpDuel || S.ow.bossFight?.active) ? ' ow-root-combat' : '';
   const hiCls = (S.ow.houseInterior?.active || (window.OWHouseInterior && OWHouseInterior.isActive())) ? ' ow-root-house-interior' : '';
   const simpleCls = owShouldSimpleHud() ? ' ow-simple-hud' : '';
-  root.className = `${voidCls}${photoCls}${lifeCls}${flyCls}${combatCls}${hiCls}${simpleCls}`.trim();
+  const mobileCls = owIsMobileHud() ? ' ow-mobile-hud' : '';
+  root.className = `${voidCls}${photoCls}${lifeCls}${flyCls}${combatCls}${hiCls}${simpleCls}${mobileCls}`.trim();
 }
 function renderOpenWorldUIPass(){
   if(S.pvpBattle && document.querySelector('.pvp-modal')) return;
@@ -29263,12 +29386,25 @@ function owIsTouchDevice(){
   return ('ontouchstart' in window) || (navigator.maxTouchPoints||0) > 0;
 }
 function owIsMobileHud(){
+  if(window.__owForceSimpleHud) return true;
+  if(window.__owForceClassicHud) return false;
+  const w = window.innerWidth, h = window.innerHeight;
+  const shortSide = Math.min(w, h);
+  const touch = owIsTouchDevice();
+  if(shortSide <= 520) return true;
+  if(touch && shortSide <= 640) return true;
+  if(touch && Math.max(w, h) <= 980) return true;
   if(window.matchMedia && window.matchMedia('(max-width:720px)').matches) return true;
-  return owIsTouchDevice() && window.innerWidth <= 900;
+  return touch && w <= 900;
 }
 function owShouldSimpleHud(){
   if(S.ow && S.ow.hudSimple === false) return false;
   return owIsMobileHud();
+}
+function owMapHintBottom(){
+  return owShouldSimpleHud()
+    ? 'calc(112px + env(safe-area-inset-bottom))'
+    : 'calc(248px + env(safe-area-inset-bottom))';
 }
 function owToggleHudMenu(){
   S.ow.hudMenuOpen = !S.ow.hudMenuOpen;
@@ -29369,9 +29505,9 @@ function enterOpenWorld(){
     if(saved) S.ow.statPanelPos = JSON.parse(saved);
     const savedHidden = localStorage.getItem('lm_ow_stat_hidden');
     if(savedHidden !== null) S.ow.statPanelHidden = savedHidden === '1';
-    else S.ow.statPanelHidden = owIsMobileHud();
+    else S.ow.statPanelHidden = owIsTouchDevice();
   }catch(e){
-    S.ow.statPanelHidden = owIsMobileHud();
+    S.ow.statPanelHidden = owIsTouchDevice();
   }
   try{ if(typeof owMaybeShowStoryIntro === 'function') owMaybeShowStoryIntro(); }catch(e){}
 
@@ -32195,8 +32331,9 @@ function rOpenWorldScreen(){
   const flyCls = S.ow.mmo?.mountState?.flying ? ' ow-root-mount-fly' : '';
   const combatCls = (S.ow.combat?.huntMode || S.ow.pvpDuel || S.ow.bossFight?.active) ? ' ow-root-combat' : '';
   const simpleCls = (typeof owShouldSimpleHud === 'function' && owShouldSimpleHud()) ? ' ow-simple-hud' : '';
+  const mobileCls = (typeof owIsMobileHud === 'function' && owIsMobileHud()) ? ' ow-mobile-hud' : '';
   return `
-    <div id="ow-root" class="${voidCls.trim()}${photoCls}${lifeCls}${flyCls}${combatCls}${simpleCls}">
+    <div id="ow-root" class="${voidCls.trim()}${photoCls}${lifeCls}${flyCls}${combatCls}${simpleCls}${mobileCls}">
       <canvas id="ow-canvas"></canvas>
       <div id="ow-overlays" style="position:absolute;inset:0;pointer-events:none;z-index:6"></div>
       <div id="ow-ui-root">
@@ -34989,6 +35126,12 @@ function owCombatToggleHunt(){
   const c = S.ow.combat;
   c.huntMode = !c.huntMode;
   if(c.huntMode){
+    if(typeof owShouldSimpleHud === 'function' && owShouldSimpleHud()){
+      S.ow._statPanelBeforeCombat = !!S.ow.statPanelHidden;
+      S.ow.statPanelHidden = true;
+      S.ow.hudMenuOpen = false;
+      S.ow.hudChatOpen = false;
+    }
     c.hp = c.maxHp; c.targetId = null; c.drop = null; c._droppedMobKeys = null;
     if(typeof owCombatHideDropPopup==='function') owCombatHideDropPopup();
     owSharedHuntJoin().then(wasFirst => {
@@ -34998,6 +35141,10 @@ function owCombatToggleHunt(){
     });
     if(typeof owMmoToast === 'function') owMmoToast('⚔️ 함께 사냥! 같은 몹을 다른 탐험가와 같이 잡을 수 있어요');
   } else {
+    if(S.ow._statPanelBeforeCombat != null){
+      S.ow.statPanelHidden = S.ow._statPanelBeforeCombat;
+      S.ow._statPanelBeforeCombat = null;
+    }
     owSharedHuntLeave();
     __owRenderer.removeSharedHuntMobs && __owRenderer.removeSharedHuntMobs();
     c.drop = null; c._droppedMobKeys = null;
@@ -35742,14 +35889,18 @@ function rOWLeftStats(){
   const pos = S.ow.statPanelPos;
   const posStyle = pos ? `style="left:${pos.x}px;top:${pos.y}px;right:auto;bottom:auto"` : '';
   const dragCls = pos ? ' ow-ls-dragged' : '';
+  const simpleHud = typeof owShouldSimpleHud === 'function' && owShouldSimpleHud();
+  const inCombat = !!(S.ow.combat?.huntMode || S.ow.pvpDuel || S.ow.bossFight?.active);
   if(S.ow.statPanelHidden){
-    return `<button type="button" class="ow-stat-toggle-btn${dragCls}" id="ow-stat-panel" data-a="ow_toggleStatPanel" title="스탯 보기" ${posStyle}>📊 스탯</button>`;
+    const btnCls = `ow-stat-toggle-btn${dragCls}${simpleHud ? ' ow-stat-toggle-mini' : ''}`;
+    return `<button type="button" class="${btnCls}" id="ow-stat-panel" data-a="ow_toggleStatPanel" title="스탯 보기" ${posStyle}>📊</button>`;
   }
-  return `<div class="ow-left-stats${dragCls}" id="ow-stat-panel" ${posStyle}>
+  const compactCls = simpleHud && !inCombat ? ' ow-ls-compact' : '';
+  return `<div class="ow-left-stats${dragCls}${compactCls}" id="ow-stat-panel" ${posStyle}>
     <div class="ow-ls-box">
       <div class="ow-ls-drag-handle" style="display:flex;align-items:center;justify-content:space-between;gap:6px">
-        <span class="ow-ls-drag-grab">⠿ 드래그하여 위치 이동</span>
-        <button type="button" class="ow-ls-hide-btn" data-a="ow_toggleStatPanel">숨기기</button>
+        <span class="ow-ls-drag-grab">${simpleHud ? '⠿' : '⠿ 드래그하여 위치 이동'}</span>
+        <button type="button" class="ow-ls-hide-btn" data-a="ow_toggleStatPanel">${simpleHud ? '✕' : '숨기기'}</button>
       </div>
       <div class="ow-ls-title">🧑 Lv.${lv} ${esc(shortNick(S.myEntry?.nick||''))}</div>
       <div class="ow-ls-bar-label"><span>❤️ HP</span><span>${Math.ceil(c.hp||0)} / ${Math.ceil(c.maxHp||0)}</span></div>
@@ -35762,7 +35913,7 @@ function rOWLeftStats(){
       ${cookBuff ? `<div class="ow-ls-buff">🍲 HP×2 · ATK+${c.cookBuffAtk||0} (${Math.ceil((c.cookBuffUntil-Date.now())/60000)}분)</div>` : ''}
       ${exB && owFmtStatBonusLine(exB) ? `<div class="ow-ls-buff" style="background:rgba(129,199,132,.15);color:#fff">🧭 탐험 ${owFmtStatBonusLine(exB)}</div>` : ''}
       ${lifeB && owFmtStatBonusLine(lifeB) ? `<div class="ow-ls-buff" style="background:rgba(255,183,77,.15);color:#fff">⛏️ 생활 ${owFmtStatBonusLine(lifeB)}</div>` : ''}
-      ${showPet ? `<div class="ow-stat-dock-divider"></div>
+      ${showPet && (!simpleHud || inCombat) ? `<div class="ow-stat-dock-divider"></div>
       <div class="ow-ls-title">${emo} ${esc(S.myPet.petName||'펫')} <span style="font-size:10px;opacity:.75">(장비+가구)</span></div>
       <div class="ow-ls-pet-stats"><span>⚔️ ${st.atk||0}</span><span>🛡️ ${st.def||0}</span><span>💨 ${st.eva||0}%</span></div>
       ${petSeasonB && seasonTier > 0 ? `<div class="ow-ls-buff" style="background:rgba(255,213,79,.12);color:#fff;font-size:10px">🎫 시즌 T${seasonTier} 펫 ${owFmtStatBonusLine(petSeasonB)}</div>` : ''}
@@ -35948,21 +36099,25 @@ function rOWCombatHud(){
   const hpPct=Math.max(0,c.hp/c.maxHp*100);
   const mats=S.ow.materials||{};
   const autoOn=!!c.autoConsume;
+  const mobile = typeof owIsMobileHud === 'function' && owIsMobileHud();
+  const consumeHint = mobile
+    ? `🧪${mats.pot_hp||0} 💙${mats.pot_mp||0} 🍖${mats.pet_food||0}`
+    : `${autoOn ? '50%↓ 자동' : '직접 사용'} · 🧪${mats.pot_hp||0} 💙${mats.pot_mp||0} 🍖${mats.pet_food||0}`;
   return `
-  <div class="ow-combat-hud">
+  <div class="ow-combat-hud${mobile ? ' ow-combat-hud-mobile' : ''}">
     <div class="ow-combat-playerhp">
       <div class="ow-combat-hp-label" id="ow-combat-hp-label">❤️ ${Math.ceil(c.hp)}</div>
       <div class="ow-combat-hp-track"><span id="ow-combat-hp-fill" style="width:${hpPct}%"></span></div>
     </div>
     <div class="ow-combat-top">
-      <div class="ow-combat-consume-hint">${autoOn ? '50%↓ HP·MP·펫먹이 자동' : '물약·먹이 직접 사용'} · 🧪${mats.pot_hp||0} 💙${mats.pot_mp||0} 🍖${mats.pet_food||0}</div>
+      <div class="ow-combat-consume-hint">${consumeHint}</div>
       <div class="ow-combat-mini-row">
-        <button type="button" class="ow-combat-mini auto-potion ${autoOn?'on':''}" data-a="ow_combatConsumeAuto">🧪 Auto</button>
-        <button type="button" class="ow-combat-mini manual ${!autoOn?'on':''}" data-a="ow_combatConsumeManual">✋ 수동</button>
-        <button type="button" class="ow-combat-mini ${c.targetId?'on':''}" data-a="ow_combatTarget">🎯 타겟</button>
-        <button type="button" class="ow-combat-mini ${c.autoTarget?'on':''}" data-a="ow_combatAuto">🤖 자동사냥</button>
-        <button type="button" class="ow-combat-mini" data-a="ow_combatBoss">👹 보스</button>
-        <button type="button" class="ow-combat-mini end" data-a="ow_combatToggleHunt">✕ 종료</button>
+        <button type="button" class="ow-combat-mini auto-potion ${autoOn?'on':''}" data-a="ow_combatConsumeAuto" title="자동 물약">${mobile ? '🧪' : '🧪 Auto'}</button>
+        <button type="button" class="ow-combat-mini manual ${!autoOn?'on':''}" data-a="ow_combatConsumeManual" title="수동">${mobile ? '✋' : '✋ 수동'}</button>
+        <button type="button" class="ow-combat-mini ${c.targetId?'on':''}" data-a="ow_combatTarget" title="타겟">${mobile ? '🎯' : '🎯 타겟'}</button>
+        <button type="button" class="ow-combat-mini ${c.autoTarget?'on':''}" data-a="ow_combatAuto" title="자동사냥">${mobile ? '🤖' : '🤖 자동사냥'}</button>
+        <button type="button" class="ow-combat-mini" data-a="ow_combatBoss" title="보스">${mobile ? '👹' : '👹 보스'}</button>
+        <button type="button" class="ow-combat-mini end" data-a="ow_combatToggleHunt" title="종료">✕</button>
       </div>
     </div>
     <div class="ow-combat-dock">
@@ -41918,27 +42073,29 @@ function owMmoRenderWild3DHUD(){
 function owMmoRenderMapInteractHUD(){
   if(S.screen !== 'openworld') return '';
   let html = '';
+  const hintB = typeof owMapHintBottom === 'function' ? owMapHintBottom() : 'calc(248px + env(safe-area-inset-bottom))';
+  const hintB2 = owShouldSimpleHud() ? 'calc(156px + env(safe-area-inset-bottom))' : 'calc(200px + env(safe-area-inset-bottom))';
   const farm = S.ow.mmo?.mapFarmNear;
   if(farm != null){
-    html += `<button type="button" class="ow-campfire-bar" data-a="ow_mapFarmAct" data-slot="${farm}">🌾 밭 ${farm+1} — 심기/수확</button>`;
+    html += `<button type="button" class="ow-campfire-bar ow-map-hint" data-a="ow_mapFarmAct" data-slot="${farm}">🌾 밭 ${farm+1}</button>`;
   }
   const plot = !owIsHousePortalBlocked() ? S.ow.mmo?.housePlotNear : null;
   if(plot){
     if(plot.owner){
-      const label = plot.mine ? '내 집 입장' : `${shortNick(plot.owner)}의 집`;
-      html += `<button type="button" class="ow-campfire-bar" style="top:auto;bottom:calc(248px + env(safe-area-inset-bottom))" data-a="ow_enterHousePortal" data-plot="${esc(plot.plotId)}">🌀 ${esc(label)}</button>`;
+      const label = plot.mine ? '내 집' : `${shortNick(plot.owner)} 집`;
+      html += `<button type="button" class="ow-campfire-bar ow-map-hint" style="top:auto;bottom:${hintB}" data-a="ow_enterHousePortal" data-plot="${esc(plot.plotId)}">🌀 ${esc(label)}</button>`;
     } else if(!S.ow.housePlotBuyModal){
       const myOwned = Object.values(S.owHousePlots || {}).find(p => p.owner === S.myEntry?.nick);
       if(myOwned){
-        html += `<div class="ow-campfire-bar" style="top:auto;bottom:calc(248px + env(safe-area-inset-bottom));pointer-events:none;opacity:.92">🏠 이미 집 보유 중 (1인 1채)</div>`;
+        html += `<div class="ow-campfire-bar ow-map-hint" style="top:auto;bottom:${hintB};pointer-events:none;opacity:.88">🏠 집 보유중</div>`;
       } else {
-        html += `<div class="ow-campfire-bar" style="top:auto;bottom:calc(248px + env(safe-area-inset-bottom));pointer-events:none;opacity:.92">🏠 분양중 · ${OW_HOUSE_PLOT_COST.toLocaleString()}P</div>`;
+        html += `<div class="ow-campfire-bar ow-map-hint" style="top:auto;bottom:${hintB};pointer-events:none;opacity:.88">🏠 분양 ${(OW_HOUSE_PLOT_COST/10000)|0}만P</div>`;
       }
     }
   }
   const house = S.ow.mmo?.mapHouseNear;
   if(house && !house.mine){
-    html += `<button type="button" class="ow-campfire-bar" style="top:auto;bottom:calc(200px + env(safe-area-inset-bottom))" data-a="ow_mapHouseTp" data-nick="${esc(house.nick)}">🏠 ${esc(shortNick(house.nick))} 집 · 🌀 텔레포트</button>`;
+    html += `<button type="button" class="ow-campfire-bar ow-map-hint" style="top:auto;bottom:${hintB2}" data-a="ow_mapHouseTp" data-nick="${esc(house.nick)}">🏠 ${esc(shortNick(house.nick))}</button>`;
   }
   return html;
 }
