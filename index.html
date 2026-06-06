@@ -7,9 +7,13 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ctext x='4' y='26' font-size='24'%3E%F0%9F%90%BE%3C/text%3E%3C/svg%3E">
 <meta property="og:title" content="러브몬 미니게임">
 <meta property="og:description" content="러브몬 육성 · 퀴즈 · 캐치마인드 · 마피아 오픈월드 등">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&family=Playfair+Display:ital,wght@0,700;1,400&display=swap" rel="stylesheet">
 <style>
 .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0;}
-@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&family=Playfair+Display:ital,wght@0,700;1,400&display=swap');
 :root {
   --rose:       #E8537A;
   --rose2:      #C73B65;
@@ -344,6 +348,7 @@ body::before{
   padding:5px 11px;border-radius:99px;
   font-size:11px;color:#FFE082;font-weight:600;
   -webkit-backdrop-filter:blur(4px);
+  backdrop-filter:blur(4px);
 }
 .auc-sub-tabs{
   display:flex;gap:6px;background:rgba(255,255,255,.5);
@@ -656,6 +661,7 @@ body.ow-mode .card,
 body.ow-mode .modal-content,
 body.ow-mode .ow-modal-card{
   -webkit-backdrop-filter:blur(12px) saturate(1.12);
+  backdrop-filter:blur(12px) saturate(1.12);
 }
 #ow-root{isolation:isolate;}
 .ow-top-bar,.ow-bottom-bar,.ow-chat-bar,.ow-near-list{
@@ -697,6 +703,7 @@ body.ow-mode .ow-modal-card{
 .preview-modal-header,
 .avatar-modal-head{
   -webkit-backdrop-filter:blur(10px) saturate(1.05);
+  backdrop-filter:blur(10px) saturate(1.05);
 }
 
 /* ═══════════════════ 🌸 오픈월드 ═══════════════════ */
@@ -754,6 +761,7 @@ body.ow-mode .ow-modal-card{
   color:#fff;font-size:12px;font-weight:800;
   box-shadow:0 6px 20px rgba(0,0,0,.45);
   -webkit-backdrop-filter:blur(10px);
+  backdrop-filter:blur(10px);
   cursor:pointer;
 }
 .ow-stat-toggle-btn.ow-ls-dragged{right:auto;bottom:auto;}
@@ -784,6 +792,7 @@ body.ow-mode .ow-modal-card{
   line-height:1.45;
   color:#fff;
   -webkit-backdrop-filter:blur(10px);
+  backdrop-filter:blur(10px);
   box-shadow:0 8px 28px rgba(0,0,0,.55);
 }
 .ow-ls-drag-handle{
@@ -1548,6 +1557,7 @@ body.ow-mode .ow-modal-card{
   box-shadow:0 6px 20px rgba(0,0,0,.35);
   font-size:11px;font-weight:800;color:#fff;
   -webkit-backdrop-filter:blur(10px);
+  backdrop-filter:blur(10px);
 }
 .ow-event-emblem.phase-WARNING{border-color:rgba(255,193,7,.65);animation:owEventWarn 1.2s ease-in-out infinite}
 .ow-event-emblem.phase-PROGRESS{border-color:rgba(255,91,174,.55)}
@@ -1618,11 +1628,13 @@ body.ow-mode .ow-modal-card{
   z-index:14;pointer-events:auto;
   background:linear-gradient(0deg,rgba(12,8,28,.88),transparent);
   -webkit-backdrop-filter:blur(14px);
+  backdrop-filter:blur(14px);
 }
 .ow-photo-pose-track{
   display:flex;gap:8px;overflow-x:auto;-webkit-overflow-scrolling:touch;
   padding:4px 2px;scrollbar-width:none;
 }
+.ow-photo-pose-track::-webkit-scrollbar{display:none;}
 .ow-photo-pose-btn{
   flex:0 0 auto;padding:10px 14px;border-radius:14px;border:1px solid rgba(255,255,255,.2);
   background:rgba(255,255,255,.08);color:#fff;font-size:12px;font-weight:700;
@@ -1752,8 +1764,9 @@ body.ow-mode .ow-modal-card{
 .ow-mount-badge{
   pointer-events:auto;padding:6px 14px;border-radius:99px;
   background:rgba(33,33,33,.82);color:#fff;font-size:10px;font-weight:700;
-  white-space:nowrap;border:1px solid rgba(255,213,79,.35);
+  white-space:nowrap;  border:1px solid rgba(255,213,79,.35);
   -webkit-backdrop-filter:blur(8px);
+  backdrop-filter:blur(8px);
 }
 .ow-mount-ability-btn{
   pointer-events:auto;padding:10px 18px;border-radius:14px;border:none;
@@ -1957,6 +1970,7 @@ body.ow-mode .ow-modal-card{
   z-index: 100;
   background: radial-gradient(ellipse at center, rgba(124,77,255,0.25), rgba(10,5,25,0.85) 70%);
   -webkit-backdrop-filter:blur(12px);
+  backdrop-filter:blur(12px);
   animation: pvpResultFadeIn 0.45s ease;
   padding: 24px;
   gap: 6px;
@@ -2025,6 +2039,7 @@ body.ow-mode .ow-modal-card{
   border: 1px solid rgba(255,255,255,0.18);
   border-radius: 16px;
   -webkit-backdrop-filter:blur(6px);
+  backdrop-filter:blur(6px);
   display: inline-flex; align-items: center; gap: 12px;
   box-shadow: 0 8px 30px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.08);
   animation: pvpResultSlideUp 0.55s ease 0.4s both;
@@ -2398,6 +2413,7 @@ body.ow-mode .ow-modal-card{
   display: inline-flex; align-items: center; gap: 8px;
   background: rgba(255,255,255,.92);
   -webkit-backdrop-filter:blur(10px);
+  backdrop-filter:blur(10px);
   border: 1px solid rgba(232,83,122,.25);
   border-radius: 99px;
   padding: 6px 14px 6px 10px;
@@ -2410,6 +2426,7 @@ body.ow-mode .ow-modal-card{
   display: inline-flex; align-items: center; gap: 5px;
   background: rgba(0,0,0,.5);
   -webkit-backdrop-filter:blur(10px);
+  backdrop-filter:blur(10px);
   border: 1px solid rgba(255,255,255,.15);
   color: #fff;
   border-radius: 99px;
@@ -2450,6 +2467,7 @@ body.ow-mode .ow-modal-card{
   color: rgba(255,255,255,.65);
   background: rgba(0,0,0,.4);
   -webkit-backdrop-filter:blur(6px);
+  backdrop-filter:blur(6px);
   padding: 4px 10px;
   border-radius: 99px;
   pointer-events: none;
@@ -2970,6 +2988,7 @@ body.ow-mode .ow-modal-card{
   z-index: 9999;
   background: rgba(0,0,0,.6);
   -webkit-backdrop-filter:blur(6px);
+  backdrop-filter:blur(6px);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -3796,6 +3815,7 @@ body.ow-mode #app{
   position:absolute; inset:0; z-index:40; pointer-events:auto;
   background:linear-gradient(180deg,rgba(8,6,22,.55),rgba(8,6,22,.82));
   -webkit-backdrop-filter:blur(6px);
+  backdrop-filter:blur(6px);
   display:flex; align-items:flex-end; justify-content:center;
   padding:18px 14px calc(20px + env(safe-area-inset-bottom));
   animation:owCutFade .25s ease;
@@ -17417,8 +17437,8 @@ function rHome(){
         <input id="pinI" type="password" class="inp" value="${esc(S.pin)}" placeholder="비밀번호 4자리" maxlength="4" autocomplete="current-password">
         <button class="btn btn-plum" style="padding:0 14px;font-size:12px;flex-shrink:0" data-a="loadMyInfo">🔓 불러오기</button>
       </div>
-      <label style="font-size:11.5px;color:var(--text2);display:block;margin-bottom:6px">성별</label>
-      <div style="display:flex;gap:8px">
+      <label id="genderLabel" style="font-size:11.5px;color:var(--text2);display:block;margin-bottom:6px">성별</label>
+      <div style="display:flex;gap:8px" role="group" aria-labelledby="genderLabel">
         <button class="btn ${S.gender==="남성"?"btn-sel":""}" style="flex:1;padding:11px" data-a="gender" data-v="남성">👨 남성</button>
         <button class="btn ${S.gender==="여성"?"btn-sel":""}" style="flex:1;padding:11px" data-a="gender" data-v="여성">👩 여성</button>
       </div>
@@ -17947,9 +17967,12 @@ function rAdminTab(){
     if(S.editId===e.id){
       return `<div class="card" style="margin-bottom:7px;display:flex;flex-direction:column;gap:6px;border:1.5px solid var(--rose);">
         <div style="font-size:12px;font-weight:bold;color:var(--rose2);margin-bottom:4px;">✏️ 정보 수정</div>
-        <input id="edit_nick_${e.id}" class="inp" value="${esc(e.nick)}" placeholder="닉네임">
+        <label for="edit_nick_${e.id}" class="sr-only">닉네임</label>
+        <input id="edit_nick_${e.id}" class="inp" value="${esc(e.nick)}" placeholder="닉네임" autocomplete="username">
+        <label for="edit_mbti_${e.id}" class="sr-only">MBTI</label>
         <input id="edit_mbti_${e.id}" class="inp" value="${esc(e.mbti||'')}" placeholder="MBTI">
-        <input id="edit_pin_${e.id}" class="inp" value="${esc(e.pin||'')}" placeholder="PIN(비밀번호)">
+        <label for="edit_pin_${e.id}" class="sr-only">PIN(비밀번호)</label>
+        <input id="edit_pin_${e.id}" class="inp" value="${esc(e.pin||'')}" placeholder="PIN(비밀번호)" autocomplete="off">
         <div style="display:flex;gap:6px;margin-top:4px;">
           <button class="btn btn-primary" style="flex:1;padding:8px;font-size:12px" data-a="saveEdit" data-id="${e.id}">저장</button>
           <button class="btn" style="flex:1;padding:8px;font-size:12px" data-a="cancelEdit">취소</button>
@@ -19143,7 +19166,7 @@ function rHouseTab(){
       </div>
       ${isOpen ? `
       <div class="pet-move-row">
-        <span class="pet-move-label">↔️ 좌우</span>
+        <label for="pet_move_x" class="pet-move-label">↔️ 좌우</label>
         <button class="pet-move-btn" data-a="lm_petMoveStep" data-field="x" data-v="-0.3">◀</button>
         <input type="range" min="-5" max="5" step="0.1" value="${pp.x}"
                id="pet_move_x" class="pet-move-slider" data-field="x">
@@ -19151,7 +19174,7 @@ function rHouseTab(){
         <span class="pet-move-val" id="pet_move_x_val">${pp.x.toFixed(1)}</span>
       </div>
       <div class="pet-move-row">
-        <span class="pet-move-label">↕️ 앞뒤</span>
+        <label for="pet_move_z" class="pet-move-label">↕️ 앞뒤</label>
         <button class="pet-move-btn" data-a="lm_petMoveStep" data-field="z" data-v="-0.3">◀</button>
         <input type="range" min="-5" max="5" step="0.1" value="${pp.z}"
                id="pet_move_z" class="pet-move-slider" data-field="z">
@@ -19159,7 +19182,7 @@ function rHouseTab(){
         <span class="pet-move-val" id="pet_move_z_val">${pp.z.toFixed(1)}</span>
       </div>
       <div class="pet-move-row">
-        <span class="pet-move-label">🔄 회전</span>
+        <label for="pet_move_r" class="pet-move-label">🔄 회전</label>
         <button class="pet-move-btn" data-a="lm_petMoveStep" data-field="rotY" data-v="-15">◀</button>
         <input type="range" min="0" max="360" step="1" value="${rotDegNorm}"
                id="pet_move_r" class="pet-move-slider" data-field="rotY">
@@ -19198,7 +19221,7 @@ function rHouseTab(){
         💡 <b>주황색 화살표</b>가 가구의 앞쪽 방향이에요. 슬라이더나 ◀ ▶ 버튼으로 미세 조정하세요.
       </div>
       <div class="editor-row">
-        <span class="e-label">↔️ 좌우</span>
+        <label for="edit_slider_x" class="e-label">↔️ 좌우</label>
         <button class="e-step-btn" data-a="lm_editStep" data-field="x" data-v="-0.3">◀</button>
         <input type="range" min="-6" max="6" step="0.1" value="${editing.x}"
                id="edit_slider_x" class="e-slider" data-a="lm_editSlide" data-field="x">
@@ -19206,7 +19229,7 @@ function rHouseTab(){
         <span class="e-val" id="edit_val_x">${editing.x.toFixed(1)}</span>
       </div>
       <div class="editor-row">
-        <span class="e-label">↕️ 높이</span>
+        <label for="edit_slider_y" class="e-label">↕️ 높이</label>
         <button class="e-step-btn" data-a="lm_editStep" data-field="y" data-v="-0.3">◀</button>
         <input type="range" min="0" max="5" step="0.1" value="${editing.y || 0}"
                id="edit_slider_y" class="e-slider" data-a="lm_editSlide" data-field="y">
@@ -19214,7 +19237,7 @@ function rHouseTab(){
         <span class="e-val" id="edit_val_y">${(editing.y||0).toFixed(1)}</span>
       </div>
       <div class="editor-row">
-        <span class="e-label">↕️ 앞뒤</span>
+        <label for="edit_slider_z" class="e-label">↕️ 앞뒤</label>
         <button class="e-step-btn" data-a="lm_editStep" data-field="z" data-v="-0.3">◀</button>
         <input type="range" min="-5" max="5" step="0.1" value="${editing.z}"
                id="edit_slider_z" class="e-slider" data-a="lm_editSlide" data-field="z">
@@ -19222,7 +19245,7 @@ function rHouseTab(){
         <span class="e-val" id="edit_val_z">${editing.z.toFixed(1)}</span>
       </div>
       <div class="editor-row">
-        <span class="e-label">🔄 회전</span>
+        <label for="edit_slider_r" class="e-label">🔄 회전</label>
         <button class="e-step-btn" data-a="lm_editStep" data-field="rotation" data-v="-15">◀</button>
         <input type="range" min="0" max="360" step="1" value="${rotDegNorm}"
                id="edit_slider_r" class="e-slider" data-a="lm_editSlide" data-field="rotation">
@@ -19485,7 +19508,8 @@ function rHouseTab(){
     </div>
     ${isVisiting && myNick ? `
       <div style="display:flex;gap:6px;margin-bottom:12px">
-        <input id="guestbookInput" class="inp" placeholder="따뜻한 한 마디를 남겨주세요..." aria-label="방명록 메시지">
+        <label for="guestbookInput" class="sr-only">방명록 메시지</label>
+        <input id="guestbookInput" class="inp" placeholder="따뜻한 한 마디를 남겨주세요...">
         <button class="btn btn-primary" style="padding:0 16px;flex-shrink:0;font-size:12px" data-a="lm_leaveGuestbook" data-nick="${esc(targetNick)}">
           ✍️ 남기기
         </button>
@@ -20009,7 +20033,8 @@ function rCatchmindTab(){
   /* 정답 입력 (비출제자 + 게임 중) */
   state?.status==='drawing'&&myNick?`
   <div style="display:flex;gap:8px;margin-bottom:10px">
-    <input id="cm_guess_input" class="inp" placeholder="그림을 보고 정답을 입력하세요..." style="flex:1" aria-label="캐치마인드 정답 입력">
+    <label for="cm_guess_input" class="sr-only">캐치마인드 정답 입력</label>
+    <input id="cm_guess_input" class="inp" placeholder="그림을 보고 정답을 입력하세요..." style="flex:1">
     <button class="btn btn-primary" style="padding:0 16px;font-size:13px;flex-shrink:0" data-a="lm_cm_guess">✏️ 제출</button>
   </div>`:''}
   ${isIdle||isReveal?`
@@ -20086,7 +20111,8 @@ function rPlazaTab(){
         <p style="font-size:12px;color:var(--text3);text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:0 5px">💡 힌트: ${esc(state.hint||'')}</p>
         ${solvedBox}`;
       if(!solved&&myNick)inputHTML=`<div style="display:flex;gap:8px;margin-top:10px">
-        <input id="lm_chosung_input" class="inp" placeholder="정답을 입력하세요..." style="flex:1" aria-label="퀴즈 정답 입력">
+        <label for="lm_chosung_input" class="sr-only">퀴즈 정답 입력</label>
+        <input id="lm_chosung_input" class="inp" placeholder="정답을 입력하세요..." style="flex:1">
         <button class="btn btn-mint" style="padding:0 18px;font-size:13px" data-a="lm_submitAnswer">⚡ 입력</button>
       </div>`;
     } else if(state.type==='ox'){
@@ -20109,7 +20135,8 @@ function rPlazaTab(){
         </div>
         ${solvedBox}`;
       if(!solved&&myNick)inputHTML=`<div style="display:flex;gap:8px;margin-top:10px">
-        <input id="lm_chosung_input" class="inp" placeholder="정답을 입력하세요..." style="flex:1" aria-label="퀴즈 정답 입력">
+        <label for="lm_chosung_input" class="sr-only">퀴즈 정답 입력</label>
+        <input id="lm_chosung_input" class="inp" placeholder="정답을 입력하세요..." style="flex:1">
         <button class="btn btn-mint" style="padding:0 18px;font-size:13px" data-a="lm_submitAnswer">⚡ 입력</button>
       </div>`;
     } else { /* short */
@@ -20120,7 +20147,8 @@ function rPlazaTab(){
         </div>
         ${solvedBox}`;
       if(!solved&&myNick)inputHTML=`<div style="display:flex;gap:8px;margin-top:10px">
-        <input id="lm_chosung_input" class="inp" placeholder="답변을 입력하세요..." style="flex:1" aria-label="퀴즈 답변 입력">
+        <label for="lm_chosung_input" class="sr-only">퀴즈 답변 입력</label>
+        <input id="lm_chosung_input" class="inp" placeholder="답변을 입력하세요..." style="flex:1">
         <button class="btn btn-primary" style="padding:0 18px;font-size:13px" data-a="lm_submitAnswer">✏️ 제출</button>
       </div>`;
     }
@@ -20332,7 +20360,8 @@ function rMafiaTab() {
       `).join('')}
     </div>
     <div style="display:flex;gap:6px">
-      <input id="mafia_chat_input" class="inp" placeholder="${me?.isDead ? '유령은 채팅할 수 없습니다.' : '메시지 입력...'}" aria-label="마피아 채팅 메시지">
+      <label for="mafia_chat_input" class="sr-only">마피아 채팅 메시지</label>
+      <input id="mafia_chat_input" class="inp" placeholder="${me?.isDead ? '유령은 채팅할 수 없습니다.' : '메시지 입력...'}">
       <button class="btn btn-primary" style="padding:0 14px;font-size:12px;flex-shrink:0" data-a="mafiaSendChat" ${me?.isDead ? 'disabled' : ''}>전송</button>
     </div>
   </div>`;
@@ -31298,11 +31327,12 @@ const driveUI = (S.ow.inCar && S.ow.isDriver) ? `
     ${typeof rOWFireworkBanner === 'function' ? rOWFireworkBanner() : ''}
     ${nearList}
     ${!S.ow.inCar ? `<div class="ow-cam-zoom-panel" title="🔍 줌 · 화면 드래그=좌우·상하 시선">
-      <span>🔍</span>
-      <input type="range" id="ow_cam_zoom" min="0" max="1.25" step="0.02" value="${Math.min(1.25, camZ)}" aria-label="카메라 줌 (오른쪽=가까이)"/>
+      <label for="ow_cam_zoom">🔍</label>
+      <input type="range" id="ow_cam_zoom" min="0" max="1.25" step="0.02" value="${Math.min(1.25, camZ)}"/>
     </div>` : ''}
     <div class="ow-chat-bar">
-      <input id="ow_chat_input" class="ow-chat-input" placeholder="채팅 메시지... (3초간 표시)" maxlength="60" aria-label="오픈월드 채팅 메시지"/>
+      <label for="ow_chat_input" class="sr-only">오픈월드 채팅 메시지</label>
+      <input id="ow_chat_input" class="ow-chat-input" placeholder="채팅 메시지... (3초간 표시)" maxlength="60"/>
       <button class="ow-chat-send" data-a="ow_sendChat">전송</button>
     </div>
     <div class="ow-bottom-bar">${normalActions}</div>
@@ -31694,7 +31724,7 @@ function rOWTradeModal(){
             <h4>📦 내 제안 (${myOffer.length}/4) ${locked?'🔒':''}</h4>
             ${[0,1,2,3].map(i=>owTradeSlotHtml(myOffer[i], !locked, i)).join('')}
             <div class="ow-trade-slot" style="margin-top:6px;display:flex;align-items:center;gap:8px;justify-content:space-between">
-              <span>💰 포인트</span>
+              <label for="ow_trade_points">💰 포인트</label>
               <input id="ow_trade_points" type="number" min="0" max="${maxPts}" value="${myPts}" ${locked?'disabled':''}
                 style="width:110px;padding:6px 8px;border-radius:8px;border:1px solid rgba(255,255,255,.15);background:rgba(0,0,0,.25);color:#fff"/>
             </div>
