@@ -4302,7 +4302,7 @@ body.ow-mode{ overscroll-behavior:none; overflow:hidden; }
 <script src="lm-fbx-texture-manifest.js?v=3"></script>
 <script src="lm-glb-catalog.js?v=80"></script>
 <script src="lm-ow-glb.js?v=24"></script>
-<script src="lm-ow-house-interior.js?v=3"></script>
+<script src="lm-ow-house-interior.js?v=5"></script>
 <script src="lm-golem-manifest.js?v=3"></script>
 <script src="lm-ow-avatar.js?v=14"></script>
 <script src="lm-glb-runtime.js?v=114"></script>
@@ -25348,21 +25348,27 @@ _buildHuman(avatar, heightCm, gender){
       if(hp && g.userData.portalPos){
         const d = Math.hypot(hp.x - g.userData.portalPos.x, hp.z - g.userData.portalPos.z);
         if(d < PORTAL_RADIUS && (!nearPlot || d < nearPlot.d)){
+          const plotId = g.userData.plotId;
+          const owner = S.owHousePlots?.[plotId]?.owner || g.userData.owner || null;
           nearPlot = {
-            plotId: g.userData.plotId,
-            owner: g.userData.owner,
+            plotId,
+            owner,
             d,
-            mine: g.userData.owner === myNick
+            mine: owner === myNick
           };
         }
       }
     });
     S.ow.mmo.housePlotNear = nearPlot;
     if(!nearPlot){
+      const wasNear = this._housePlotNearId != null;
+      const hadModal = !!S.ow.housePlotBuyModal;
       this._housePlotNearId = null;
-      S.ow.housePlotBuyModal = null;
-      S.ow.housePlotBuyDismissed = null;
-      if(S.screen === 'openworld') renderOpenWorldUIPass();
+      if(wasNear || hadModal){
+        S.ow.housePlotBuyModal = null;
+        S.ow.housePlotBuyDismissed = null;
+        if(S.screen === 'openworld') renderOpenWorldUIPass();
+      }
       return;
     }
     const currId = nearPlot.plotId;
@@ -25384,11 +25390,17 @@ _buildHuman(avatar, heightCm, gender){
       }
       return;
     }
-    this._housePlotNearId = currId;
-    S.ow.housePlotBuyModal = null;
+    if(this._housePlotNearId !== currId){
+      this._housePlotNearId = currId;
+      this._housePlotPortalEnterAt = 0;
+    }
+    if(S.ow.housePlotBuyModal){
+      S.ow.housePlotBuyModal = null;
+      if(S.screen === 'openworld') renderOpenWorldUIPass();
+    }
     const now = Date.now();
     const lastEnter = this._housePlotPortalEnterAt || 0;
-    if(!S.ow._housePlotEntering && now - lastEnter >= ENTER_COOLDOWN_MS){
+    if(!S.ow._housePlotEntering && !S.ow.houseInterior?.active && !(window.OWHouseInterior && OWHouseInterior.isActive()) && now - lastEnter >= ENTER_COOLDOWN_MS){
       this._housePlotPortalEnterAt = now;
       owEnterHousePortal(currId);
     }
@@ -31873,7 +31885,7 @@ function rOWShopModal(){
           }).join('');
         })()}
         <div style="margin-top:12px;text-align:center">
-          <button type="button" class="ow-action-btn" style="width:100%;max-width:280px" data-a="ow_shopTab" data-tab="furniture">🪑 오픈월드 가구 상점 (19종)</button>
+          <button type="button" class="ow-action-btn" style="width:100%;max-width:280px" data-a="ow_shopTab" data-tab="furniture">🪑 오픈월드 가구 상점 (22종)</button>
         </div>
         <div style="margin-top:12px;font-size:11.5px;color:rgba(255,255,255,.6);text-align:center">
           💡 호수 근처에서 🎣 낚시 · 분양 집 꾸미기는 🪑 가구 탭
@@ -35671,23 +35683,8 @@ function owLeaveRedGate(){
 }
 function owStatueTryLoot(){
   const nv = _owGetNovelState();
-  if(nv.statueEye === 'RED'){
-    owStatueCaught();
-    return;
-  }
   nv.statueLoot = (nv.statueLoot || 0) + 1;
   owAddReward(2000 + Math.floor(Math.random() * 2000), {});
-  saveOWInventory();
-  render();
-}
-function owStatueCaught(){
-  const nv = _owGetNovelState();
-  nv.statueFails = (nv.statueFails || 0) + 1;
-  if(__owRenderer){
-    __owRenderer.human.position.set(0, 0, 18);
-    __owRenderer.humanTarget = null;
-  }
-  alert('👁️ 석상이 뒤를 돌아봤어요! 광장 밖으로 튕겨냈습니다.');
   saveOWInventory();
   render();
 }
@@ -35822,9 +35819,6 @@ function owTickNovelSystems(rd, dist){
   owSoulLinkerPing();
   owTickEgoPet(rd);
   owCheckMonarchArrival().catch(()=>{});
-  if(nv.statueEye === 'RED' && dist > 0.08 && !S.ow.inCar){
-    owStatueCaught();
-  }
   const phase = S.ow.timeOfDay || 0;
   const isNight = phase >= 0.73 || phase <= 0.12;
   if(isNight && Math.random() < 0.001){
@@ -40721,7 +40715,11 @@ function owSaveHouseDecor(owner, plotId, decor){
 }
 
 async function owEnterOwHouseInterior(plotId, owner, canEdit){
-  if(!window.OWHouseInterior) { alert('인테리어 모듈 로드 실패'); return; }
+  if(!window.OWHouseInterior) { alert('인테리어 모듈 로드 실패 — 페이지를 새로고침 해주세요.'); return; }
+  if(!__owRenderer){
+    alert('오픈월드가 준비되지 않았어요. 잠시 후 다시 시도해 주세요.');
+    return;
+  }
   const plot = (OW_HOUSE_PLOT_PLACEMENTS || []).find(p => p.id === plotId);
   const decor = await owLoadHouseDecor(owner);
   if(!decor.plot_id && plotId){
@@ -40917,10 +40915,14 @@ async function owBuyHousePlot(plotId){
 }
 
 async function owEnterHousePortal(plotId){
-  if(S.ow._housePlotEntering) return;
+  if(!plotId) return;
+  if(S.ow._housePlotEntering || S.ow.houseInterior?.active || (window.OWHouseInterior && OWHouseInterior.isActive())) return;
   const plotData = S.owHousePlots?.[plotId];
   const owner = plotData?.owner;
-  if(!owner) return;
+  if(!owner){
+    owMmoToast('아직 분양되지 않은 집이에요');
+    return;
+  }
   S.ow._housePlotEntering = true;
   S.ow.housePlotBuyModal = null;
   try{
@@ -40981,8 +40983,8 @@ function owMmoRenderMapInteractHUD(){
   const plot = S.ow.mmo?.housePlotNear;
   if(plot){
     if(plot.owner){
-      const label = plot.mine ? '내 집' : `${shortNick(plot.owner)}의 집`;
-      html += `<div class="ow-campfire-bar" style="top:auto;bottom:calc(248px + env(safe-area-inset-bottom));pointer-events:none;opacity:.92">🌀 ${esc(label)} · 입장 중…</div>`;
+      const label = plot.mine ? '내 집 입장' : `${shortNick(plot.owner)}의 집`;
+      html += `<button type="button" class="ow-campfire-bar" style="top:auto;bottom:calc(248px + env(safe-area-inset-bottom))" data-a="ow_enterHousePortal" data-plot="${esc(plot.plotId)}">🌀 ${esc(label)}</button>`;
     } else if(!S.ow.housePlotBuyModal){
       const myOwned = Object.values(S.owHousePlots || {}).find(p => p.owner === S.myEntry?.nick);
       if(myOwned){

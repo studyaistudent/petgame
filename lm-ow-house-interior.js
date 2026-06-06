@@ -13,10 +13,12 @@
     { id: 'wood_sofa', name: '나무 소파', emoji: '🛋️', cost: 15000, glb: '오픈월드/house/나무소파.glb', h: 0.95, cat: 'seat' },
     { id: 'pink_sofa', name: '핑크 소파', emoji: '💗', cost: 18000, glb: '오픈월드/house/핑크소파.glb', h: 0.95, cat: 'seat' },
     { id: 'gold_sofa', name: '황금 소파', emoji: '✨', cost: 32000, glb: '오픈월드/house/황금소파.glb', h: 1.0, cat: 'seat' },
+    { id: 'chair_1', name: '의자', emoji: '🪑', cost: 9500, glb: '오픈월드/house/의자1.glb', h: 0.88, cat: 'seat' },
     { id: 'wood_bed', name: '나무 침대', emoji: '🛏️', cost: 20000, glb: '오픈월드/house/나무침대.glb', h: 0.75, cat: 'bed' },
     { id: 'pink_bed', name: '핑크 침대', emoji: '🌸', cost: 28000, glb: '오픈월드/house/핑크침대.glb', h: 0.78, cat: 'bed' },
     { id: 'magic_desk', name: '마법 책상', emoji: '📚', cost: 12000, glb: '오픈월드/house/마법책상.glb', h: 0.82, cat: 'table' },
     { id: 'deluxe_magic_desk', name: '고급 마법 책상', emoji: '🔮', cost: 25000, glb: '오픈월드/house/고급마법책상.glb', h: 0.9, cat: 'table' },
+    { id: 'dressing_table', name: '화장대', emoji: '💄', cost: 16500, glb: '오픈월드/house/화장대.glb', h: 0.85, cat: 'table' },
     { id: 'magic_library', name: '마법 도서관', emoji: '📖', cost: 40000, glb: '오픈월드/house/마법도서관.glb', h: 1.35, cat: 'deco' },
     { id: 'lucky_pot', name: '행운의 화분', emoji: '🪴', cost: 8000, glb: '오픈월드/house/행운의화분.glb', h: 0.55, cat: 'plant' },
     { id: 'rose_pot', name: '장미 화분', emoji: '🌹', cost: 9000, glb: '오픈월드/house/장미화분.glb', h: 0.58, cat: 'plant' },
@@ -29,6 +31,7 @@
     { id: 'dragon_fireplace', name: '드래곤 벽난로', emoji: '🔥', cost: 38000, glb: '오픈월드/house/드래곤벽난로.glb', h: 1.1, cat: 'deco' },
     { id: 'large_fountain', name: '대형 분수', emoji: '⛲', cost: 35000, glb: '오픈월드/house/대형분수.glb', h: 1.15, cat: 'deco' },
     { id: 'aquarium', name: '수족관', emoji: '🐠', cost: 30000, glb: '오픈월드/house/수족관.glb', h: 0.95, cat: 'deco' },
+    { id: 'piano', name: '피아노', emoji: '🎹', cost: 32000, glb: '오픈월드/house/피아노.glb', h: 1.05, cat: 'deco' },
   ];
 
   const catalogMap = {};
@@ -233,12 +236,13 @@
         ? null
         : null;
 
-      if (global.__owRenderer && typeof global.__owRenderer._buildHuman === 'function') {
+      if (global.__owRenderer?.human) {
         try {
-          const avatar = global.getMyAvatar ? global.getMyAvatar() : '🧑';
-          const hcm = global.getMyHeightCm ? global.getMyHeightCm() : 165;
-          const clone = global.__owRenderer._buildHuman(avatar, hcm);
+          const src = global.__owRenderer.human;
+          src.updateMatrixWorld(true);
+          const clone = src.clone(true);
           clone.position.set(0, 0, 0);
+          clone.rotation.set(0, 0, 0);
           clone.name = 'hi_avatar_mesh';
           g.add(clone);
           g.userData.mesh = clone;
