@@ -782,6 +782,7 @@
     _pickFloorPoint(clientX, clientY) {
       this._setPointerFromClient(clientX, clientY);
       this._raycaster.setFromCamera(this._pointer, this.camera);
+      this._raycaster.far = Infinity;
       const hit = this._raycaster.ray.intersectPlane(this._floorPlane, this._intersectPt);
       if (!hit) return null;
       return { x: this._intersectPt.x, z: this._intersectPt.z };
@@ -799,6 +800,7 @@
       if (!this.scene || !this.camera) return null;
       this._setPointerFromClient(clientX, clientY);
       this._raycaster.setFromCamera(this._pointer, this.camera);
+      this._raycaster.far = Infinity;
       const hits = this._raycaster.intersectObjects(this.scene.children, true);
       for (const h of hits) {
         const surf = this._isWalkSurface(h.object);
@@ -821,6 +823,7 @@
     _pickFurniture(clientX, clientY) {
       this._setPointerFromClient(clientX, clientY);
       this._raycaster.setFromCamera(this._pointer, this.camera);
+      this._raycaster.far = Infinity; // _updateCamera 내 벽 충돌 검사가 far를 짧게 설정하므로 리셋
       const meshes = [];
       this._furnitureMeshes.forEach((g) => { meshes.push(g); });
       const hits = this._raycaster.intersectObjects(meshes, true);
