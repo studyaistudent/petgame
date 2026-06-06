@@ -4572,7 +4572,7 @@ body.ow-hi-dragging, body.ow-hi-dragging #ow-canvas{ cursor:grabbing!important; 
 <script src="lm-fbx-texture-manifest.js?v=3"></script>
 <script src="lm-glb-catalog.js?v=80"></script>
 <script src="lm-ow-glb.js?v=27"></script>
-<script src="lm-ow-house-interior.js?v=16"></script>
+<script src="lm-ow-house-interior.js?v=17"></script>
 <script src="lm-golem-manifest.js?v=3"></script>
 <script src="lm-ow-avatar.js?v=14"></script>
 <script src="lm-glb-runtime.js?v=115"></script>
@@ -29655,11 +29655,16 @@ function owForceOpenWorldFrame(){
   if(!S.ow?.active || !__owRenderer?.scene) return;
   const rd = __owRenderer;
   if(rd.renderer) rd.renderer.setClearColor(0xffe4f0, 1);
-  if(rd.human) rd.human.visible = true;
+  if(rd.human){
+    if(rd.scene && !rd.human.parent) rd.scene.add(rd.human);
+    rd.human.visible = true;
+  }
   if(rd.companion){
+    if(rd.scene && !rd.companion.parent) rd.scene.add(rd.companion);
     const hideComp = !!S.ow.inCar || !!S.ow.mmo?.mountPassengerOf;
     rd.companion.visible = !hideComp;
   }
+  if(typeof rd._updateDayNight === 'function') rd._updateDayNight();
   try{
     rd.update(0.016);
   }catch(e){

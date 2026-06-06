@@ -261,6 +261,8 @@
       );
       rug.rotation.x = -Math.PI / 2;
       rug.position.set(0, 0.02, 0);
+      rug.name = 'hi_floor_rug';
+      rug.userData.hiFloor = true;
       this.scene.add(rug);
 
       const wallT = 0.18;
@@ -365,9 +367,14 @@
       group.userData.itemId = itemId;
     }
 
-    _startFurnitureQueue() {
-      this._furnLoadQueue = (this.decor.placements || []).slice();
+    _cancelFurnitureQueue() {
+      this._furnLoadQueue = [];
       this._furnLoading = false;
+    }
+
+    _startFurnitureQueue() {
+      this._cancelFurnitureQueue();
+      this._furnLoadQueue = (this.decor.placements || []).slice();
       const step = () => {
         if (!this.active || !this._furnLoadQueue.length) return;
         if (this._furnLoading) {
@@ -385,6 +392,7 @@
     }
 
     async _addPlacementMesh(p) {
+      if (!this.active || !this.scene) return;
       const THREE = this.THREE;
       const g = new THREE.Group();
       g.name = 'hi_furn_' + p.id;
@@ -393,6 +401,7 @@
       g.userData.placementId = p.id;
       g.userData.itemId = p.itemId;
       await this._attachFurnitureMesh(g, p.itemId);
+      if (!this.active || !this.scene) return;
       if (this.editMode && this.selectedPlacement === p.id) {
         this._highlightGroup(g);
       }
@@ -752,21 +761,35 @@
       return { x: this._intersectPt.x, z: this._intersectPt.z };
     }
 
+    _isWalkSurface(o) {
+      while (o) {
+        if (o.name === 'hi_floor' || o.name === 'hi_exit_door' || o.userData?.hiFloor) return o;
+        o = o.parent;
+      }
+      return null;
+    }
+
     _pickFloor(clientX, clientY) {
+      if (!this.scene || !this.camera) return null;
       this._setPointerFromClient(clientX, clientY);
       this._raycaster.setFromCamera(this._pointer, this.camera);
       const hits = this._raycaster.intersectObjects(this.scene.children, true);
       for (const h of hits) {
-        let o = h.object;
-        while (o) {
-          if (o.name === 'hi_floor' || o.name === 'hi_exit_door') {
-            this._raycaster.ray.intersectPlane(this._floorPlane, this._intersectPt);
-            return { x: snap(this._intersectPt.x), z: snap(this._intersectPt.z), exit: o.name === 'hi_exit_door' };
-          }
-          o = o.parent;
+        const surf = this._isWalkSurface(h.object);
+        if (surf) {
+          this._raycaster.ray.intersectPlane(this._floorPlane, this._intersectPt);
+          return {
+            x: snap(this._intersectPt.x),
+            z: snap(this._intersectPt.z),
+            exit: surf.name === 'hi_exit_door',
+          };
         }
       }
-      return null;
+      const raw = this._pickFloorPoint(clientX, clientY);
+      if (!raw) return null;
+      const doorX = -ROOM_W / 2 + 0.2;
+      const nearDoor = Math.hypot(raw.x - doorX, raw.z) < 1.35;
+      return { x: snap(raw.x), z: snap(raw.z), exit: nearDoor };
     }
 
     _pickFurniture(clientX, clientY) {
@@ -1048,9 +1071,28 @@
       if (typeof global.renderOpenWorldUIPass === 'function') global.renderOpenWorldUIPass();
     }
 
+    _restoreOwAfterInterior(owRd) {
+      if (!owRd) return;
+      if (owRd.renderer) {
+        owRd.renderer.setClearColor(0xffe4f0, 1);
+        if (typeof global.owApplyRendererPerf === 'function') global.owApplyRendererPerf(owRd);
+      }
+      if (owRd.scene && owRd.human) {
+        if (!owRd.human.parent) owRd.scene.add(owRd.human);
+        owRd.human.visible = true;
+      }
+      if (owRd.scene && owRd.companion) {
+        if (!owRd.companion.parent) owRd.scene.add(owRd.companion);
+        const hideComp = !!(global.S?.ow?.inCar || global.S?.ow?.mmo?.mountPassengerOf);
+        owRd.companion.visible = !hideComp;
+      }
+      if (typeof owRd._updateDayNight === 'function') owRd._updateDayNight();
+    }
+
     async exit() {
       if (!this.active) return;
       this.active = false;
+      this._cancelFurnitureQueue();
       if (this._raf) cancelAnimationFrame(this._raf);
       this._raf = null;
       this._endDrag();
@@ -1078,6 +1120,7 @@
       if (owRd && this._savedOw) {
         owRd.scene = this._savedOw.scene;
         owRd.camera = this._savedOw.camera;
+        owRd.renderer = this._savedOw.renderer || owRd.renderer;
       }
       if (this._ownedRenderer && this.renderer) {
         try { this.renderer.dispose(); } catch (e) {}
@@ -1090,6 +1133,7 @@
         global.S.ow.houseInterior = null;
         global.S.ow.active = true;
       }
+      this._restoreOwAfterInterior(owRd);
       if (typeof global.owResetOpenWorldSpawnPos === 'function') global.owResetOpenWorldSpawnPos(owRd);
       if (typeof global.owPushOWPositionNow === 'function') global.owPushOWPositionNow();
       if (typeof global.owForceOpenWorldFrame === 'function') global.owForceOpenWorldFrame();
