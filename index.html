@@ -4631,8 +4631,8 @@ body.ow-hi-dragging, body.ow-hi-dragging #ow-canvas{ cursor:grabbing!important; 
 
 
 <script>
-/* 빌드 확인: F12 콘솔 → __LM_BUILD (20260606-hud5 = bugfix: stat-banner-dup/menu-flicker) */
-window.__LM_BUILD = '20260606-hud5';
+/* 빌드 확인: F12 콘솔 → __LM_BUILD (20260607-hud6 = bugfix: deco-ui/mobile-cache) */
+window.__LM_BUILD = '20260607-hud6';
 /* ═══════════════════════════════════════
    SUPABASE INIT (Firestore 호환 shim)
    supabase-firestore-shim.js 참고
@@ -29906,6 +29906,47 @@ function loadOWInventoryFromStorage(){
   owEnsureFeatureState(false);
   owMmoOnLoad();
 }
+/* 저장 전 featureState에서 재생성 가능한 큰 필드 제거 — 데이터 크기 절감 */
+function _owTrimFeatureState(fs){
+  if(!fs) return null;
+  const copy = JSON.parse(JSON.stringify(fs));
+  // treasures는 dayKey에서 항상 재생성 가능하므로 저장 불필요
+  delete copy.treasures;
+  // expansion 안의 novel 스토리 텍스트는 크므로 필요한 진행 상태만 남김
+  if(copy.expansion?.novel){
+    const n = copy.expansion.novel;
+    copy.expansion.novel = {
+      phase: n.phase, cleared: n.cleared, voidCleared: n.voidCleared,
+      sculptorEyeUntil: n.sculptorEyeUntil, hunterRank: n.hunterRank,
+      hunterKills: n.hunterKills, questsDone: n.questsDone,
+    };
+  }
+  return copy;
+}
+/* 저장 전 mmoWorld 누적 배열 크기 제한 — Firestore/localStorage 용량 초과 방지 */
+function _owTrimMmoWorld(mw){
+  if(!mw) return mw;
+  const copy = JSON.parse(JSON.stringify(mw));
+  if(Array.isArray(copy.bossHistory))         copy.bossHistory         = copy.bossHistory.slice(-20);
+  if(Array.isArray(copy.territoryWarHistory)) copy.territoryWarHistory = copy.territoryWarHistory.slice(-20);
+  if(Array.isArray(copy.npcQuestLog))         copy.npcQuestLog         = copy.npcQuestLog.slice(-30);
+  if(Array.isArray(copy.sculpting?.completed))copy.sculpting.completed = copy.sculpting.completed.slice(-50);
+  if(Array.isArray(copy.petExpedition?.history)) copy.petExpedition.history = copy.petExpedition.history.slice(-20);
+  if(Array.isArray(copy.petExpedition?.journal)) copy.petExpedition.journal = copy.petExpedition.journal.slice(-30);
+  if(Array.isArray(copy.tamedPets))           copy.tamedPets           = copy.tamedPets.slice(-20);
+  if(copy.houseLink){
+    if(Array.isArray(copy.houseLink.farmGrowth))    copy.houseLink.farmGrowth    = copy.houseLink.farmGrowth.slice(-50);
+    if(Array.isArray(copy.houseLink.tradeListings)) copy.houseLink.tradeListings = copy.houseLink.tradeListings.slice(-20);
+  }
+  // explorationBitmask: 지역별 uint32 숫자 배열, 필요 없는 빈 배열 제거
+  if(copy.explorationBitmask){
+    Object.keys(copy.explorationBitmask).forEach(k => {
+      if(!Array.isArray(copy.explorationBitmask[k]) || copy.explorationBitmask[k].every(v => v === 0))
+        delete copy.explorationBitmask[k];
+    });
+  }
+  return copy;
+}
 async function saveOWInventory(immediate = false){
   const myNick = S.myEntry?.nick;
   if(!myNick) return;
@@ -29928,8 +29969,8 @@ async function saveOWInventory(immediate = false){
       materials: JSON.parse(JSON.stringify(S.ow.materials || {})),
       weapons: JSON.parse(JSON.stringify(S.ow.weapons || { blue:false, pink:false })),
       equippedWeapon: S.ow.equippedWeapon || null,
-      featureState: JSON.parse(JSON.stringify(S.ow.featureState || null)),
-      mmoWorld: JSON.parse(JSON.stringify(S.myPet?.owData?.mmoWorld || OWMMODataStore.createDefault())),
+      featureState: _owTrimFeatureState(S.ow.featureState),
+      mmoWorld: _owTrimMmoWorld(S.myPet?.owData?.mmoWorld || OWMMODataStore.createDefault()),
     };
     try{
       await petCol.doc(myNick).update({ owData: ow });
@@ -42076,7 +42117,8 @@ function rOWHouseInteriorUI(){
       <button type="button" data-a="ow_hiCamRight" title="우회전">↻</button>
     </div>
   </div>`;
-  const statPill = isMine && placedCnt && owFmtStatBonusLine(placedSt)
+  // 모바일 꾸미기 모드에서 상단 바 공간 확보 — statPill은 긴 텍스트라 다른 버튼을 밀어냄
+  const statPill = isMine && placedCnt && owFmtStatBonusLine(placedSt) && !(hiSimpleHud && hi.editMode)
     ? `<div class="ow-info-pill" title="오픈월드 집 가구 배치 보너스"><span class="ip-icon">📊</span> ${esc(owFmtStatBonusLine(placedSt))}</div>`
     : '';
   return `${statBanner}<div class="ow-hi-top">
@@ -42367,7 +42409,8 @@ function owMmoInitSubscriptions(){
     }
     ctrl.economy.applySync(data);
     S.ow.mmo.economySync = data;
-    if(S.screen === 'openworld') render();
+    // 경제 데이터는 월드허브가 열렸을 때만 UI 갱신 필요
+    if(S.screen === 'openworld' && S.ow.mmo?.showWorldHub) renderOpenWorldUIPass();
   }, ()=>{}));
   __owMmoUnsubs.push(owMmoEventsCol.doc(OW_MMO_FIREWORK_DOC).onSnapshot(doc=>{
     if(!doc.exists) return;
@@ -42388,7 +42431,7 @@ function owMmoInitSubscriptions(){
     const respLeft = Math.max(leviLeft, Math.max(0, (data.respawnAt||0) - Date.now()));
     if(data.active === false && respLeft > 0){
       owMmoGetController().boss.applySync(data);
-      render();
+      if(S.screen === 'openworld') renderOpenWorldUIPass();
       return;
     }
     if(data.active === false && respLeft <= 0 && Date.now() >= (data.respawnAt||0)){
@@ -42397,7 +42440,7 @@ function owMmoInitSubscriptions(){
       return;
     }
     owMmoGetController().boss.applySync(data);
-    render();
+    if(S.screen === 'openworld') renderOpenWorldUIPass();
   }, ()=>{}));
   __owMmoUnsubs.push(owMmoTerritoryCol.onSnapshot(snap=>{
     const docs = snap.docs.map(d => ({ id:d.id, ...d.data() }));
@@ -42407,11 +42450,15 @@ function owMmoInitSubscriptions(){
         owMmoTerritoryCol.doc(t.id).set(owMmoGetController().territory.ensureTerritory(t));
       }
     });
-    if(S.screen === 'openworld') render();
+    // 영토 데이터는 월드허브가 열렸을 때만 UI 갱신, 평소에는 3D 오버레이만
+    if(S.screen === 'openworld'){
+      if(S.ow.mmo?.showWorldHub) renderOpenWorldUIPass();
+      else if(__owRenderer?.updateTerritoryOverlays) __owRenderer.updateTerritoryOverlays();
+    }
   }, ()=>{}));
   __owMmoUnsubs.push(owMmoHouseTradeCol.doc('board').onSnapshot(doc=>{
     S.ow.mmo.houseTradeSync = doc.exists ? (doc.data().listings || []) : [];
-    if(S.screen === 'openworld' && S.ow.mmo?.showWorldHub) render();
+    if(S.screen === 'openworld' && S.ow.mmo?.showWorldHub) renderOpenWorldUIPass();
   }, ()=>{}));
   __owMmoUnsubs.push(owHousePlotCol.onSnapshot(snap=>{
     S.owHousePlots = {};
@@ -42419,7 +42466,8 @@ function owMmoInitSubscriptions(){
     if(__owRenderer && typeof __owRenderer._syncOwHousePlotLabels === 'function'){
       __owRenderer._syncOwHousePlotLabels();
     }
-    if(S.screen === 'openworld') render();
+    // 하우스 플롯은 월드허브 / 집 포털 근처에서만 UI 갱신 필요
+    if(S.screen === 'openworld' && (S.ow.mmo?.showWorldHub || S.ow.nearHousePortal)) renderOpenWorldUIPass();
   }, ()=>{}));
 }
 
