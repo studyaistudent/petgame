@@ -4631,8 +4631,8 @@ body.ow-hi-dragging, body.ow-hi-dragging #ow-canvas{ cursor:grabbing!important; 
 
 
 <script>
-/* 빌드 확인: F12 콘솔 → __LM_BUILD (20260607-hud6 = bugfix: deco-ui/mobile-cache) */
-window.__LM_BUILD = '20260607-hud6';
+/* 빌드 확인: F12 콘솔 → __LM_BUILD (20260607-hud7 = mobile: proc NPC/boss no GLB) */
+window.__LM_BUILD = '20260607-hud7';
 /* ═══════════════════════════════════════
    SUPABASE INIT (Firestore 호환 shim)
    supabase-firestore-shim.js 참고
@@ -25143,6 +25143,57 @@ const CRAFT_RECIPES = [
   }
 ];
 
+/* ─── 모바일용 프로시저럴 NPC 캐릭터 빌더 ─── */
+function _owBuildProceduralNpc(g, npcId, THREE){
+  // NPC별 색상 팔레트
+  const palettes = {
+    shop_keeper: { body:0xFF8C42, head:0xFFB74D, accent:0xE65100 },
+    herbalist:   { body:0x66BB6A, head:0xA5D6A7, accent:0x2E7D32 },
+    guard_capt:  { body:0x546E7A, head:0xB0BEC5, accent:0xFF8F00 },
+    wanderer:    { body:0x7E57C2, head:0xCE93D8, accent:0xF3E5F5 },
+  };
+  const pal = palettes[npcId] || palettes.wanderer;
+  const bodyMat  = new THREE.MeshLambertMaterial({ color: pal.body });
+  const headMat  = new THREE.MeshLambertMaterial({ color: pal.head });
+  const accentMat= new THREE.MeshLambertMaterial({ color: pal.accent });
+  // 몸통
+  const torso = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.22, 0.72, 8), bodyMat);
+  torso.position.y = 0.94; torso.castShadow = true; g.add(torso);
+  // 머리
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.28, 10, 8), headMat);
+  head.position.y = 1.52; head.castShadow = true; g.add(head);
+  // 눈
+  for(const s of [-1,1]){
+    const eye = new THREE.Mesh(new THREE.SphereGeometry(0.055,6,6), new THREE.MeshBasicMaterial({color:0x111111}));
+    eye.position.set(s*0.11, 1.55, 0.24); g.add(eye);
+  }
+  // 다리
+  for(const s of [-1,1]){
+    const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.09,0.08,0.52,7), bodyMat);
+    leg.position.set(s*0.12, 0.38, 0); g.add(leg);
+  }
+  // NPC 특징 소품
+  if(npcId === 'shop_keeper'){
+    // 가방
+    const bag = new THREE.Mesh(new THREE.BoxGeometry(0.22,0.22,0.12), accentMat);
+    bag.position.set(-0.32,0.88,0); g.add(bag);
+  } else if(npcId === 'guard_capt'){
+    // 투구
+    const helmet = new THREE.Mesh(new THREE.SphereGeometry(0.32,8,6,0,Math.PI*2,0,Math.PI*0.55), accentMat);
+    helmet.position.y = 1.6; g.add(helmet);
+  } else if(npcId === 'herbalist'){
+    // 모자 (버섯형)
+    const brim = new THREE.Mesh(new THREE.CylinderGeometry(0.44,0.44,0.06,10), accentMat);
+    brim.position.y = 1.72; g.add(brim);
+    const crown= new THREE.Mesh(new THREE.CylinderGeometry(0.22,0.28,0.28,10), accentMat);
+    crown.position.y = 1.84; g.add(crown);
+  } else if(npcId === 'wanderer'){
+    // 지팡이
+    const staff= new THREE.Mesh(new THREE.CylinderGeometry(0.04,0.04,1.5,6), accentMat);
+    staff.position.set(0.36,0.82,0); g.add(staff);
+  }
+}
+
 /* ─── 오픈월드 렌더러 ─── */
 let __owRenderer = null;
 let __owRaf = null;
@@ -25944,7 +25995,12 @@ _buildHuman(avatar, heightCm, gender){
       g.add(sprite);
       g.position.set(npc.x, 0, npc.z);
       g.userData = { kind:'npc', npcId:npc.id, ring, beam, sprite, head: null };
-      if(window.LMOwGlb) LMOwGlb.attachNpc(g, npc.id);
+      if(window.LMOwGlb && !owIsLowPerfDevice()){
+        LMOwGlb.attachNpc(g, npc.id);
+      } else {
+        // 모바일: GLB 대신 Three.js 프로시저럴 NPC 캐릭터
+        _owBuildProceduralNpc(g, npc.id, THREE);
+      }
       this._mmoMarkerRoot.add(g);
       this._mmoNpcMarkers[npc.id] = g;
     }
@@ -27047,9 +27103,11 @@ upsertOtherPet(nick, data){
         for(const s of [-1,1]){ const horn=new THREE.Mesh(new THREE.ConeGeometry(0.13,0.5,6),dark); horn.position.set(s*0.32,1.28,0); horn.rotation.z=s*0.3; g.add(horn); }
       }
     };
-    const useGolem = !!(def.golemPack || def.leviathanBoss);
+    // 모바일(저사양)에서는 GLB 로딩 스킵 → 프로시저럴 메쉬로 대체
+    const mobileMode = typeof owIsLowPerfDevice === 'function' && owIsLowPerfDevice();
+    const useGolem = !mobileMode && !!(def.golemPack || def.leviathanBoss);
     const glbUrl = useGolem ? null : (def.glb || null);
-    const useGlb = !!glbUrl || useGolem;
+    const useGlb = !mobileMode && (!!glbUrl || useGolem);
     const glbH = def.glbHeight != null ? def.glbHeight : (useGlb ? OW_BOSS_GLB_HEIGHT : (tier==='boss' ? 3.4 : 1.6));
     const mobScale = useGlb ? 1 : scale;
     g.userData.owMobSpawnState = 'spawn';
@@ -27081,7 +27139,7 @@ upsertOtherPet(nick, data){
     if(def.wild) mob.wildCapture = true;
     if(def.treasureGuard){ mob.treasureGuard = true; mob.treasureId = def.treasureId; }
     this.mobs.push(mob);
-    if(useGolem){
+    if(useGolem && !mobileMode){
       this._preloadGolemAnims(['walk','run','attack','skill01','skill03','combo','hit']);
       this._loadGolemMobAnim(mob, 'walk', 0);
     }
