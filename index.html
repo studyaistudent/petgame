@@ -4591,7 +4591,7 @@ body.ow-hi-dragging, body.ow-hi-dragging #ow-canvas{ cursor:grabbing!important; 
 <script src="lm-fbx-texture-manifest.js?v=3"></script>
 <script src="lm-glb-catalog.js?v=80"></script>
 <script src="lm-ow-glb.js?v=27"></script>
-<script src="lm-ow-house-interior.js?v=18"></script>
+<script src="lm-ow-house-interior.js?v=19"></script>
 <script src="lm-golem-manifest.js?v=3"></script>
 <script src="lm-ow-avatar.js?v=14"></script>
 <script src="lm-glb-runtime.js?v=115"></script>
@@ -4631,8 +4631,8 @@ body.ow-hi-dragging, body.ow-hi-dragging #ow-canvas{ cursor:grabbing!important; 
 
 
 <script>
-/* 빌드 확인: F12 콘솔 → __LM_BUILD (20260606-hud4 = bugfix: hunt/avatar/dock/furniture) */
-window.__LM_BUILD = '20260606-hud4';
+/* 빌드 확인: F12 콘솔 → __LM_BUILD (20260607-hud8 = mobile: proc structures + perf tune) */
+window.__LM_BUILD = '20260607-hud8';
 /* ═══════════════════════════════════════
    SUPABASE INIT (Firestore 호환 shim)
    supabase-firestore-shim.js 참고
@@ -17734,6 +17734,14 @@ function renderOpenWorldUIPass(){
   if(S.screen !== 'openworld') return;
   const uiRoot = document.getElementById('ow-ui-root');
   if(!uiRoot) return;
+  // 메뉴가 열려 있을 때 잦은 리렌더로 인한 깜빡임 방지 (800ms 스로틀)
+  if(S.ow?.hudMenuOpen){
+    const now = Date.now();
+    if(S.ow._menuRenderAt && now - S.ow._menuRenderAt < 800) return;
+    S.ow._menuRenderAt = now;
+  } else {
+    S.ow._menuRenderAt = 0;
+  }
 
     /* UI만 갈아끼울 때 캔버스/WebGL 미리보기는 먼저 해제 (컨텍스트 누수 방지) */
     if(window.LMGlb && typeof LMGlb.disposePickerPreview === 'function') LMGlb.disposePickerPreview();
@@ -25135,6 +25143,57 @@ const CRAFT_RECIPES = [
   }
 ];
 
+/* ─── 모바일용 프로시저럴 NPC 캐릭터 빌더 ─── */
+function _owBuildProceduralNpc(g, npcId, THREE){
+  // NPC별 색상 팔레트
+  const palettes = {
+    shop_keeper: { body:0xFF8C42, head:0xFFB74D, accent:0xE65100 },
+    herbalist:   { body:0x66BB6A, head:0xA5D6A7, accent:0x2E7D32 },
+    guard_capt:  { body:0x546E7A, head:0xB0BEC5, accent:0xFF8F00 },
+    wanderer:    { body:0x7E57C2, head:0xCE93D8, accent:0xF3E5F5 },
+  };
+  const pal = palettes[npcId] || palettes.wanderer;
+  const bodyMat  = new THREE.MeshLambertMaterial({ color: pal.body });
+  const headMat  = new THREE.MeshLambertMaterial({ color: pal.head });
+  const accentMat= new THREE.MeshLambertMaterial({ color: pal.accent });
+  // 몸통
+  const torso = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.22, 0.72, 8), bodyMat);
+  torso.position.y = 0.94; torso.castShadow = true; g.add(torso);
+  // 머리
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.28, 10, 8), headMat);
+  head.position.y = 1.52; head.castShadow = true; g.add(head);
+  // 눈
+  for(const s of [-1,1]){
+    const eye = new THREE.Mesh(new THREE.SphereGeometry(0.055,6,6), new THREE.MeshBasicMaterial({color:0x111111}));
+    eye.position.set(s*0.11, 1.55, 0.24); g.add(eye);
+  }
+  // 다리
+  for(const s of [-1,1]){
+    const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.09,0.08,0.52,7), bodyMat);
+    leg.position.set(s*0.12, 0.38, 0); g.add(leg);
+  }
+  // NPC 특징 소품
+  if(npcId === 'shop_keeper'){
+    // 가방
+    const bag = new THREE.Mesh(new THREE.BoxGeometry(0.22,0.22,0.12), accentMat);
+    bag.position.set(-0.32,0.88,0); g.add(bag);
+  } else if(npcId === 'guard_capt'){
+    // 투구
+    const helmet = new THREE.Mesh(new THREE.SphereGeometry(0.32,8,6,0,Math.PI*2,0,Math.PI*0.55), accentMat);
+    helmet.position.y = 1.6; g.add(helmet);
+  } else if(npcId === 'herbalist'){
+    // 모자 (버섯형)
+    const brim = new THREE.Mesh(new THREE.CylinderGeometry(0.44,0.44,0.06,10), accentMat);
+    brim.position.y = 1.72; g.add(brim);
+    const crown= new THREE.Mesh(new THREE.CylinderGeometry(0.22,0.28,0.28,10), accentMat);
+    crown.position.y = 1.84; g.add(crown);
+  } else if(npcId === 'wanderer'){
+    // 지팡이
+    const staff= new THREE.Mesh(new THREE.CylinderGeometry(0.04,0.04,1.5,6), accentMat);
+    staff.position.set(0.36,0.82,0); g.add(staff);
+  }
+}
+
 /* ─── 오픈월드 렌더러 ─── */
 let __owRenderer = null;
 let __owRaf = null;
@@ -25630,23 +25689,73 @@ _buildHuman(avatar, heightCm, gender){
     });
   }
 
-  /** 오픈월드 GLB — 집(동일 메쉬·크기만 상이) · 가로등 · 상점 NPC · 캠프파이어 · 분수 */
+  /** 오픈월드 GLB — 집 · 가로등 · 캠프파이어 · 분수(낚시터)
+   *  모바일(low-perf)에서는 GLB 없이 Three.js 프로시저럴 메쉬로 대체 */
   _buildOwGlbScenery(){
     this.lamps = [];
     this._owHouseHub = null;
-    if(!window.LMOwGlb) return;
+    const low = !!this._owPerf?.low;
+
+    /* ── 캠프파이어 ── */
     const campfireG = new THREE.Group();
     campfireG.position.set(OW_CAMPFIRE_POS.x, 0, OW_CAMPFIRE_POS.z);
     this.scene.add(campfireG);
     this._owCampfireGlb = campfireG;
-    LMOwGlb.attachCampfire(campfireG, 1.85);
-    if(!this._owPerf?.low){
-      const fountainG = new THREE.Group();
-      fountainG.position.set(OW_FISHING_DOCK_POS.x, 0, OW_FISHING_DOCK_POS.z);
-      this.scene.add(fountainG);
-      this._owFountainGlb = fountainG;
+    if(low || !window.LMOwGlb){
+      // 동일한 프로시저럴 캠프파이어 (spawnCampfire와 동일 디자인)
+      const logMat = new THREE.MeshLambertMaterial({ color:0x6b4423 });
+      for(let i=0;i<4;i++){
+        const log = new THREE.Mesh(new THREE.CylinderGeometry(0.11,0.11,1.05,8), logMat);
+        log.rotation.z=Math.PI/2; log.rotation.y=(i*Math.PI)/4;
+        log.position.y=0.12+(i%2)*0.1; log.castShadow=true; campfireG.add(log);
+      }
+      const stoneMat = new THREE.MeshLambertMaterial({ color:0x9e9e9e });
+      for(let i=0;i<8;i++){
+        const a=(i/8)*Math.PI*2;
+        const s=new THREE.Mesh(new THREE.DodecahedronGeometry(0.15), stoneMat);
+        s.position.set(Math.cos(a)*0.7,0.07,Math.sin(a)*0.7); campfireG.add(s);
+      }
+      const flameColors=[0xff3300,0xff8800,0xffd000];
+      for(let i=0;i<3;i++){
+        const fm=new THREE.Mesh(
+          new THREE.ConeGeometry(0.30-i*0.07, 0.95-i*0.2, 9),
+          new THREE.MeshBasicMaterial({color:flameColors[i],transparent:true,opacity:0.85,depthWrite:false})
+        );
+        fm.position.y=0.55-i*0.07; campfireG.add(fm);
+      }
+      const cfLight=new THREE.PointLight(0xff8833,1.6,10,2);
+      cfLight.position.y=0.95; campfireG.add(cfLight);
+    } else {
+      LMOwGlb.attachCampfire(campfireG, 1.85);
+    }
+
+    /* ── 분수 / 낚시터 구조물 ── */
+    const fountainG = new THREE.Group();
+    fountainG.position.set(OW_FISHING_DOCK_POS.x, 0, OW_FISHING_DOCK_POS.z);
+    this.scene.add(fountainG);
+    this._owFountainGlb = fountainG;
+    if(low || !window.LMOwGlb){
+      // 프로시저럴 분수: 베이스 원형 + 수반 테두리 + 물기둥 + 스프레이 구
+      const baseMat  = new THREE.MeshLambertMaterial({ color:0xd4c5b0 });
+      const waterMat = new THREE.MeshBasicMaterial({ color:0x4fc3f7, transparent:true, opacity:0.85 });
+      const base = new THREE.Mesh(new THREE.CylinderGeometry(1.6,1.8,0.22,16), baseMat);
+      base.position.y=0.11; fountainG.add(base);
+      const rim  = new THREE.Mesh(new THREE.TorusGeometry(1.6,0.14,8,24), baseMat);
+      rim.rotation.x=Math.PI/2; rim.position.y=0.3; fountainG.add(rim);
+      const pool = new THREE.Mesh(new THREE.CylinderGeometry(1.45,1.45,0.12,16), waterMat);
+      pool.position.y=0.28; fountainG.add(pool);
+      const col  = new THREE.Mesh(new THREE.CylinderGeometry(0.09,0.12,1.6,8), baseMat);
+      col.position.y=0.8; fountainG.add(col);
+      const spray= new THREE.Mesh(new THREE.SphereGeometry(0.28,8,6), waterMat);
+      spray.position.y=1.75; fountainG.add(spray);
+      // 낚시 표지판 스프라이트
+      const signSp = this._makeEmojiSprite('🎣', 1.1);
+      signSp.position.y=2.4; fountainG.add(signSp);
+    } else {
       LMOwGlb.attachFountain(fountainG, 3.4);
     }
+
+    /* ── 월드 허브 집들 ── */
     (OW_HOUSE_PLACEMENTS || []).forEach((hp) => {
       const house = new THREE.Group();
       house.name = hp.hub ? 'ow_house_hub' : 'ow_house';
@@ -25654,7 +25763,30 @@ _buildHuman(avatar, heightCm, gender){
       house.rotation.y = hp.ry != null ? hp.ry : 0;
       house.userData.owHouseH = hp.h;
       this.scene.add(house);
-      LMOwGlb.attachHouse(house, hp.h);
+      if(low || !window.LMOwGlb){
+        // 프로시저럴 집: 박스 몸체 + 삼각 지붕
+        const wallCol = hp.hub ? 0xFFCDD2 : 0xFFF8E1;
+        const roofCol = hp.hub ? 0xE57373 : 0xFFB74D;
+        const wall = new THREE.Mesh(
+          new THREE.BoxGeometry(3.4, hp.h * 0.65, 3.4),
+          new THREE.MeshLambertMaterial({ color: wallCol })
+        );
+        wall.position.y = hp.h * 0.325; house.add(wall);
+        const roof = new THREE.Mesh(
+          new THREE.ConeGeometry(2.55, hp.h * 0.42, 4),
+          new THREE.MeshLambertMaterial({ color: roofCol })
+        );
+        roof.rotation.y = Math.PI/4;
+        roof.position.y = hp.h * 0.65 + hp.h * 0.21; house.add(roof);
+        // 문
+        const door = new THREE.Mesh(
+          new THREE.BoxGeometry(0.72, hp.h * 0.3, 0.05),
+          new THREE.MeshLambertMaterial({ color: 0x795548 })
+        );
+        door.position.set(0, hp.h * 0.15, 1.73); house.add(door);
+      } else {
+        LMOwGlb.attachHouse(house, hp.h);
+      }
       if(hp.hub){
         this._owHouseHub = house;
         house.userData.kind = 'house';
@@ -25662,6 +25794,8 @@ _buildHuman(avatar, heightCm, gender){
         house.userData.mine = true;
       }
     });
+
+    /* ── 가로등 ── */
     const lampN = (this._owPerf && this._owPerf.lamps) || 8;
     for(let i = 0; i < lampN; i++){
       const a = (i / lampN) * Math.PI * 2;
@@ -25677,9 +25811,23 @@ _buildHuman(avatar, heightCm, gender){
       lampGroup.userData.head = null;
       this.scene.add(lampGroup);
       this.lamps.push(lampGroup);
-      LMOwGlb.attachLamp(lampGroup).then(() => {
-        ptLight.position.y = 2.8;
-      });
+      if(low || !window.LMOwGlb){
+        // 프로시저럴 가로등: 기둥 + 갓 + 전구
+        const poleMat = new THREE.MeshLambertMaterial({ color:0x546E7A });
+        const bulbMat = new THREE.MeshBasicMaterial({ color:0xFFF9C4 });
+        const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.07,0.09,2.8,8), poleMat);
+        pole.position.y=1.4; lampGroup.add(pole);
+        const arm  = new THREE.Mesh(new THREE.CylinderGeometry(0.05,0.05,0.7,6), poleMat);
+        arm.rotation.z=Math.PI/2; arm.position.set(0.35,2.75,0); lampGroup.add(arm);
+        const shade= new THREE.Mesh(new THREE.CylinderGeometry(0.28,0.18,0.22,8), poleMat);
+        shade.position.set(0.7,2.78,0); lampGroup.add(shade);
+        const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.12,7,6), bulbMat);
+        bulb.position.set(0.7,2.65,0); lampGroup.add(bulb);
+      } else {
+        LMOwGlb.attachLamp(lampGroup).then(() => {
+          ptLight.position.y = 2.8;
+        });
+      }
     }
     /* 낚시 상점 NPC — OW_MMO_NPCS shop_keeper 마커와 동일 좌표 (중복 스폰 방지) */
   }
@@ -25936,7 +26084,12 @@ _buildHuman(avatar, heightCm, gender){
       g.add(sprite);
       g.position.set(npc.x, 0, npc.z);
       g.userData = { kind:'npc', npcId:npc.id, ring, beam, sprite, head: null };
-      if(window.LMOwGlb) LMOwGlb.attachNpc(g, npc.id);
+      if(window.LMOwGlb && !owIsLowPerfDevice()){
+        LMOwGlb.attachNpc(g, npc.id);
+      } else {
+        // 모바일: GLB 대신 Three.js 프로시저럴 NPC 캐릭터
+        _owBuildProceduralNpc(g, npc.id, THREE);
+      }
       this._mmoMarkerRoot.add(g);
       this._mmoNpcMarkers[npc.id] = g;
     }
@@ -27039,9 +27192,11 @@ upsertOtherPet(nick, data){
         for(const s of [-1,1]){ const horn=new THREE.Mesh(new THREE.ConeGeometry(0.13,0.5,6),dark); horn.position.set(s*0.32,1.28,0); horn.rotation.z=s*0.3; g.add(horn); }
       }
     };
-    const useGolem = !!(def.golemPack || def.leviathanBoss);
+    // 모바일(저사양)에서는 GLB 로딩 스킵 → 프로시저럴 메쉬로 대체
+    const mobileMode = typeof owIsLowPerfDevice === 'function' && owIsLowPerfDevice();
+    const useGolem = !mobileMode && !!(def.golemPack || def.leviathanBoss);
     const glbUrl = useGolem ? null : (def.glb || null);
-    const useGlb = !!glbUrl || useGolem;
+    const useGlb = !mobileMode && (!!glbUrl || useGolem);
     const glbH = def.glbHeight != null ? def.glbHeight : (useGlb ? OW_BOSS_GLB_HEIGHT : (tier==='boss' ? 3.4 : 1.6));
     const mobScale = useGlb ? 1 : scale;
     g.userData.owMobSpawnState = 'spawn';
@@ -27073,7 +27228,7 @@ upsertOtherPet(nick, data){
     if(def.wild) mob.wildCapture = true;
     if(def.treasureGuard){ mob.treasureGuard = true; mob.treasureId = def.treasureId; }
     this.mobs.push(mob);
-    if(useGolem){
+    if(useGolem && !mobileMode){
       this._preloadGolemAnims(['walk','run','attack','skill01','skill03','combo','hit']);
       this._loadGolemMobAnim(mob, 'walk', 0);
     }
@@ -29147,30 +29302,31 @@ function owGetOwPerfProfile(){
   const low = owIsLowPerfDevice();
   return {
     low,
-    pixelRatio: Math.min(window.devicePixelRatio || 1, low ? 1 : 1.75),
+    // 모바일: DPR 0.85로 낮춰 GPU fill-rate 절감 (1.0 → 0.85)
+    pixelRatio: Math.min(window.devicePixelRatio || 1, low ? 0.85 : 1.75),
     antialias: !low,
     shadows: !low,
-    fpsCap: low ? 30 : 60,
-    syncMs: low ? 520 : OW_SYNC_MS,
-    syncMoveMs: low ? 260 : OW_SYNC_MOVE_MS,
-    grassSeg: low ? 12 : 32,
-    skySeg: low ? 24 : 48,
-    clouds: low ? 2 : 7,
-    cloudPuffs: low ? 3 : 6,
-    mountains: low ? 4 : 12,
+    fpsCap: low ? 24 : 60,          // 30→24 fps: 메인 루프 CPU 부담 추가 절감
+    syncMs: low ? 800 : OW_SYNC_MS, // 520→800ms: 위치 동기화 빈도 줄임
+    syncMoveMs: low ? 400 : OW_SYNC_MOVE_MS,
+    grassSeg: low ? 8 : 32,         // 12→8 세그먼트
+    skySeg: low ? 16 : 48,          // 24→16
+    clouds: low ? 1 : 7,            // 2→1
+    cloudPuffs: low ? 2 : 6,        // 3→2
+    mountains: low ? 3 : 12,        // 4→3
     sparkles: low ? 0 : 80,
-    groundFlowers: low ? 12 : 80,
-    cherryTrees: low ? 10 : 52,
-    cherryLeaves: low ? 3 : 5,
+    groundFlowers: low ? 6 : 80,    // 12→6
+    cherryTrees: low ? 6 : 52,      // 10→6
+    cherryLeaves: low ? 2 : 5,      // 3→2
     skyEffects: !low,
     petalGlb: low ? 0 : 150,
-    petalPoints: low ? 48 : 380,
+    petalPoints: low ? 32 : 380,    // 48→32
     lamps: low ? 4 : 8,
     houseGlb: !low,
-    fogNear: low ? 20 : 30,
-    fogFar: low ? 68 : 100,
-    camFar: low ? 105 : 200,
-    featureSkip: low ? 4 : 2,
+    fogNear: low ? 14 : 30,         // 20→14: 안개를 더 가까이 당겨 원거리 렌더 스킵
+    fogFar:  low ? 48 : 100,        // 68→48
+    camFar:  low ? 70 : 200,        // 105→70: 카메라 원거리 클리핑 단축
+    featureSkip: low ? 6 : 2,       // 4→6 프레임마다 피처 레이어 업데이트
   };
 }
 window.owGetOwPerfProfile = owGetOwPerfProfile;
@@ -29490,6 +29646,7 @@ function owMapHintBottom(){
 function owToggleHudMenu(){
   S.ow.hudMenuOpen = !S.ow.hudMenuOpen;
   if(S.ow.hudMenuOpen) S.ow.hudChatOpen = false;
+  S.ow._menuRenderAt = 0; // 사용자 직접 토글 시 스로틀 리셋
   if(S.screen === 'openworld') renderOpenWorldUIPass();
   else render();
 }
@@ -29897,6 +30054,47 @@ function loadOWInventoryFromStorage(){
   owEnsureFeatureState(false);
   owMmoOnLoad();
 }
+/* 저장 전 featureState에서 재생성 가능한 큰 필드 제거 — 데이터 크기 절감 */
+function _owTrimFeatureState(fs){
+  if(!fs) return null;
+  const copy = JSON.parse(JSON.stringify(fs));
+  // treasures는 dayKey에서 항상 재생성 가능하므로 저장 불필요
+  delete copy.treasures;
+  // expansion 안의 novel 스토리 텍스트는 크므로 필요한 진행 상태만 남김
+  if(copy.expansion?.novel){
+    const n = copy.expansion.novel;
+    copy.expansion.novel = {
+      phase: n.phase, cleared: n.cleared, voidCleared: n.voidCleared,
+      sculptorEyeUntil: n.sculptorEyeUntil, hunterRank: n.hunterRank,
+      hunterKills: n.hunterKills, questsDone: n.questsDone,
+    };
+  }
+  return copy;
+}
+/* 저장 전 mmoWorld 누적 배열 크기 제한 — Firestore/localStorage 용량 초과 방지 */
+function _owTrimMmoWorld(mw){
+  if(!mw) return mw;
+  const copy = JSON.parse(JSON.stringify(mw));
+  if(Array.isArray(copy.bossHistory))         copy.bossHistory         = copy.bossHistory.slice(-20);
+  if(Array.isArray(copy.territoryWarHistory)) copy.territoryWarHistory = copy.territoryWarHistory.slice(-20);
+  if(Array.isArray(copy.npcQuestLog))         copy.npcQuestLog         = copy.npcQuestLog.slice(-30);
+  if(Array.isArray(copy.sculpting?.completed))copy.sculpting.completed = copy.sculpting.completed.slice(-50);
+  if(Array.isArray(copy.petExpedition?.history)) copy.petExpedition.history = copy.petExpedition.history.slice(-20);
+  if(Array.isArray(copy.petExpedition?.journal)) copy.petExpedition.journal = copy.petExpedition.journal.slice(-30);
+  if(Array.isArray(copy.tamedPets))           copy.tamedPets           = copy.tamedPets.slice(-20);
+  if(copy.houseLink){
+    if(Array.isArray(copy.houseLink.farmGrowth))    copy.houseLink.farmGrowth    = copy.houseLink.farmGrowth.slice(-50);
+    if(Array.isArray(copy.houseLink.tradeListings)) copy.houseLink.tradeListings = copy.houseLink.tradeListings.slice(-20);
+  }
+  // explorationBitmask: 지역별 uint32 숫자 배열, 필요 없는 빈 배열 제거
+  if(copy.explorationBitmask){
+    Object.keys(copy.explorationBitmask).forEach(k => {
+      if(!Array.isArray(copy.explorationBitmask[k]) || copy.explorationBitmask[k].every(v => v === 0))
+        delete copy.explorationBitmask[k];
+    });
+  }
+  return copy;
+}
 async function saveOWInventory(immediate = false){
   const myNick = S.myEntry?.nick;
   if(!myNick) return;
@@ -29919,8 +30117,8 @@ async function saveOWInventory(immediate = false){
       materials: JSON.parse(JSON.stringify(S.ow.materials || {})),
       weapons: JSON.parse(JSON.stringify(S.ow.weapons || { blue:false, pink:false })),
       equippedWeapon: S.ow.equippedWeapon || null,
-      featureState: JSON.parse(JSON.stringify(S.ow.featureState || null)),
-      mmoWorld: JSON.parse(JSON.stringify(S.myPet?.owData?.mmoWorld || OWMMODataStore.createDefault())),
+      featureState: _owTrimFeatureState(S.ow.featureState),
+      mmoWorld: _owTrimMmoWorld(S.myPet?.owData?.mmoWorld || OWMMODataStore.createDefault()),
     };
     try{
       await petCol.doc(myNick).update({ owData: ow });
@@ -41995,7 +42193,8 @@ function rOWHouseInteriorUI(){
       selectedStatHtml = `<div class="ow-hi-stat-panel" style="margin-bottom:6px">배치 예정 <b>${esc(selItem.emoji)} ${esc(selItem.name)}</b> · ${esc(fmtFurnitureStats(selItem.stats))}</div>`;
     }
   }
-  const statBanner = (hiSimpleHud && !hi.editMode) ? '' : (placedCnt
+  // editMode 일 때는 상단 statPill이 이미 합계를 표시하므로 하단 배너 중복 제거
+  const statBanner = (hiSimpleHud || hi.editMode) ? '' : (placedCnt
     ? `<div class="ow-hi-stat-panel" style="position:absolute;left:12px;right:12px;top:calc(96px + env(safe-area-inset-top));z-index:23;pointer-events:none"><b>📊 배치 스탯 합계</b> · ${placedCnt}개${rOWHouseStatChips(placedSt)}</div>`
     : (isMine ? `<div class="ow-hi-stat-panel" style="position:absolute;left:12px;right:12px;top:calc(96px + env(safe-area-inset-top));z-index:23;pointer-events:none">가구를 배치하면 <b>HP/MP/ATK/DEF/EVA</b> 스탯이 올라가요</div>` : ''));
   let panel = '';
@@ -42066,7 +42265,8 @@ function rOWHouseInteriorUI(){
       <button type="button" data-a="ow_hiCamRight" title="우회전">↻</button>
     </div>
   </div>`;
-  const statPill = isMine && placedCnt && owFmtStatBonusLine(placedSt)
+  // 모바일 꾸미기 모드에서 상단 바 공간 확보 — statPill은 긴 텍스트라 다른 버튼을 밀어냄
+  const statPill = isMine && placedCnt && owFmtStatBonusLine(placedSt) && !(hiSimpleHud && hi.editMode)
     ? `<div class="ow-info-pill" title="오픈월드 집 가구 배치 보너스"><span class="ip-icon">📊</span> ${esc(owFmtStatBonusLine(placedSt))}</div>`
     : '';
   return `${statBanner}<div class="ow-hi-top">
@@ -42357,7 +42557,8 @@ function owMmoInitSubscriptions(){
     }
     ctrl.economy.applySync(data);
     S.ow.mmo.economySync = data;
-    if(S.screen === 'openworld') render();
+    // 경제 데이터는 월드허브가 열렸을 때만 UI 갱신 필요
+    if(S.screen === 'openworld' && S.ow.mmo?.showWorldHub) renderOpenWorldUIPass();
   }, ()=>{}));
   __owMmoUnsubs.push(owMmoEventsCol.doc(OW_MMO_FIREWORK_DOC).onSnapshot(doc=>{
     if(!doc.exists) return;
@@ -42378,7 +42579,7 @@ function owMmoInitSubscriptions(){
     const respLeft = Math.max(leviLeft, Math.max(0, (data.respawnAt||0) - Date.now()));
     if(data.active === false && respLeft > 0){
       owMmoGetController().boss.applySync(data);
-      render();
+      if(S.screen === 'openworld') renderOpenWorldUIPass();
       return;
     }
     if(data.active === false && respLeft <= 0 && Date.now() >= (data.respawnAt||0)){
@@ -42387,7 +42588,7 @@ function owMmoInitSubscriptions(){
       return;
     }
     owMmoGetController().boss.applySync(data);
-    render();
+    if(S.screen === 'openworld') renderOpenWorldUIPass();
   }, ()=>{}));
   __owMmoUnsubs.push(owMmoTerritoryCol.onSnapshot(snap=>{
     const docs = snap.docs.map(d => ({ id:d.id, ...d.data() }));
@@ -42397,11 +42598,15 @@ function owMmoInitSubscriptions(){
         owMmoTerritoryCol.doc(t.id).set(owMmoGetController().territory.ensureTerritory(t));
       }
     });
-    if(S.screen === 'openworld') render();
+    // 영토 데이터는 월드허브가 열렸을 때만 UI 갱신, 평소에는 3D 오버레이만
+    if(S.screen === 'openworld'){
+      if(S.ow.mmo?.showWorldHub) renderOpenWorldUIPass();
+      else if(__owRenderer?.updateTerritoryOverlays) __owRenderer.updateTerritoryOverlays();
+    }
   }, ()=>{}));
   __owMmoUnsubs.push(owMmoHouseTradeCol.doc('board').onSnapshot(doc=>{
     S.ow.mmo.houseTradeSync = doc.exists ? (doc.data().listings || []) : [];
-    if(S.screen === 'openworld' && S.ow.mmo?.showWorldHub) render();
+    if(S.screen === 'openworld' && S.ow.mmo?.showWorldHub) renderOpenWorldUIPass();
   }, ()=>{}));
   __owMmoUnsubs.push(owHousePlotCol.onSnapshot(snap=>{
     S.owHousePlots = {};
@@ -42409,7 +42614,8 @@ function owMmoInitSubscriptions(){
     if(__owRenderer && typeof __owRenderer._syncOwHousePlotLabels === 'function'){
       __owRenderer._syncOwHousePlotLabels();
     }
-    if(S.screen === 'openworld') render();
+    // 하우스 플롯은 월드허브 / 집 포털 근처에서만 UI 갱신 필요
+    if(S.screen === 'openworld' && (S.ow.mmo?.showWorldHub || S.ow.nearHousePortal)) renderOpenWorldUIPass();
   }, ()=>{}));
 }
 
