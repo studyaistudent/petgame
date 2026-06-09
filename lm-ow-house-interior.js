@@ -95,6 +95,169 @@
     };
   }
 
+  // 모바일용 프로시저럴 가구 메쉬 빌더
+  function _buildProceduralFurnitureMesh(group, item, THREE) {
+    const id = item.id || '';
+    // 색상 팔레트
+    let mainColor = 0x8D6E63;
+    let accentColor = 0xA1887F;
+    if (id.startsWith('pink_'))   { mainColor = 0xF48FB1; accentColor = 0xFF80AB; }
+    else if (id.startsWith('gold_'))  { mainColor = 0xFFD700; accentColor = 0xFFA000; }
+    else if (id.startsWith('magic_') || id.startsWith('deluxe_')) { mainColor = 0x7B1FA2; accentColor = 0xCE93D8; }
+    else if (id.startsWith('wood_'))  { mainColor = 0x8D6E63; accentColor = 0x6D4C41; }
+    else if (id === 'chair_1' || id === 'chair_2' || id === 'chair_3') { mainColor = 0x795548; accentColor = 0xBCAAA4; }
+    else if (id === 'dressing_table') { mainColor = 0xF8BBD9; accentColor = 0xF48FB1; }
+    else if (id === 'magic_library')  { mainColor = 0x4527A0; accentColor = 0x9575CD; }
+    else if (id === 'lucky_pot' || id === 'rose_pot') { mainColor = 0xE57373; accentColor = 0x66BB6A; }
+    else if (id === 'cherry_tree')    { mainColor = 0x6D4C41; accentColor = 0xF48FB1; }
+    else if (id === 'dragon_statue')  { mainColor = 0x546E7A; accentColor = 0xFF6D00; }
+    else if (id === 'dragon_fireplace'){ mainColor = 0x37474F; accentColor = 0xFF6D00; }
+    else if (id === 'large_fountain') { mainColor = 0x90CAF9; accentColor = 0x1565C0; }
+    else if (id === 'aquarium')       { mainColor = 0x29B6F6; accentColor = 0x00838F; }
+    else if (id === 'piano')          { mainColor = 0x212121; accentColor = 0xF5F5F5; }
+    else if (id.endsWith('_lamp') || id === 'star_lamp' || id === 'ceiling_lamp') { mainColor = 0xFFF176; accentColor = 0xF9A825; }
+
+    const mat  = new THREE.MeshLambertMaterial({ color: mainColor });
+    const mat2 = new THREE.MeshLambertMaterial({ color: accentColor });
+
+    const cat = item.cat;
+
+    if (cat === 'seat') {
+      // 시트
+      const seat = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.22, 0.55), mat);
+      seat.position.set(0, 0.22, 0);
+      group.add(seat);
+      // 등받이
+      const back = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.5, 0.1), mat);
+      back.position.set(0, 0.58, -0.23);
+      group.add(back);
+      // 팔걸이 (소파)
+      if (id.includes('sofa')) {
+        const arm = new THREE.BoxGeometry(0.1, 0.3, 0.55);
+        const armL = new THREE.Mesh(arm, mat2);
+        armL.position.set(-0.5, 0.38, 0);
+        const armR = new THREE.Mesh(arm, mat2);
+        armR.position.set(0.5, 0.38, 0);
+        group.add(armL, armR);
+      }
+    } else if (cat === 'bed') {
+      // 매트리스
+      const mattress = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.22, 1.9), mat);
+      mattress.position.set(0, 0.22, 0);
+      group.add(mattress);
+      // 베개
+      const pillow = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.1, 0.3), mat2);
+      pillow.position.set(0, 0.38, -0.75);
+      group.add(pillow);
+      // 헤드보드
+      const head = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.55, 0.1), mat2);
+      head.position.set(0, 0.5, -0.95);
+      group.add(head);
+    } else if (cat === 'table') {
+      // 상판
+      const top = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.07, 0.65), mat);
+      top.position.set(0, 0.75, 0);
+      group.add(top);
+      // 다리 4개
+      const legGeo = new THREE.CylinderGeometry(0.04, 0.04, 0.75, 6);
+      [[-0.42, -0.28], [-0.42, 0.28], [0.42, -0.28], [0.42, 0.28]].forEach(([x, z]) => {
+        const leg = new THREE.Mesh(legGeo, mat2);
+        leg.position.set(x, 0.375, z);
+        group.add(leg);
+      });
+      // magic desk — 책 장식
+      if (id.includes('magic') || id === 'magic_library') {
+        const book = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.25, 0.12), mat2);
+        book.position.set(0.3, 0.88, 0);
+        group.add(book);
+      }
+    } else if (cat === 'plant') {
+      // 화분
+      const pot = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.1, 0.22, 8), mat2);
+      pot.position.set(0, 0.11, 0);
+      group.add(pot);
+      if (id === 'cherry_tree') {
+        // 나무 기둥
+        const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.08, 0.9, 8), mat);
+        trunk.position.set(0, 0.67, 0);
+        group.add(trunk);
+        // 꽃 구름
+        const blossom = new THREE.Mesh(new THREE.SphereGeometry(0.4, 8, 6), mat2);
+        blossom.position.set(0, 1.4, 0);
+        group.add(blossom);
+      } else {
+        // 잎 구체
+        const foliage = new THREE.Mesh(new THREE.SphereGeometry(0.2, 7, 5), mat);
+        foliage.position.set(0, 0.45, 0);
+        group.add(foliage);
+      }
+    } else if (cat === 'light') {
+      // 기둥
+      const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.6, 8), mat2);
+      pole.position.set(0, 0.3, 0);
+      group.add(pole);
+      // 전구 (발광)
+      const bulbMat = new THREE.MeshLambertMaterial({ color: 0xFFFDE7, emissive: 0xFFF176, emissiveIntensity: 0.8 });
+      const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.14, 8, 6), bulbMat);
+      bulb.position.set(0, 0.65, 0);
+      group.add(bulb);
+      // 갓
+      const shade = new THREE.Mesh(new THREE.ConeGeometry(0.22, 0.2, 8, 1, true), mat);
+      shade.position.set(0, 0.72, 0);
+      shade.rotation.x = Math.PI;
+      group.add(shade);
+    } else {
+      // deco — 아이템별 특수
+      if (id === 'dragon_statue' || id === 'dragon_fireplace') {
+        const body = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.9, 0.35), mat);
+        body.position.set(0, 0.45, 0);
+        group.add(body);
+        const head = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.28, 0.28), mat);
+        head.position.set(0, 1.02, 0.1);
+        group.add(head);
+        const flameMat = new THREE.MeshLambertMaterial({ color: 0xFF6D00, emissive: 0xFF3D00, emissiveIntensity: 0.6 });
+        const flame = new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.3, 6), flameMat);
+        flame.position.set(0, 1.3, 0.1);
+        group.add(flame);
+      } else if (id === 'large_fountain') {
+        const base = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.55, 0.18, 12), mat);
+        base.position.set(0, 0.09, 0);
+        group.add(base);
+        const rim = new THREE.Mesh(new THREE.TorusGeometry(0.45, 0.05, 6, 14), mat2);
+        rim.rotation.x = Math.PI / 2;
+        rim.position.set(0, 0.2, 0);
+        group.add(rim);
+        const waterMat = new THREE.MeshLambertMaterial({ color: 0x64B5F6, transparent: true, opacity: 0.75 });
+        const water = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.5, 7), waterMat);
+        water.position.set(0, 0.45, 0);
+        group.add(water);
+      } else if (id === 'aquarium') {
+        const tank = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.55, 0.42), new THREE.MeshLambertMaterial({ color: 0x29B6F6, transparent: true, opacity: 0.55 }));
+        tank.position.set(0, 0.27, 0);
+        group.add(tank);
+        const stand = new THREE.Mesh(new THREE.BoxGeometry(0.95, 0.1, 0.45), mat2);
+        stand.position.set(0, 0.05, 0);
+        group.add(stand);
+      } else if (id === 'piano') {
+        const body = new THREE.Mesh(new THREE.BoxGeometry(1.05, 0.65, 0.55), mat);
+        body.position.set(0, 0.32, 0);
+        group.add(body);
+        const keysMat = new THREE.MeshLambertMaterial({ color: 0xF5F5F5 });
+        const keys = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.05, 0.15), keysMat);
+        keys.position.set(0, 0.67, 0.18);
+        group.add(keys);
+      } else {
+        // magic_library 등 기본 박스
+        const box = new THREE.Mesh(new THREE.BoxGeometry(0.7, 1.1, 0.35), mat);
+        box.position.set(0, 0.55, 0);
+        group.add(box);
+        const top = new THREE.Mesh(new THREE.BoxGeometry(0.72, 0.06, 0.37), mat2);
+        top.position.set(0, 1.13, 0);
+        group.add(top);
+      }
+    }
+  }
+
   class OWHouseInteriorRenderer {
     constructor(canvas) {
       const THREE = global.THREE;
@@ -347,7 +510,13 @@
 
     async _attachFurnitureMesh(group, itemId) {
       const item = getItem(itemId);
-      if (!item || !global.LMOwGlb || !global.LMOwGlb.loadGlb) return;
+      if (!item) return;
+      // 모바일: GLB 미로딩, Three.js 프로시저럴 메쉬로 대체
+      if (typeof global.owIsLowPerfDevice === 'function' && global.owIsLowPerfDevice()) {
+        _buildProceduralFurnitureMesh(group, item, this.THREE);
+        return;
+      }
+      if (!global.LMOwGlb || !global.LMOwGlb.loadGlb) return;
       const gltf = await global.LMOwGlb.loadGlb(item.glb);
       const model = gltf.scene.clone(true);
       model.traverse((o) => {
