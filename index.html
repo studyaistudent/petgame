@@ -4631,8 +4631,8 @@ body.ow-hi-dragging, body.ow-hi-dragging #ow-canvas{ cursor:grabbing!important; 
 
 
 <script>
-/* 빌드 확인: F12 콘솔 → __LM_BUILD (20260609-hud9 = mobile: no boss + proc furniture) */
-window.__LM_BUILD = '20260609-hud9';
+/* 빌드 확인: F12 콘솔 → __LM_BUILD (20260609-hud10 = mobile: full boss removal) */
+window.__LM_BUILD = '20260609-hud10';
 /* ═══════════════════════════════════════
    SUPABASE INIT (Firestore 호환 shim)
    supabase-firestore-shim.js 참고
@@ -32950,7 +32950,7 @@ function rOWExpansionModal(){
             </div>
           </div>
 
-          <div style="background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:12px">
+          ${owIsLowPerfDevice() ? '' : `<div style="background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:12px">
             <div style="font-size:14px;font-weight:800;margin-bottom:4px">👑 월드 보스</div>
             <div style="font-size:11.5px;color:rgba(255,255,255,.72);line-height:1.6">
               ${esc(boss.name || '월드 보스')}<br>
@@ -32958,9 +32958,9 @@ function rOWExpansionModal(){
             </div>
             <div style="display:flex;gap:6px;margin-top:10px">
               <button class="preview-btn-buy" style="flex:1" data-a="ow_attackBoss">공격</button>
-              ${owIsLowPerfDevice() ? '' : `<button class="preview-btn-buy" style="flex:1;background:linear-gradient(135deg,#8e24aa,#d81b60)" data-a="ow_worldBoss3D">⚔️ 3D 결투</button>`}
+              <button class="preview-btn-buy" style="flex:1;background:linear-gradient(135deg,#8e24aa,#d81b60)" data-a="ow_worldBoss3D">⚔️ 3D 결투</button>
             </div>
-          </div>
+          </div>`}
 
           <div style="background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:12px">
             <div style="font-size:14px;font-weight:800;margin-bottom:4px">📷 포토존/포즈</div>
@@ -34008,7 +34008,7 @@ function rOWExpansionModal(){
             </div>
           </div>
 
-          <div style="background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:12px">
+          ${owIsLowPerfDevice() ? '' : `<div style="background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:12px">
             <div style="font-size:14px;font-weight:800;margin-bottom:4px">👑 월드 보스</div>
             <div style="font-size:11.5px;color:rgba(255,255,255,.72);line-height:1.6">
               ${esc(boss.name || '월드 보스')}<br>
@@ -34016,9 +34016,9 @@ function rOWExpansionModal(){
             </div>
             <div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap">
               <button class="preview-btn-buy" style="flex:1" data-a="ow_attackBoss">공격</button>
-              ${owIsLowPerfDevice() ? '' : `<button class="preview-btn-buy" style="flex:1;background:linear-gradient(135deg,#8e24aa,#d81b60)" data-a="ow_worldBoss3D">⚔️ 3D 결투</button>`}
+              <button class="preview-btn-buy" style="flex:1;background:linear-gradient(135deg,#8e24aa,#d81b60)" data-a="ow_worldBoss3D">⚔️ 3D 결투</button>
             </div>
-          </div>
+          </div>`}
 
           <div style="background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:12px">
             <div style="font-size:14px;font-weight:800;margin-bottom:4px">📷 포토존/포즈</div>
@@ -34743,7 +34743,7 @@ function owWorldBossGo(){
   owMmoToast(`👑 ${wb.name} 위치 (${Math.round(wb.x)}, ${Math.round(wb.z)})로 이동!`);
 }
 function owMmoRenderWorldBossPointer(){
-  const wb = S.ow.worldBoss;
+  if(owIsLowPerfDevice()) return '';
   const alert = S.ow.worldBossAlertUntil && Date.now() < S.ow.worldBossAlertUntil;
   const mw = OWMMODataStore.get();
   const zipLeft = Math.max(0, (mw.zipferNextAt||0) - Date.now());
@@ -35275,6 +35275,7 @@ async function owSharedBossRemoveMob(sharedId){
   await ref.set({ mobs, active, updatedAt: Date.now() }, { merge: true }).catch(() => {});
 }
 function owSyncWorldBossFromShared(s){
+  if(owIsLowPerfDevice()) return;
   const d = s?.dragon;
   if(!d || d.dead) return;
   const boss = OW_DRAGON_BOSSES.find(x => x.id === d.bossId) || OW_DRAGON_BOSSES[0];
@@ -35289,6 +35290,7 @@ function owSyncWorldBossFromShared(s){
   nv.dragonMaxHp = d.maxHp;
 }
 function owApplySharedBossSync(){
+  if(owIsLowPerfDevice()) return;
   const s = owSharedBossSync();
   const rd = __owRenderer;
   if(!rd || S.screen !== 'openworld') return;
