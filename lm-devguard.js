@@ -54,7 +54,15 @@
     setDevBlock(false);
   }
 
+  function isMobileBrowser() {
+    return /Android|iPhone|iPad|iPod|Mobile/i.test(
+      (global.navigator && global.navigator.userAgent) || ''
+    ) || ('ontouchstart' in global);
+  }
+
   function checkDevTools() {
+    // 모바일은 주소창/상태바로 인해 outerHeight-innerHeight 차이가 항상 크므로 스킵
+    if (isMobileBrowser()) return;
     var gapW = Math.abs((global.outerWidth || 0) - (global.innerWidth || 0));
     var gapH = Math.abs((global.outerHeight || 0) - (global.innerHeight || 0));
     var open = gapW > 150 || gapH > 150;
