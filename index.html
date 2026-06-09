@@ -4591,7 +4591,7 @@ body.ow-hi-dragging, body.ow-hi-dragging #ow-canvas{ cursor:grabbing!important; 
 <script src="lm-fbx-texture-manifest.js?v=3"></script>
 <script src="lm-glb-catalog.js?v=80"></script>
 <script src="lm-ow-glb.js?v=27"></script>
-<script src="lm-ow-house-interior.js?v=19"></script>
+<script src="lm-ow-house-interior.js?v=20"></script>
 <script src="lm-golem-manifest.js?v=3"></script>
 <script src="lm-ow-avatar.js?v=14"></script>
 <script src="lm-glb-runtime.js?v=115"></script>
@@ -4631,8 +4631,8 @@ body.ow-hi-dragging, body.ow-hi-dragging #ow-canvas{ cursor:grabbing!important; 
 
 
 <script>
-/* 빌드 확인: F12 콘솔 → __LM_BUILD (20260607-hud8 = mobile: proc structures + perf tune) */
-window.__LM_BUILD = '20260607-hud8';
+/* 빌드 확인: F12 콘솔 → __LM_BUILD (20260609-hud9 = mobile: no boss + proc furniture) */
+window.__LM_BUILD = '20260609-hud9';
 /* ═══════════════════════════════════════
    SUPABASE INIT (Firestore 호환 shim)
    supabase-firestore-shim.js 참고
@@ -32958,7 +32958,7 @@ function rOWExpansionModal(){
             </div>
             <div style="display:flex;gap:6px;margin-top:10px">
               <button class="preview-btn-buy" style="flex:1" data-a="ow_attackBoss">공격</button>
-              <button class="preview-btn-buy" style="flex:1;background:linear-gradient(135deg,#8e24aa,#d81b60)" data-a="ow_worldBoss3D">⚔️ 3D 결투</button>
+              ${owIsLowPerfDevice() ? '' : `<button class="preview-btn-buy" style="flex:1;background:linear-gradient(135deg,#8e24aa,#d81b60)" data-a="ow_worldBoss3D">⚔️ 3D 결투</button>`}
             </div>
           </div>
 
@@ -34016,7 +34016,7 @@ function rOWExpansionModal(){
             </div>
             <div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap">
               <button class="preview-btn-buy" style="flex:1" data-a="ow_attackBoss">공격</button>
-              <button class="preview-btn-buy" style="flex:1;background:linear-gradient(135deg,#8e24aa,#d81b60)" data-a="ow_worldBoss3D">⚔️ 3D 결투</button>
+              ${owIsLowPerfDevice() ? '' : `<button class="preview-btn-buy" style="flex:1;background:linear-gradient(135deg,#8e24aa,#d81b60)" data-a="ow_worldBoss3D">⚔️ 3D 결투</button>`}
             </div>
           </div>
 
@@ -34460,6 +34460,7 @@ function owBossEnsureFightState(){
   }
 }
 function owStartZipferWorldBossFight(){
+  if(owIsLowPerfDevice()) return;
   if(!__owRenderer){ alert('오픈월드에서만 결투할 수 있어요.'); return; }
   if(S.ow.bossFight?.active) return;
   const zipLeft = owZipferCdLeft();
@@ -34678,6 +34679,7 @@ async function owWorldBossSpawn(){
   if(typeof owMmoToast==='function') owMmoToast(`🔥 지퍼리드 출현! (${Math.round(x)}, ${Math.round(z)}) — 함께 토벌!`);
 }
 function owWorldBossTick(){
+  if(owIsLowPerfDevice()) return;
   if(!__owRenderer || S.ow.bossFight?.active) return;
   const mw = OWMMODataStore.get();
   const zipLeft = Math.max(0, (mw.zipferNextAt||0) - Date.now());
@@ -34758,7 +34760,7 @@ function owMmoRenderWorldBossPointer(){
     const dist = Math.hypot(wb.x-h.x, wb.z-h.z);
     return `<div class="ow-wboss-ptr">👑 ${esc(wb.name)} 출현! · ${Math.round(dist)}m
       <button type="button" data-a="ow_worldBossGo">📍 자동이동</button>
-      <button type="button" data-a="ow_worldBoss3D">⚔️ 결투</button></div>`;
+      ${owIsLowPerfDevice() ? '' : `<button type="button" data-a="ow_worldBoss3D">⚔️ 결투</button>`}</div>`;
   }
   if(alert && zipLeft <= 0){
     return `<div class="ow-wboss-ptr">👑 월드 보스 출현! 맵에서 찾아보세요
@@ -35367,6 +35369,7 @@ function owSharedBossHostTick(now){
   }
 }
 function subscribeOWSharedBoss(){
+  if(owIsLowPerfDevice()) return;
   if(__owBossCombatUnsub){ try{ __owBossCombatUnsub(); }catch(e){} }
   __owBossCombatUnsub = owEventsCol.doc(OW_SHARED_BOSS_DOC).onSnapshot(doc => {
     S.ow.sharedBossSync = doc.exists ? doc.data() : null;
@@ -42566,7 +42569,7 @@ function owMmoInitSubscriptions(){
     if(!d.at || Date.now() - d.at > 65000) return;
     if(S.screen === 'openworld') owApplyRemoteFirework(d);
   }, ()=>{}));
-  __owMmoUnsubs.push(owMmoBossCol.doc(OW_MMO_BOSS_DOC).onSnapshot(doc=>{
+  if(!owIsLowPerfDevice()) __owMmoUnsubs.push(owMmoBossCol.doc(OW_MMO_BOSS_DOC).onSnapshot(doc=>{
     const mw = OWMMODataStore.get();
     const leviLeft = Math.max(0, (mw.leviathanNextAt||0) - Date.now());
     if(!doc.exists){
