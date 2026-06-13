@@ -4597,6 +4597,9 @@ body.ow-hi-dragging, body.ow-hi-dragging #ow-canvas{ cursor:grabbing!important; 
 <script src="lm-glb-runtime.js?v=115"></script>
 <script src="lm-ow-mp-sync.js?v=6"></script>
 <script src="lm-ow-pvp.js?v=6"></script>
+<script src="lm-ai-rl.js?v=1"></script>
+<script src="lm-ai-rag.js?v=1"></script>
+<script src="lm-ai-rec.js?v=1"></script>
 <script src="vendor/supabase.js?v=1"></script>
 <script src="supabase-firestore-shim.js?v=17"></script>
 <script>
@@ -4631,8 +4634,8 @@ body.ow-hi-dragging, body.ow-hi-dragging #ow-canvas{ cursor:grabbing!important; 
 
 
 <script>
-/* 빌드 확인: F12 콘솔 → __LM_BUILD (20260609-hud10 = mobile: full boss removal) */
-window.__LM_BUILD = '20260609-hud10';
+/* 빌드 확인: F12 콘솔 → __LM_BUILD (20260613-ai1 = AI: RL+RAG+CollabFilter 논문 시스템) */
+window.__LM_BUILD = '20260613-ai1';
 /* ═══════════════════════════════════════
    SUPABASE INIT (Firestore 호환 shim)
    supabase-firestore-shim.js 참고
@@ -6437,6 +6440,9 @@ let S={
       economyFlash:null,
       npcNear:null,
       npcTalkFlash:null,
+      aiChat:null,
+      aiRec:null,
+      aiStats:null,
       wildNear:false,
       wildCapture:null,
       worldEventsSync:[],
@@ -22132,6 +22138,10 @@ function attachEvents(){
       else if(a==="ow_mmoEcoSell"){ owMmoGetController().economy.sellToMarket(el.dataset.item, parseInt(el.dataset.qty,10)||1).then(()=>render()); }
       else if(a==="ow_mmoEcoBuy"){ owMmoGetController().economy.buyFromMarket(el.dataset.item, parseInt(el.dataset.qty,10)||1).then(()=>render()); }
       else if(a==="ow_mmoNpcTalk"){ owMmoGetController().npc.talk(el.dataset.id); render(); }
+      else if(a==="ow_aiNpcChat"){ owAiNpcOpenChat(el.dataset.id); }
+      else if(a==="ow_aiNpcSend"){ owAiNpcSendQuestion(); }
+      else if(a==="ow_aiNpcClose"){ S.ow.aiChat=null; renderOpenWorldUIPass(); }
+      else if(a==="ow_aiRecFurniture"){ owAiRecShowFurniture(); }
       else if(a==="ow_mmoNpcQuest"){
         const nid = el.dataset.id;
         const ctrl = owMmoGetController();
@@ -32901,6 +32911,9 @@ const driveUI = (S.ow.inCar && S.ow.isDriver) ? `
     ${typeof rOWPvpCombatHud === 'function' ? rOWPvpCombatHud() : ''}
     ${typeof rOWCombatHud === 'function' ? rOWCombatHud() : ''}
     ${classicHunt}
+    ${rOWAiNpcChatModal()}
+    ${rOWAiRecPanel()}
+    ${rOWAiStatsPanel()}
   `;
 }
 
@@ -41379,6 +41392,7 @@ function owMmoRenderNpcHUD(){
   html += `<div style="font-size:9px;opacity:.8">${tier.label} ${affPct} · ${quest?'📜 '+esc(quest.title):activeMove?'🧭 이동중':'대화 가능'}</div>`;
   html += `<div class="ow-mmo-pill-row" style="margin-top:6px">`;
   html += `<button type="button" class="ow-boss-part" style="flex:1;font-size:9px;padding:4px" data-a="ow_mmoNpcTalk" data-id="${npcId}">💬 대화</button>`;
+  html += `<button type="button" class="ow-boss-part" style="flex:1;font-size:9px;padding:4px;background:linear-gradient(135deg,#7B1FA2,#4A148C);color:#fff" data-a="ow_aiNpcChat" data-id="${npcId}">🤖 AI 질문</button>`;
   if(activeMove || moveQ || quest) html += `<button type="button" class="ow-boss-part" style="flex:1;font-size:9px;padding:4px" data-a="ow_mmoNpcQuest" data-id="${npcId}">${activeMove?'🧭 추적':quest?'✅ 완료':'📜 의뢰'}</button>`;
   html += `</div></div></div>`;
   return html;
@@ -42220,6 +42234,7 @@ function rOWHouseInteriorUI(){
         <button type="button" data-a="ow_hiRotate" data-deg="-45">↺ 45°</button>
         <button type="button" data-a="ow_hiRotate" data-deg="45">↻ 45°</button>
         <button type="button" class="danger" data-a="ow_hiRemove" ${hi.selectedPlacement?'':'disabled'}>🗑 회수</button>
+        <button type="button" style="background:linear-gradient(135deg,#7B1FA2,#4A148C);color:#fff" data-a="ow_aiRecFurniture">🤖 AI추천</button>
         <button type="button" class="primary" data-a="ow_hiEditOff">완료</button>
       </div>
     </div>`;
@@ -42927,11 +42942,208 @@ function owMmoHudExtras(){
   return html;
 }
 
-/* ═══════════════════════════════════════
+/* ════════════════════════════════════════════════════
+   🤖 AI 시스템 — 강화학습 · RAG · 협업 필터링
+   논문: 브라우저 온-디바이스 AI를 활용한 소셜 게임 UX 개선
+════════════════════════════════════════════════════ */
+
+/* AI 시스템 초기화 (게임 로드 후 백그라운드에서 실행) */
+function owAiInit(){
+  if(typeof LMAIRag === 'undefined' || typeof LMAIRec === 'undefined') return;
+  LMAIRag.init().catch(()=>{});
+  LMAIRec.init().catch(()=>{});
+}
+
+/* ── RAG NPC 대화 ── */
+function owAiNpcOpenChat(npcId){
+  S.ow.aiChat = {
+    npcId,
+    question: '',
+    answer: null,
+    loading: false,
+    docs: [],
+    confidence: 0,
+    history: [],
+  };
+  renderOpenWorldUIPass();
+  // RAG 준비 (이미 됐으면 no-op)
+  if(typeof LMAIRag !== 'undefined') LMAIRag.init().catch(()=>{});
+}
+
+async function owAiNpcSendQuestion(){
+  if(!S.ow.aiChat) return;
+  const q = (S.ow.aiChat.question || '').trim();
+  if(!q) return;
+  if(typeof LMAIRag === 'undefined'){ S.ow.aiChat.answer = '(AI 모듈 로딩 중...)'; renderOpenWorldUIPass(); return; }
+
+  S.ow.aiChat.loading = true;
+  S.ow.aiChat.answer  = null;
+  renderOpenWorldUIPass();
+
+  try {
+    const result = await LMAIRag.query(S.ow.aiChat.npcId, q, 3);
+    S.ow.aiChat.loading    = false;
+    S.ow.aiChat.answer     = result.answer;
+    S.ow.aiChat.docs       = result.docs;
+    S.ow.aiChat.confidence = result.confidence;
+    S.ow.aiChat.history    = [...(S.ow.aiChat.history||[]), { q, a: result.answer }].slice(-5);
+    S.ow.aiChat.question   = '';
+
+    // RL 보상: NPC 상호작용
+    if(typeof LMAIRl !== 'undefined'){
+      const npcType = OW_MMO_NPCS.findIndex(n=>n.id===S.ow.aiChat.npcId);
+      LMAIRl.tick(S.ow.aiChat.npcId, Math.max(0,npcType), { playerDist:1, crowdCount:1, sessionSec:0, playerInteracted:true });
+    }
+  } catch(e) {
+    S.ow.aiChat.loading = false;
+    S.ow.aiChat.answer  = '(일시적 오류가 발생했습니다. 다시 시도해주세요.)';
+  }
+  renderOpenWorldUIPass();
+}
+
+function rOWAiNpcChatModal(){
+  const ai = S.ow.aiChat;
+  if(!ai) return '';
+  const persona = (typeof LMAIRag !== 'undefined' && LMAIRag.personas[ai.npcId]) || {};
+  const npcName = persona.name || ai.npcId;
+
+  const historyHtml = (ai.history||[]).map(h=>`
+    <div style="margin-bottom:8px">
+      <div style="font-size:10.5px;color:rgba(255,255,255,.5);margin-bottom:2px">질문: ${esc(h.q)}</div>
+      <div style="font-size:11.5px;white-space:pre-wrap;color:rgba(255,255,255,.9)">${esc(h.a)}</div>
+    </div>`).join('<hr style="border-color:rgba(255,255,255,.1);margin:6px 0">');
+
+  const confidenceColor = ai.confidence > 5 ? '#66BB6A' : ai.confidence > 2 ? '#FFA726' : '#EF5350';
+  const docsHtml = (ai.docs||[]).length ? `
+    <div style="font-size:9.5px;color:rgba(255,255,255,.45);margin-top:6px">
+      📚 참조: ${ai.docs.map(d=>`<span style="color:${confidenceColor}">${esc(d.title)}</span>`).join(', ')}
+      &nbsp;· 신뢰도 <span style="color:${confidenceColor}">${ai.confidence}</span>
+    </div>` : '';
+
+  return `<div class="ow-modal ow-modal-front" data-a="ow_aiNpcClose" style="z-index:9990">
+    <div class="ow-modal-card" onclick="event.stopPropagation()" style="max-width:380px;max-height:80vh;display:flex;flex-direction:column">
+      <div class="ow-modal-head">
+        <div class="ow-modal-title">🤖 AI · ${esc(npcName)}</div>
+        <button class="preview-modal-close" data-a="ow_aiNpcClose">✕</button>
+      </div>
+      <div class="ow-modal-body" style="flex:1;overflow-y:auto;min-height:0">
+        ${historyHtml || `<div style="font-size:12px;color:rgba(255,255,255,.6);text-align:center;padding:12px">${esc(persona.greeting||'무엇이든 물어보세요!')}</div>`}
+        ${ai.loading ? `<div style="text-align:center;padding:12px;font-size:13px">🤖 생각 중...</div>` : ''}
+        ${docsHtml}
+      </div>
+      <div style="padding:12px;border-top:1px solid rgba(255,255,255,.1);display:flex;gap:8px">
+        <input id="ow-ai-chat-input" type="text" placeholder="NPC에게 질문하세요..." value="${esc(ai.question||'')}"
+          style="flex:1;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.2);border-radius:8px;padding:8px 10px;color:#fff;font-size:12px"
+          oninput="if(S.ow.aiChat)S.ow.aiChat.question=this.value"
+          onkeydown="if(event.key==='Enter')owAiNpcSendQuestion()">
+        <button class="preview-btn-buy" style="padding:8px 14px;font-size:12px;background:linear-gradient(135deg,#7B1FA2,#4A148C)" data-a="ow_aiNpcSend" ${ai.loading?'disabled':''}>전송</button>
+      </div>
+      <div style="padding:4px 12px 8px;font-size:9px;color:rgba(255,255,255,.35);text-align:center">
+        RAG (BM25 검색) · Q-Learning NPC AI · 토큰 비용 없음
+      </div>
+    </div>
+  </div>`;
+}
+
+/* ── 가구 AI 추천 UI ── */
+async function owAiRecShowFurniture(){
+  const hi = typeof OWHouseInterior !== 'undefined' ? OWHouseInterior : null;
+  const placed = hi?.getDecor?.()?.placements?.map(p=>p.itemId).filter(Boolean) || [];
+  if(!placed.length){ if(typeof owMmoToast==='function') owMmoToast('먼저 가구를 배치해보세요!'); return; }
+
+  S.ow.aiRec = { loading: true, items: [], stat: 'hp' };
+  renderOpenWorldUIPass();
+
+  if(typeof LMAIRec === 'undefined'){ S.ow.aiRec.loading = false; renderOpenWorldUIPass(); return; }
+  await LMAIRec.init();
+  const recs = await LMAIRec.recommend(placed, 5);
+  S.ow.aiRec = { loading: false, items: recs, placed };
+  renderOpenWorldUIPass();
+}
+
+function rOWAiRecPanel(){
+  if(!S.ow.aiRec) return '';
+  const { loading, items } = S.ow.aiRec;
+  if(loading) return `<div class="ow-info-pill" style="background:rgba(123,31,162,.7)">🤖 AI 추천 분석 중...</div>`;
+  if(!items?.length) return '';
+
+  const CATALOG_NAMES = {
+    wood_sofa:'나무 소파', pink_sofa:'핑크 소파', gold_sofa:'황금 소파',
+    chair_1:'의자 1', chair_2:'의자 2', chair_3:'의자 3', wood_bed:'나무 침대',
+    pink_bed:'핑크 침대', table_1:'테이블 1', table_2:'테이블 2',
+    magic_desk:'마법 책상', deluxe_magic_desk:'고급 마법 책상',
+    dressing_table:'화장대', magic_library:'마법 도서관', lucky_pot:'행운의 화분',
+    rose_pot:'장미 화분', cherry_tree:'벚꽃 나무', bedroom_lamp:'침실 조명',
+    bedroom_lamp2:'침실 조명 2', star_lamp:'별빛 조명', ceiling_lamp:'천장 조명',
+    dragon_statue:'드래곤 조각상', dragon_fireplace:'드래곤 벽난로',
+    large_fountain:'대형 분수', aquarium:'수족관', piano:'피아노',
+  };
+
+  return `<div style="position:fixed;bottom:120px;left:50%;transform:translateX(-50%);z-index:9980;
+    background:rgba(30,0,60,.92);border:1px solid rgba(123,31,162,.5);border-radius:14px;padding:12px;
+    min-width:240px;max-width:320px;backdrop-filter:blur(8px)">
+    <div style="font-size:12px;font-weight:800;color:#CE93D8;margin-bottom:8px">🤖 AI 가구 추천</div>
+    ${items.map(r=>`
+      <div style="font-size:11px;color:#fff;padding:4px 0;border-bottom:1px solid rgba(255,255,255,.08);display:flex;justify-content:space-between">
+        <span>${esc(CATALOG_NAMES[r.id]||r.id)}</span>
+        <span style="color:#CE93D8;font-size:10px">유사도 ${r.score}</span>
+      </div>`).join('')}
+    <button style="margin-top:8px;width:100%;padding:6px;background:rgba(255,255,255,.1);border:none;border-radius:6px;color:#fff;font-size:11px;cursor:pointer"
+      onclick="S.ow.aiRec=null;renderOpenWorldUIPass()">닫기</button>
+    <div style="font-size:9px;color:rgba(255,255,255,.3);margin-top:4px;text-align:center">협업 필터링 (Cosine Similarity)</div>
+  </div>`;
+}
+
+/* ── AI 분석 패널 (논문 지표 시각화) ── */
+async function owAiShowStats(){
+  if(typeof LMAIRl === 'undefined') return;
+  const rlStats = LMAIRl.allStats();
+  const ragReady = typeof LMAIRag !== 'undefined' ? LMAIRag.ready : false;
+  const recReady = typeof LMAIRec !== 'undefined' ? LMAIRec.ready : false;
+
+  S.ow.aiStats = {
+    rl: rlStats,
+    ragDocs: typeof LMAIRag !== 'undefined' ? LMAIRag.docCount : 0,
+    ragReady,
+    recReady,
+    avgReward: LMAIRl.avgRewardAll(),
+  };
+  renderOpenWorldUIPass();
+}
+
+function rOWAiStatsPanel(){
+  if(!S.ow.aiStats) return '';
+  const { rl, ragDocs, avgReward } = S.ow.aiStats;
+  return `<div style="position:fixed;top:60px;right:8px;z-index:9970;
+    background:rgba(0,0,0,.85);border:1px solid rgba(123,31,162,.4);border-radius:10px;
+    padding:10px;min-width:180px;font-size:10px;color:rgba(255,255,255,.8)">
+    <div style="font-weight:800;color:#CE93D8;margin-bottom:6px">🤖 AI 시스템 지표</div>
+    <div>📚 RAG 지식 문서: <b>${ragDocs}</b>개</div>
+    <div>🧠 RL 에이전트: <b>${rl.length}</b>개</div>
+    <div>⭐ 평균 보상: <b>${avgReward.toFixed(3)}</b></div>
+    ${rl.map(s=>`<div style="margin-top:4px;padding:4px;background:rgba(255,255,255,.05);border-radius:4px">
+      <div>${s.agentId.replace('npc_','')} · ε=${s.epsilon} · 상태수 ${s.stateCount}</div>
+      <div>에피소드 ${s.episode} · 보상 ${s.avgReward}</div>
+    </div>`).join('')}
+    <button onclick="S.ow.aiStats=null;renderOpenWorldUIPass()"
+      style="margin-top:6px;width:100%;padding:3px;background:rgba(255,255,255,.1);border:none;border-radius:4px;color:#fff;cursor:pointer;font-size:9px">닫기</button>
+  </div>`;
+}
+
+/* ── NPC AI 행동 틱 (오픈월드 게임 루프에서 호출) ── */
+function owAiNpcTick(npcId, npcTypeIdx, ctx){
+  if(typeof LMAIRl === 'undefined') return 'patrol';
+  return LMAIRl.tick(npcId, npcTypeIdx, ctx);
+}
+
+/* ══════════════════════════════════════════════
    BOOT
-═══════════════════════════════════════ */
+══════════════════════════════════════════════ */
 render();
 load();
+
+// AI 시스템 백그라운드 초기화 (2초 후 — 게임 로드 완료 후)
+setTimeout(owAiInit, 2000);
 
 </script>
 </body>
