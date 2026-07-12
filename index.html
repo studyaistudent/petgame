@@ -29822,15 +29822,19 @@ function enterOpenWorld(){
       console.error('[OpenWorld init error]', e);
       const root = document.getElementById('ow-root');
       if(root){
+        const detail = String(e && (e.message || e)).slice(0, 160);
         root.innerHTML = `
           <div style="position:fixed;inset:0;background:#111;color:#fff;display:flex;align-items:center;justify-content:center;flex-direction:column;text-align:center;padding:20px;z-index:99999">
             <div style="font-size:48px;margin-bottom:12px">⚠️</div>
             <div style="font-size:18px;font-weight:700;margin-bottom:8px">오픈월드 로딩 실패</div>
-            <div style="font-size:12px;opacity:.75;line-height:1.6;margin-bottom:14px">
-              콘솔 오류를 확인해주세요.<br>
-              Three.js 또는 캔버스 사이즈 문제일 가능성이 큽니다.
+            <div style="font-size:12px;opacity:.75;line-height:1.6;margin-bottom:6px">
+              일시적인 문제일 수 있어요. 아래 버튼으로 다시 시도해보세요.
             </div>
-            <button onclick="leaveOpenWorld()" style="padding:10px 18px;border:none;border-radius:10px;background:#E8537A;color:white;font-weight:700">돌아가기</button>
+            <div style="font-size:10.5px;opacity:.5;line-height:1.5;margin-bottom:14px;max-width:340px;word-break:break-all">${detail.replace(/</g,'&lt;')}</div>
+            <div style="display:flex;gap:8px">
+              <button onclick="leaveOpenWorld();setTimeout(()=>enterOpenWorld(),300)" style="padding:10px 18px;border:none;border-radius:10px;background:#7C4DFF;color:white;font-weight:700">🔄 다시 시도</button>
+              <button onclick="leaveOpenWorld()" style="padding:10px 18px;border:none;border-radius:10px;background:#E8537A;color:white;font-weight:700">돌아가기</button>
+            </div>
           </div>`;
       }
     }
@@ -30032,17 +30036,20 @@ function initOpenWorld3D(){
 
   __owRenderer = new OpenWorldRenderer(canvas);
   window.__owRenderer = __owRenderer;
-  if(typeof owApplyRendererPerf === 'function') owApplyRendererPerf(__owRenderer);
-  owInitFeatureLayer(__owRenderer);
-  owInitNovelLayer(__owRenderer);
-  subscribeOWGhostRaid();
-  subscribeOWWorldEvents();
-  subscribeOWSharedHunt();
-  subscribeOWSharedBoss();
-  if(window.OW_MP_SYNC) OW_MP_SYNC.subscribeWorldState();
-  owMmoInitSubscriptions();
-  owMmoEventVFXInit();
-  owMmoGetController().eco.init();
+  /* ★ 부가 시스템(피처 레이어·이벤트·MMO 등)은 하나가 실패해도 월드 진입
+     자체를 막지 않도록 개별 격리 실행 — 렌더러/루프만 필수 */
+  const owSafe=(label,fn)=>{ try{ fn(); }catch(e){ console.error('[OW init:'+label+']', e); } };
+  owSafe('perf',      ()=>{ if(typeof owApplyRendererPerf === 'function') owApplyRendererPerf(__owRenderer); });
+  owSafe('feature',   ()=> owInitFeatureLayer(__owRenderer));
+  owSafe('novel',     ()=> owInitNovelLayer(__owRenderer));
+  owSafe('ghostRaid', ()=> subscribeOWGhostRaid());
+  owSafe('worldEvents',()=> subscribeOWWorldEvents());
+  owSafe('sharedHunt',()=> subscribeOWSharedHunt());
+  owSafe('sharedBoss',()=> subscribeOWSharedBoss());
+  owSafe('mpSync',    ()=>{ if(window.OW_MP_SYNC) OW_MP_SYNC.subscribeWorldState(); });
+  owSafe('mmoSubs',   ()=> owMmoInitSubscriptions());
+  owSafe('mmoVfx',    ()=> owMmoEventVFXInit());
+  owSafe('economy',   ()=> owMmoGetController().eco.init());
 
   requestAnimationFrame(()=>{
     if(__owRenderer && __owRenderer._buildMapWorldLayer) __owRenderer._buildMapWorldLayer();
@@ -30056,18 +30063,18 @@ function initOpenWorld3D(){
     __owRenderer.pet.position.set(0, 0, 0);
   }
 
-  subscribeOWPlayers();
-  if(typeof owMountBindSelfListener === 'function') owMountBindSelfListener();
-  subscribeOWCar();
-  startOWPositionSync();
-  owPushOWPositionNow();
-  subscribeOWTrade();
-  if(window.OW_PVP && typeof OW_PVP.subscribe === 'function') OW_PVP.subscribe();
-  loadOWInventoryFromStorage();
+  owSafe('players',   ()=> subscribeOWPlayers());
+  owSafe('mountSelf', ()=>{ if(typeof owMountBindSelfListener === 'function') owMountBindSelfListener(); });
+  owSafe('car',       ()=> subscribeOWCar());
+  owSafe('posSync',   ()=> startOWPositionSync());
+  owSafe('posPush',   ()=> owPushOWPositionNow());
+  owSafe('trade',     ()=> subscribeOWTrade());
+  owSafe('pvp',       ()=>{ if(window.OW_PVP && typeof OW_PVP.subscribe === 'function') OW_PVP.subscribe(); });
+  owSafe('inventory', ()=> loadOWInventoryFromStorage());
   try{ owRefreshHandWeapon(); }catch(e){}
-  owSyncPetCombatFromMyPet();
-  owApplyOWStatBonuses();
-  if(typeof owRefreshCompanion3D === 'function') owRefreshCompanion3D();
+  owSafe('petCombat', ()=> owSyncPetCombatFromMyPet());
+  owSafe('statBonus', ()=> owApplyOWStatBonuses());
+  owSafe('companion', ()=>{ if(typeof owRefreshCompanion3D === 'function') owRefreshCompanion3D(); });
   try{
     const am = OWMMODataStore.get().mounts?.active;
     if(am && am !== 'foot' && typeof owMmoGetController === 'function'){
@@ -30103,10 +30110,17 @@ function loadOWInventoryFromStorage(){
   S.ow.equippedWeapon = ow.equippedWeapon === 'blue' || ow.equippedWeapon === 'pink' ? ow.equippedWeapon : null;
   S.ow.featureState = ow.featureState || null;
   S.myPet.owData = S.myPet.owData || {};
-  S.myPet.owData.mmoWorld = OWMMODataStore.migrate(ow.mmoWorld || S.myPet.owData.mmoWorld || null);
+  /* ★ 어떤 구버전/손상 데이터가 와도 마이그레이션 실패가 오픈월드 진입을
+     막지 않도록 최후 안전망 — 실패 시 기본값으로 재시작 */
+  try{
+    S.myPet.owData.mmoWorld = OWMMODataStore.migrate(ow.mmoWorld || S.myPet.owData.mmoWorld || null);
+  }catch(e){
+    console.error('[OW] mmoWorld 마이그레이션 실패 — 기본값으로 복구', e);
+    S.myPet.owData.mmoWorld = OWMMODataStore.createDefault();
+  }
   S.ow.mmo.activeBuffs = OWMMODataStore.get().activeBuffs;
   owEnsureFeatureState(false);
-  owMmoOnLoad();
+  try{ owMmoOnLoad(); }catch(e){ console.error('[OW] owMmoOnLoad 실패', e); }
 }
 /* 저장 전 featureState에서 재생성 가능한 큰 필드 제거 — 데이터 크기 절감 */
 function _owTrimFeatureState(fs){
@@ -37502,21 +37516,26 @@ class OWMMODataStore {
     d.petExploreBonus = { scout:0, gather:0, fame:0, ...(d.petExploreBonus||{}) };
     d.activeBuffs = { atkUntil:0, defUntil:0, dungeonUntil:0, hpUntil:0, ...(d.activeBuffs||{}) };
     d.sculpting = { masterpieces:0, completed:[], ...(d.sculpting||{}) };
+    /* ★ 구버전 저장 데이터에서 exploration 이 null 로 저장된 경우 spread 가
+       기본값을 null 로 덮어써 아래 접근에서 TypeError → 오픈월드 진입 실패.
+       비트마스크 루프보다 먼저 반드시 객체로 복구한다. */
+    if(!d.exploration || typeof d.exploration !== 'object') d.exploration = {};
     OW_MMO_REGIONS.forEach(r => {
       if(d.exploration[r.id]?.discovered){
         const mask = OWExplorationBitmask.syncFromDiscovered(r, d.exploration[r.id].discovered);
         d.explorationBitmask[r.id] = d.explorationBitmask[r.id] || mask;
       }
     });
-    d.exploration = d.exploration || {};
     OW_MMO_REGIONS.forEach(r => {
       d.exploration[r.id] = { pct:0, discovered:{}, rewardsClaimed:{}, rep:0, ...(d.exploration[r.id]||{}) };
     });
-    d.life = d.life || {};
+    if(!d.life || typeof d.life !== 'object') d.life = {};
     OW_MMO_LIFE_SKILLS.forEach(sk => {
       d.life[sk] = { level:1, xp:0, mastery:0, ...(d.life[sk]||{}) };
     });
-    d.mounts = d.mounts || { owned:['foot'], active:'foot', mastery:{ foot:1 } };
+    if(!d.mounts || typeof d.mounts !== 'object') d.mounts = { owned:['foot'], active:'foot', mastery:{ foot:1 } };
+    /* ★ mounts.owned 가 배열이 아니면 .includes 에서 TypeError → 복구 */
+    if(!Array.isArray(d.mounts.owned)) d.mounts.owned = ['foot'];
     if(!d.mounts.owned.includes('foot')) d.mounts.owned.unshift('foot');
     d.mounts.totalDistance = d.mounts.totalDistance || 0;
     d.mounts.abilityCd = d.mounts.abilityCd || {};
