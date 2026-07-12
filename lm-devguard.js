@@ -65,7 +65,11 @@
     if (isMobileBrowser()) return;
     var gapW = Math.abs((global.outerWidth || 0) - (global.innerWidth || 0));
     var gapH = Math.abs((global.outerHeight || 0) - (global.innerHeight || 0));
-    var open = gapW > 150 || gapH > 150;
+    // 브라우저 확대/축소(줌)는 가로·세로 gap 을 "함께" 키우지만(비례 축소),
+    // 도킹된 개발자 도구는 한 축만 크게 벌린다. 두 축이 같이 벌어진 경우는
+    // 줌으로 간주해 차단하지 않는다 — 기존 gapW>150||gapH>150 휴리스틱은
+    // 줌 125%+ 사용자의 게임 화면 전체를 오탐으로 블러 처리했다.
+    var open = (gapW > 200 && gapH < 150) || (gapH > 250 && gapW < 150);
     if (open && !devOpen) onDevOpen();
     else if (!open && devOpen) onDevClose();
   }
