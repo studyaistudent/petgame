@@ -885,8 +885,12 @@
       const payload = stripDocMeta({ ...data });
       if (merge) {
         const cur = await this.get();
-        const merged = applyUpdatePatch(cur.exists ? cur.data() : {}, payload);
-        return this._upsert(merged, true);
+        /* applyUpdatePatch 가 기존 문서에 patch(삭제/증가 포함)를 적용한 "완성된"
+           문서를 만든다. _upsert 에 isMerge=true 로 넘기면 dataBlob/overflow 를
+           서버 현재값과 한 번 더 병합하는데, 그러면 이 patch 로 삭제한 키가
+           서버에 남아있는 값으로 되살아난다(FieldValue.delete 무력화). merged 는
+           이미 최종본이므로 재병합 없이 그대로 기록한다. */
+        return this._upsert(merged, false);
       }
       return this._upsert(payload, false);
     }
