@@ -6952,7 +6952,7 @@ cmStrokesCol.orderBy("timestamp","asc").onSnapshot(snap=>{
       S.cmStrokes=snap.docs.map(d=>({id:d.id,...d.data()}));
       /* 캔버스 리드로우 (그리는 중이면 현재 획을 지우지 않도록 보류) */
       const cv=document.getElementById("cm_canvas");
-      if(cv&&window.__cmCanvas&&!window.__cmCanvas.isDown)window.__cmCanvas.redrawAll(S.cmStrokes);
+      if(cv&&window.__cmCanvas&&!window.__cmCanvas.isDown)window.__cmCanvas.redrawAll(currentCMStrokes());
     });
 cmGuessesCol.orderBy("timestamp","desc").limit(40).onSnapshot(snap=>{
       S.cmGuesses=snap.docs.map(d=>({id:d.id,...d.data()})).reverse();
@@ -17279,25 +17279,35 @@ drawerNick=players[Math.floor(Math.random()*players.length)].nick;
   /* 연속 같은 단어 방지 */
   const finalWord=(word===prevWord&&CM_WORDS.length>1)?
     CM_WORDS[(CM_WORDS.indexOf(word)+1)%CM_WORDS.length]:word;
-await gameStateCol.doc("catchmind").set({
+/* ★ 이전 스트로크를 먼저 지운 뒤 새 라운드를 알려야, 다른 클라이언트가
+   새 라운드 캔버스를 그릴 때 이전 그림이 잠깐이라도 남아있지 않음 */
+  await clearCMStrokes();
+  await gameStateCol.doc("catchmind").set({
     status:'drawing',drawerNick,word:finalWord,
     round:(S.catchmindState?.round||0)+1,
     startedAt:Date.now(), roundTime:90,
     solvedBy:null,solvedAt:null,timestamp:TS()
   });
-/* 스트로크 전체 삭제 */
-  await clearCMStrokes();
 }
 async function clearCMStrokes(){
+  /* ★ 서버 삭제 결과와 무관하게 이 클라이언트 화면은 즉시 초기화 */
+  S.cmStrokes=[];
+  if(window.__cmCanvas)window.__cmCanvas.clearCanvas();
   try{
     const snap=await cmStrokesCol.get();
     if(snap.empty)return;
-const b=db.batch();
-    snap.docs.forEach(d=>b.delete(d.ref));
-    await b.commit();
-    S.cmStrokes=[];
-    if(window.__cmCanvas)window.__cmCanvas.clearCanvas();
+    /* ★ 예전엔 batch.commit()이 순차 실행이라 한 건이라도 삭제 실패하면
+       나머지 문서를 전부 남긴 채 중단됐다. Promise.allSettled로 각 문서
+       삭제를 독립적으로 시도해 부분 실패가 나머지를 막지 않게 한다 */
+    await Promise.allSettled(snap.docs.map(d=>d.ref.delete()));
   }catch(e){console.error(e);}
+}
+/* ★ 서버 삭제가 지연되거나 실패하더라도(권한/네트워크 문제 등) 이전 라운드
+   그림이 다시 나타나지 않도록, 항상 "현재 라운드"에 속한 스트로크만 그린다 */
+function currentCMStrokes(){
+  const round=S.catchmindState?.round;
+  if(round==null)return S.cmStrokes;
+  return S.cmStrokes.filter(s=>s.round===round);
 }
 async function submitCMGuess(){
   const inputEl=document.getElementById("cm_guess_input");
@@ -17439,6 +17449,7 @@ this.W=w;this.H=h;
       color:this.tool.eraser?'#FFFFFF':this.tool.color,
       width:this.tool.width,
       eraser:this.tool.eraser||false,
+      round:S.catchmindState?.round??null,
       timestamp:TS()
     }).catch(()=>{});
     /* ★ 그리는 동안 보류됐던 전체 재렌더링을 획 저장 완료 후 반영 */
@@ -17454,7 +17465,7 @@ function initCatchmindCanvas(){
   const inst=new CatchmindCanvas('cm_canvas',isDrawer,S.cmTool);
   if(!inst.el)return;
   window.__cmCanvas=inst;
-  inst.redrawAll(S.cmStrokes);
+  inst.redrawAll(currentCMStrokes());
   /* 타이머 재시작 */
   if(window.__cmTimer)clearInterval(window.__cmTimer);
   window.__cmTimer=setInterval(()=>{
