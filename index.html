@@ -6952,7 +6952,7 @@ cmStrokesCol.orderBy("timestamp","asc").onSnapshot(snap=>{
       S.cmStrokes=snap.docs.map(d=>({id:d.id,...d.data()}));
       /* 캔버스 리드로우 (그리는 중이면 현재 획을 지우지 않도록 보류) */
       const cv=document.getElementById("cm_canvas");
-      if(cv&&window.__cmCanvas&&!window.__cmCanvas.isDown)window.__cmCanvas.redrawAll(S.cmStrokes);
+      if(cv&&window.__cmCanvas&&!window.__cmCanvas.isDown)window.__cmCanvas.redrawAll(currentCMStrokes());
     });
 cmGuessesCol.orderBy("timestamp","desc").limit(40).onSnapshot(snap=>{
       S.cmGuesses=snap.docs.map(d=>({id:d.id,...d.data()})).reverse();
@@ -17300,6 +17300,13 @@ const b=db.batch();
     if(window.__cmCanvas)window.__cmCanvas.clearCanvas();
   }catch(e){console.error(e);}
 }
+/* ★ 서버 삭제가 지연되거나 실패하더라도(권한/네트워크 문제 등) 이전 라운드
+   그림이 다시 나타나지 않도록, 항상 "현재 라운드"에 속한 스트로크만 그린다 */
+function currentCMStrokes(){
+  const round=S.catchmindState?.round;
+  if(round==null)return S.cmStrokes;
+  return S.cmStrokes.filter(s=>s.round===round);
+}
 async function submitCMGuess(){
   const inputEl=document.getElementById("cm_guess_input");
   if(!inputEl)return;
@@ -17440,6 +17447,7 @@ this.W=w;this.H=h;
       color:this.tool.eraser?'#FFFFFF':this.tool.color,
       width:this.tool.width,
       eraser:this.tool.eraser||false,
+      round:S.catchmindState?.round??null,
       timestamp:TS()
     }).catch(()=>{});
     /* ★ 그리는 동안 보류됐던 전체 재렌더링을 획 저장 완료 후 반영 */
@@ -17455,7 +17463,7 @@ function initCatchmindCanvas(){
   const inst=new CatchmindCanvas('cm_canvas',isDrawer,S.cmTool);
   if(!inst.el)return;
   window.__cmCanvas=inst;
-  inst.redrawAll(S.cmStrokes);
+  inst.redrawAll(currentCMStrokes());
   /* 타이머 재시작 */
   if(window.__cmTimer)clearInterval(window.__cmTimer);
   window.__cmTimer=setInterval(()=>{
