@@ -17285,9 +17285,21 @@ drawerNick=players[Math.floor(Math.random()*players.length)].nick;
   await gameStateCol.doc("catchmind").set({
     status:'drawing',drawerNick,word:finalWord,
     round:(S.catchmindState?.round||0)+1,
+    gen:(S.catchmindState?.gen||0)+1,
     startedAt:Date.now(), roundTime:90,
     solvedBy:null,solvedAt:null,timestamp:TS()
   });
+}
+/* ★ 수동 '전체 지우기': 캔버스 세대(gen)를 올려 모든 클라이언트에서 이전 획을
+   즉시 무효화한다. 서버 삭제가 실패/지연돼도 옛 획은 gen 불일치로 필터링된다. */
+async function clearCMCanvasAll(){
+  const cur=S.catchmindState;
+  if(!cur){await clearCMStrokes();return;}
+  const newGen=(cur.gen||0)+1;
+  cur.gen=newGen; /* 낙관적 로컬 갱신 — 지운 직후 그리는 획이 새 gen 으로 태깅되도록 */
+  await clearCMStrokes();
+  if(window.__cmCanvas)window.__cmCanvas.redrawAll(currentCMStrokes());
+  try{await gameStateCol.doc("catchmind").update({gen:newGen});}catch(e){console.error(e);}
 }
 async function clearCMStrokes(){
   /* ★ 서버 삭제 결과와 무관하게 이 클라이언트 화면은 즉시 초기화 */
@@ -17302,12 +17314,17 @@ async function clearCMStrokes(){
     await Promise.allSettled(snap.docs.map(d=>d.ref.delete()));
   }catch(e){console.error(e);}
 }
-/* ★ 서버 삭제가 지연되거나 실패하더라도(권한/네트워크 문제 등) 이전 라운드
-   그림이 다시 나타나지 않도록, 항상 "현재 라운드"에 속한 스트로크만 그린다 */
+/* ★ 서버 삭제가 지연되거나 실패하더라도(권한/네트워크 문제 등) 이전에 그린
+   그림이 다시 나타나지 않도록, 항상 "현재 캔버스 세대(gen)"에 속한 획만 그린다.
+   gen 은 새 라운드 시작 및 '전체 지우기' 때마다 증가하므로, 라운드 전환뿐 아니라
+   같은 라운드 안에서의 수동 전체 지우기도 서버 삭제 성공 여부와 무관하게 반영된다. */
 function currentCMStrokes(){
-  const round=S.catchmindState?.round;
-  if(round==null)return S.cmStrokes;
-  return S.cmStrokes.filter(s=>s.round===round);
+  const st=S.catchmindState;
+  if(!st)return S.cmStrokes;
+  if(st.gen!=null)return S.cmStrokes.filter(s=>(s.gen??null)===st.gen);
+  /* 구버전 데이터 호환: gen 이 없으면 round 로 필터 */
+  if(st.round!=null)return S.cmStrokes.filter(s=>s.round===st.round);
+  return S.cmStrokes;
 }
 async function submitCMGuess(){
   const inputEl=document.getElementById("cm_guess_input");
@@ -17450,6 +17467,7 @@ this.W=w;this.H=h;
       width:this.tool.width,
       eraser:this.tool.eraser||false,
       round:S.catchmindState?.round??null,
+      gen:S.catchmindState?.gen??null,
       timestamp:TS()
     }).catch(()=>{});
     /* ★ 그리는 동안 보류됐던 전체 재렌더링을 획 저장 완료 후 반영 */
@@ -21848,7 +21866,7 @@ function attachEvents(){
         render();
       }
       else if(a==="lm_cm_clearAll"){
-        if(confirm("캔버스를 전체 지우겠습니까?"))clearCMStrokes();
+        if(confirm("캔버스를 전체 지우겠습니까?"))clearCMCanvasAll();
       }
      
       /* ★ 마피아 이벤트 */
