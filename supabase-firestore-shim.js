@@ -1148,6 +1148,23 @@
       }
       return null;
     } catch (e) {
+      /* 네트워크 레벨 실패(Failed to fetch): 인터넷 문제인지 Supabase 프로젝트만 죽었는지 구분 */
+      let internetOk = false;
+      try {
+        if (global.location && /^https?:/.test(global.location.protocol)) {
+          const probe = await __baseFetch(global.location.href, { method: 'HEAD', cache: 'no-store' });
+          internetOk = !!probe;
+        }
+      } catch (_) {}
+      if (internetOk) {
+        return {
+          message:
+            'Supabase 프로젝트에 연결할 수 없습니다 (' +
+            String((e && e.message) || e) +
+            '). 무료 플랜 프로젝트는 7일간 사용하지 않으면 자동 일시중지됩니다.',
+          code: 'SUPABASE_UNREACHABLE',
+        };
+      }
       return e;
     }
   };
@@ -1159,6 +1176,6 @@
     return ref.update(patch);
   };
 
-  global.__lmShimVersion = '16';
+  global.__lmShimVersion = '17';
   global.__lmIsTableDead = isTableDead;
 })(typeof window !== 'undefined' ? window : globalThis);
