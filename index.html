@@ -17279,14 +17279,15 @@ drawerNick=players[Math.floor(Math.random()*players.length)].nick;
   /* 연속 같은 단어 방지 */
   const finalWord=(word===prevWord&&CM_WORDS.length>1)?
     CM_WORDS[(CM_WORDS.indexOf(word)+1)%CM_WORDS.length]:word;
-await gameStateCol.doc("catchmind").set({
+/* ★ 이전 스트로크를 먼저 지운 뒤 새 라운드를 알려야, 다른 클라이언트가
+   새 라운드 캔버스를 그릴 때 이전 그림이 잠깐이라도 남아있지 않음 */
+  await clearCMStrokes();
+  await gameStateCol.doc("catchmind").set({
     status:'drawing',drawerNick,word:finalWord,
     round:(S.catchmindState?.round||0)+1,
     startedAt:Date.now(), roundTime:90,
     solvedBy:null,solvedAt:null,timestamp:TS()
   });
-/* 스트로크 전체 삭제 */
-  await clearCMStrokes();
 }
 async function clearCMStrokes(){
   try{
