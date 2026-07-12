@@ -17290,14 +17290,16 @@ drawerNick=players[Math.floor(Math.random()*players.length)].nick;
   });
 }
 async function clearCMStrokes(){
+  /* ★ 서버 삭제 결과와 무관하게 이 클라이언트 화면은 즉시 초기화 */
+  S.cmStrokes=[];
+  if(window.__cmCanvas)window.__cmCanvas.clearCanvas();
   try{
     const snap=await cmStrokesCol.get();
     if(snap.empty)return;
-const b=db.batch();
-    snap.docs.forEach(d=>b.delete(d.ref));
-    await b.commit();
-    S.cmStrokes=[];
-    if(window.__cmCanvas)window.__cmCanvas.clearCanvas();
+    /* ★ 예전엔 batch.commit()이 순차 실행이라 한 건이라도 삭제 실패하면
+       나머지 문서를 전부 남긴 채 중단됐다. Promise.allSettled로 각 문서
+       삭제를 독립적으로 시도해 부분 실패가 나머지를 막지 않게 한다 */
+    await Promise.allSettled(snap.docs.map(d=>d.ref.delete()));
   }catch(e){console.error(e);}
 }
 /* ★ 서버 삭제가 지연되거나 실패하더라도(권한/네트워크 문제 등) 이전 라운드
