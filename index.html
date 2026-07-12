@@ -6943,9 +6943,9 @@ familyCol.orderBy("timestamp","desc").limit(30).onSnapshot(snap=>{
     });
 cmStrokesCol.orderBy("timestamp","asc").onSnapshot(snap=>{
       S.cmStrokes=snap.docs.map(d=>({id:d.id,...d.data()}));
-      /* 캔버스 리드로우 */
+      /* 캔버스 리드로우 (그리는 중이면 현재 획을 지우지 않도록 보류) */
       const cv=document.getElementById("cm_canvas");
-      if(cv&&window.__cmCanvas)window.__cmCanvas.redrawAll(S.cmStrokes);
+      if(cv&&window.__cmCanvas&&!window.__cmCanvas.isDown)window.__cmCanvas.redrawAll(S.cmStrokes);
     });
 cmGuessesCol.orderBy("timestamp","desc").limit(40).onSnapshot(snap=>{
       S.cmGuesses=snap.docs.map(d=>({id:d.id,...d.data()})).reverse();
@@ -17421,7 +17421,10 @@ this.W=w;this.H=h;
   async saveStroke(){
     if(!this.isDown)return;
     this.isDown=false;
-    if(!this.curPoints.length)return;
+    if(!this.curPoints.length){
+      if(window.__cmPendingRender){window.__cmPendingRender=false;render();}
+      return;
+    }
     const pts=[...this.curPoints];
     this.curPoints=[];
     await cmStrokesCol.add({
@@ -17431,6 +17434,8 @@ this.W=w;this.H=h;
       eraser:this.tool.eraser||false,
       timestamp:TS()
     }).catch(()=>{});
+    /* ★ 그리는 동안 보류됐던 전체 재렌더링을 획 저장 완료 후 반영 */
+    if(window.__cmPendingRender){window.__cmPendingRender=false;render();}
   }
   updateTool(t){this.tool={...this.tool,...t};}
 }
@@ -17666,6 +17671,9 @@ function lmSyncGlobalModals(){
 }
 // 1. render() 함수 전체 교체
 function render(){
+  /* ★ 캐치마인드 드로잉 중에는 무관한 실시간 이벤트(MBTI/장미 등)로 인한
+     전체 재렌더링이 캔버스를 날려버리지 않도록 그리기가 끝날 때까지 보류 */
+  if(window.__cmCanvas && window.__cmCanvas.isDown){ window.__cmPendingRender=true; return; }
   if(S.pvpBattle && document.querySelector('.pvp-modal')) return;
 
   /* 던전 탭 밖으로 나가면 전투 3D(WebGL) 정리 — 컨텍스트 누수 방지 */
